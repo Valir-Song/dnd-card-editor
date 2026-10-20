@@ -15,6 +15,12 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run check:build
+      - name: Save standalone HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: DND-Card-Editor-3.0.1
+          path: dist/index.html
+          retention-days: 30
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
