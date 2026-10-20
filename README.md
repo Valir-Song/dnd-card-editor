@@ -25,3 +25,25 @@
 
 ## Ограничения
 В этой среде npm registry может быть недоступен. Поэтому автономный HTML сформирован непосредственно из тех же исходников, без утверждения, что `npm run build` реально был исполнен. Настоящую сборку Vite следует проверить на машине с npm-доступом.
+
+## Version 3.0.1 — modular editor and verification
+
+The 3.0.1 source is in `src/editor.js` and feature modules under `src/editor/`:
+pointer movement, card backgrounds, image tools, layers, text formatting, object creation, and import/export.
+The original v3 layout format and browser storage key are unchanged.
+
+### Develop and build
+
+```sh
+npm install
+npm run dev
+npm test
+npm run build
+npm run check:build
+```
+
+Open `dist/index.html` to run the offline Vite build. For automated browser interaction checks, install Python Playwright and Chromium, then run `python tests/browser_smoke.py`. These smoke tests assemble the same modules into a browser-test document; the Vite output is separately validated by `npm run check:build`.
+
+GitHub Actions runs all checks for pull requests. Its **DND-Card-Editor-3.0.1** artifact contains the built single-file HTML.
+
+Version 3.0 remains available on the `main` branch until the 3.0.1 PR is reviewed and merged.
