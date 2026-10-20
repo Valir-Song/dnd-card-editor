@@ -24,3 +24,6 @@
 .el.selected .text-wrap:hover>.text-grip,.el.selected .text-wrap:focus-within>.text-grip,.el.selected .text-wrap:hover>.text-resize,.el.selected .text-wrap:focus-within>.text-resize{display:block}
 .text-wrap:hover{outline:1px dashed #72a4cf}
 @media print{.text-grip,.text-resize{display:none!important}.text-wrap:hover{outline:none}}
+
+/* 3.1: disabled history buttons */
+.toolbar button:disabled{opacity:.42;cursor:not-allowed}
