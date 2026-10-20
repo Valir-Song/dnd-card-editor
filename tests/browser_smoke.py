@@ -74,13 +74,13 @@ with sync_playwright() as p:
     page.locator('#add').click()
     page.locator('#duplicate').click()
     assert page.locator('.el').count()==count+2
-    page.locator('#front').click()
-    assert not errors,errors
     page.locator('#undo').click()
     assert page.locator('.el').count()==count+1, 'Layer undo or duplicate undo failed'
     page.locator('#rect').click()
     assert page.locator('#redo').is_disabled(), 'New edit after undo must clear redo'
     page.locator('#undo').click()
+    page.locator('#front').click()
+    assert not errors, errors
     page.locator('#front').click()
     assert not errors, errors
     print('PASS card duplication, layers and redo invalidation')
