@@ -4,8 +4,8 @@ function download(name,content,type){const url=URL.createObjectURL(new Blob([con
 document.getElementById('save').onclick=()=>{persist();alert('Сохранено в браузере. Для надёжного переноса нажми «Скачать HTML».')};
 document.getElementById('export').onclick=()=>{persist();const doc=document.documentElement.cloneNode(true);// Rebuild tab listeners when a downloaded copy opens again.
 doc.querySelector('.toolbar')?.removeAttribute('data-tabs-ready');
-for(const id of ['cardBgTools','imageTools']){const node=doc.getElementById(id);if(node)node.style.display='none'}
-for(const id of ['undo','redo']){const node=doc.getElementById(id);if(node)node.disabled=true}
+for(const id of ['cardBgTools','imageTools']){const node=doc.querySelector('#'+id);if(node)node.style.display='none'}
+for(const id of ['undo','redo']){const node=doc.querySelector('#'+id);if(node)node.disabled=true}
 doc.querySelector('#initial').textContent=JSON.stringify(getItems()).replace(/</g,'\\u003c');doc.querySelectorAll('.page').forEach(p=>p.replaceChildren());download('DND_Card_Editor_3_2.html','<!doctype html>\n'+doc.outerHTML,'text/html;charset=utf-8')};
 document.getElementById('json').onclick=()=>download('Ричард_макет_2.json',JSON.stringify(getItems(),null,2),'application/json');
 document.getElementById('import').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data))throw Error('Нужен массив элементов');setItems(data);clearSelection();persist();draw();syncImageTools();syncBgTools()}catch(err){alert('Ошибка: '+err.message)}finally{e.target.value=''}};
