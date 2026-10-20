@@ -155,5 +155,28 @@ with sync_playwright() as p:
     page.locator('#redo').click()
     assert page.locator('.el').count()==count
     print('PASS JSON import undo/redo')
+    # Exporting an edited HTML page must rebuild working tab listeners on reopening.
+    page.locator('[data-tab="files"]').click()
+    page.evaluate("""() => {
+      URL.createObjectURL=blob=>{window.__exportBlob=blob;return 'blob:mock'};
+      HTMLAnchorElement.prototype.click=function(){window.__exportName=this.download}
+    }""")
+    page.locator('#export').click()
+    assert page.evaluate('window.__exportName')=='DND_Card_Editor_3_2.html',errors
+    exported=page.evaluate('async()=>window.__exportBlob.text()')
+    assert 'data-tabs-ready="true"' not in exported.split('class="toolbar"',1)[1].split('>',1)[0]
+    reopened=browser.new_page()
+    reopened_errors=[]
+    reopened.on('pageerror',lambda error:reopened_errors.append(str(error)))
+    reopened.evaluate("""() => {const m=new Map();Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v)}})}""")
+    reopened.set_content(exported,wait_until='load')
+    assert reopened.locator('[role="tab"]').count()==6,reopened_errors
+    reopened.locator('[data-tab="appearance"]').click()
+    assert reopened.locator('#bg').is_visible()
+    reopened.locator('[data-tab="files"]').click()
+    assert reopened.locator('#print').is_visible()
+    assert not reopened_errors,reopened_errors
+    reopened.close()
+    print('PASS standalone HTML export and reopened tab listeners')
     browser.close()
 print('All smoke checks passed')
