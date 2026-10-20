@@ -18,7 +18,7 @@ jobs:
       - name: Save standalone HTML
         uses: actions/upload-artifact@v4
         with:
-          name: DND-Card-Editor-3.1
+          name: DND-Card-Editor-3.2
           path: dist/index.html
           retention-days: 30
       - uses: actions/setup-python@v5
