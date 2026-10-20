@@ -38,16 +38,18 @@ function navigateHistory(direction){
 }
 document.getElementById('undo').onclick=()=>navigateHistory('undo');
 document.getElementById('redo').onclick=()=>navigateHistory('redo');
-document.addEventListener('keydown',event=>{
+window.addEventListener('keydown',event=>{
   if(!(event.ctrlKey||event.metaKey)||event.altKey)return;
-  // The editor owns Undo/Redo even when focus remains in a toolbar input.
-  // Otherwise browser-native text undo masks card history after pointer gestures.
-  const key=event.key.toLowerCase();
-  const action=(key==='z'&&!event.shiftKey)?'undo':((key==='z'&&event.shiftKey)||key==='y')?'redo':null;
+  // Use the physical key in non-Latin layouts (e.g. Russian: Z='я', Y='н').
+  const key=(event.key||'').toLowerCase();
+  const isZ=key==='z'||event.code==='KeyZ';
+  const isY=key==='y'||event.code==='KeyY';
+  const action=(isZ&&!event.shiftKey)?'undo':((isZ&&event.shiftKey)||isY)?'redo':null;
   if(!action)return;
   event.preventDefault();
+  event.stopImmediatePropagation();
   navigateHistory(action);
-});
+},true);
 const getItems=()=>items,setItems=value=>{items=value};
 const getSelected=()=>selected,clearSelection=()=>{selected=null};
 const {setFocusedEditor}=setupTextFormatting();
