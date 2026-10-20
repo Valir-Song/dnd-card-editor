@@ -40,9 +40,8 @@ document.getElementById('undo').onclick=()=>navigateHistory('undo');
 document.getElementById('redo').onclick=()=>navigateHistory('redo');
 document.addEventListener('keydown',event=>{
   if(!(event.ctrlKey||event.metaKey)||event.altKey)return;
-  // Capture editor history shortcuts even while a card's contenteditable text has focus.
-  // Native undo in ordinary form fields remains untouched.
-  if(['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName) && !event.target.closest('.el'))return;
+  // The editor owns Undo/Redo even when focus remains in a toolbar input.
+  // Otherwise browser-native text undo masks card history after pointer gestures.
   const key=event.key.toLowerCase();
   const action=(key==='z'&&!event.shiftKey)?'undo':((key==='z'&&event.shiftKey)||key==='y')?'redo':null;
   if(!action)return;
