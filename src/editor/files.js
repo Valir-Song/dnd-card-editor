@@ -1,0 +1,10 @@
+// Persistence, import/export, and delete shortcuts.
+export function setupFiles({ getItems, setItems, getSelected, clearSelection, persist, draw, syncImageTools, syncBgTools }) {
+function download(name,content,type){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
+document.getElementById('save').onclick=()=>{persist();alert('Сохранено в браузере. Для надёжного переноса нажми «Скачать HTML».')};
+document.getElementById('export').onclick=()=>{persist();const doc=document.documentElement.cloneNode(true);doc.querySelector('#initial').textContent=JSON.stringify(getItems()).replace(/</g,'\\u003c');doc.querySelectorAll('.page').forEach(p=>p.replaceChildren());download('DND_Card_Editor_3_0_1.html','<!doctype html>\n'+doc.outerHTML,'text/html;charset=utf-8')};
+document.getElementById('json').onclick=()=>download('Ричард_макет_2.json',JSON.stringify(getItems(),null,2),'application/json');
+document.getElementById('import').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());if(!Array.isArray(data))throw Error('Нужен массив элементов');setItems(data);clearSelection();persist();draw();syncImageTools();syncBgTools()}catch(err){alert('Ошибка: '+err.message)}finally{e.target.value=''}};
+document.getElementById('print').onclick=()=>window.print();
+document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&getSelected()&&!e.target.isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)){setItems(getItems().filter(x=>x.id!==getSelected()));clearSelection();persist();draw();syncImageTools();syncBgTools()}});
+}
