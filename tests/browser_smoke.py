@@ -60,6 +60,26 @@ with sync_playwright() as p:
     page.locator('#redo').click()
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id).get('textFrames')
     print('PASS text frame drag with undo/redo')
+    # Whole-card movement and resizing each need an independent history step.
+    original=next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)
+    x0,w0=original['x'],original['w']
+    card.dispatch_event('pointerdown',{'button':0,'clientX':130,'clientY':130})
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointermove',{clientX:150,clientY:130}))")
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointerup'))")
+    moved=next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)
+    assert moved['x']!=x0
+    page.locator('#undo').click()
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['x']==x0
+    page.locator('#redo').click()
+    card.locator('.resize').dispatch_event('pointerdown',{'button':0,'clientX':130,'clientY':130})
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointermove',{clientX:165,clientY:130}))")
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointerup'))")
+    resized=next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)
+    assert resized['w']!=w0
+    page.locator('#undo').click()
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0
+    page.locator('#redo').click()
+    print('PASS card movement/resize undo/redo')
     count=page.locator('.el').count()
     page.locator('#rect').click()
     assert page.locator('.el').count()==count+1
