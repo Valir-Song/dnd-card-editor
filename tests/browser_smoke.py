@@ -107,6 +107,8 @@ with sync_playwright() as p:
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0
     assert localized_hotkey('н','KeyY'), 'Russian Ctrl+Y shortcut was not handled'
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0
+    assert localized_hotkey('я','KeyZ'), 'Russian Ctrl+Z before redo was not handled'
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0
     assert localized_hotkey('Я','KeyZ',True), 'Russian Ctrl+Shift+Z shortcut was not handled'
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0
     print('PASS shortcuts with Cyrillic keyboard layout and focused level badge')
