@@ -13,7 +13,7 @@ html=html.replace('<script src="/src/main.js" type="module"></script>','')
 css=(root/'src/styles.css').read_text(encoding='utf-8')
 html=html.replace('</head>','<style>'+css+'</style></head>')
 parts=[]
-for name in ['interactions','card-background','image-tools','layers','text-format','objects','files']:
+for name in ['history','interactions','card-background','image-tools','layers','text-format','objects','files']:
     src=(root/('src/editor/'+name+'.js')).read_text(encoding='utf-8')
     parts.append(src.replace('export function ','function '))
 core=(root/'src/editor.js').read_text(encoding='utf-8')
@@ -31,7 +31,8 @@ with sync_playwright() as p:
     page.evaluate("""() => {const m=new Map(); Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v)}});}""")
     page.set_content(html,wait_until='load')
     assert page.locator('.el').count()==len(json.loads(layout)),errors
-    print('PASS render layout')
+    assert page.locator('#undo').is_disabled() and page.locator('#redo').is_disabled()
+    print('PASS render layout, history initially empty')
     card=page.locator('.el.card').first
     item_id=card.get_attribute('data-id')
     title=card.locator('.title.editable')
@@ -39,31 +40,58 @@ with sync_playwright() as p:
     assert card.evaluate('(e)=>e.classList.contains("selected")')
     title.fill('Модульный тест')
     assert 'Модульный тест' in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
-    print('PASS selection, editing and persistence')
+    assert page.locator('#undo').is_enabled()
+    page.keyboard.press('Control+z')
+    assert card.locator('.title').inner_text()!='Модульный тест'
+    assert page.locator('#redo').is_enabled()
+    page.keyboard.press('Control+Shift+z')
+    assert card.locator('.title').inner_text()=='Модульный тест'
+    print('PASS selection, editing, persistence and keyboard undo/redo')
+    card.locator('.title').click()
     grip=card.locator('.text-grip').first
     grip.dispatch_event('pointerdown',{'button':0,'clientX':100,'clientY':100})
     page.evaluate("window.dispatchEvent(new PointerEvent('pointermove',{clientX:135,clientY:120}))")
     page.evaluate("window.dispatchEvent(new PointerEvent('pointerup'))")
     saved=json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")'))
     assert next(x for x in saved if x['id']==item_id).get('textFrames')
-    print('PASS text frame dragging')
+    page.locator('#undo').click()
+    undone=json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")'))
+    assert not next(x for x in undone if x['id']==item_id).get('textFrames'), 'Text frame undo failed'
+    page.locator('#redo').click()
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id).get('textFrames')
+    print('PASS text frame drag with undo/redo')
     count=page.locator('.el').count()
     page.locator('#rect').click()
     assert page.locator('.el').count()==count+1
     assert page.locator('.el.selected.shape').count()==1
     page.locator('#delete').click()
     assert page.locator('.el').count()==count
-    print('PASS adding/deleting shapes')
+    page.locator('#undo').click()
+    assert page.locator('.el').count()==count+1, 'Delete undo failed'
+    page.locator('#redo').click()
+    assert page.locator('.el').count()==count, 'Delete redo failed'
+    print('PASS shape creation/deletion with undo/redo')
     page.locator('#add').click()
     page.locator('#duplicate').click()
     assert page.locator('.el').count()==count+2
     page.locator('#front').click()
     assert not errors,errors
-    print('PASS card duplication/layer ordering')
+    page.locator('#undo').click()
+    assert page.locator('.el').count()==count+1, 'Layer undo or duplicate undo failed'
+    page.locator('#rect').click()
+    assert page.locator('#redo').is_disabled(), 'New edit after undo must clear redo'
+    page.locator('#undo').click()
+    page.locator('#front').click()
+    assert not errors, errors
+    print('PASS card duplication, layers and redo invalidation')
     data=json.dumps(json.loads(layout)).encode()
     page.set_input_files('#import',{'name':'layout.json','mimeType':'application/json','buffer':data})
     assert page.locator('.el').count()==count
     assert not errors,errors
-    print('PASS JSON import')
+    page.locator('#undo').click()
+    assert page.locator('.el').count()==count+1, 'Import undo failed'
+    page.locator('#redo').click()
+    assert page.locator('.el').count()==count
+    print('PASS JSON import undo/redo')
     browser.close()
 print('All smoke checks passed')
