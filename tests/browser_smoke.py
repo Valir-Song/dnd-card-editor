@@ -79,6 +79,17 @@ with sync_playwright() as p:
     page.locator('#undo').click()
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0
     page.locator('#redo').click()
+    page.locator('#bg').focus()
+    page.keyboard.press('Control+z')
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0, 'Ctrl+Z with toolbar focus'
+    page.keyboard.press('Control+y')
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0, 'Ctrl+Y with toolbar focus'
+    card.locator('.title.editable').focus()
+    page.keyboard.press('Control+z')
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0, 'Ctrl+Z with card text focus'
+    page.keyboard.press('Control+Shift+z')
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0, 'Ctrl+Shift+Z with card text focus'
+    print('PASS keyboard history when inputs and card text retain focus')
     print('PASS card movement/resize undo/redo')
     count=page.locator('.el').count()
     page.locator('#rect').click()
