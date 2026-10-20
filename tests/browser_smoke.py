@@ -13,7 +13,7 @@ html=html.replace('<script src="/src/main.js" type="module"></script>','')
 css=(root/'src/styles.css').read_text(encoding='utf-8')
 html=html.replace('</head>','<style>'+css+'</style></head>')
 parts=[]
-for name in ['history','interactions','card-background','image-tools','layers','text-format','objects','files']:
+for name in ['history','interactions','card-background','image-tools','layers','text-format','objects','files','toolbar-tabs']:
     src=(root/('src/editor/'+name+'.js')).read_text(encoding='utf-8')
     parts.append(src.replace('export function ','function '))
 core=(root/'src/editor.js').read_text(encoding='utf-8')
@@ -31,6 +31,13 @@ with sync_playwright() as p:
     page.evaluate("""() => {const m=new Map(); Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v)}});}""")
     page.set_content(html,wait_until='load')
     assert page.locator('.el').count()==len(json.loads(layout)),errors
+    assert page.locator('[role="tab"]').count()==6
+    assert page.locator('#panel-cards').is_visible() and page.locator('#panel-files').is_hidden()
+    page.locator('[data-tab="appearance"]').click()
+    assert page.locator('#panel-appearance').is_visible() and page.locator('#panel-cards').is_hidden()
+    page.locator('[data-tab="cards"]').click()
+    print('PASS accessible toolbar tabs and panel switching')
+
     assert page.locator('#undo').is_disabled() and page.locator('#redo').is_disabled()
     print('PASS render layout, history initially empty')
     card=page.locator('.el.card').first
@@ -79,7 +86,7 @@ with sync_playwright() as p:
     page.locator('#undo').click()
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0
     page.locator('#redo').click()
-    page.locator('#bg').focus()
+    page.locator('[data-tab="appearance"]').click(); page.locator('#bg').focus()
     page.keyboard.press('Control+z')
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0, 'Ctrl+Z with toolbar focus'
     page.keyboard.press('Control+y')
@@ -115,30 +122,31 @@ with sync_playwright() as p:
 
     print('PASS card movement/resize undo/redo')
     count=page.locator('.el').count()
-    page.locator('#rect').click()
+    page.locator('[data-tab="figures"]').click(); page.locator('#rect').click()
     assert page.locator('.el').count()==count+1
     assert page.locator('.el.selected.shape').count()==1
-    page.locator('#delete').click()
+    page.locator('[data-tab="cards"]').click(); page.locator('#delete').click()
     assert page.locator('.el').count()==count
     page.locator('#undo').click()
     assert page.locator('.el').count()==count+1, 'Delete undo failed'
     page.locator('#redo').click()
     assert page.locator('.el').count()==count, 'Delete redo failed'
     print('PASS shape creation/deletion with undo/redo')
-    page.locator('#add').click()
-    page.locator('#duplicate').click()
+    page.locator('[data-tab="cards"]').click(); page.locator('#add').click()
+    page.locator('[data-tab="cards"]').click(); page.locator('#duplicate').click()
     assert page.locator('.el').count()==count+2
     page.locator('#undo').click()
     assert page.locator('.el').count()==count+1, 'Layer undo or duplicate undo failed'
-    page.locator('#rect').click()
+    page.locator('[data-tab="figures"]').click(); page.locator('#rect').click()
     assert page.locator('#redo').is_disabled(), 'New edit after undo must clear redo'
     page.locator('#undo').click()
-    page.locator('#front').click()
+    page.locator('[data-tab="layers"]').click(); page.locator('#front').click()
     assert not errors, errors
-    page.locator('#front').click()
+    page.locator('[data-tab="layers"]').click(); page.locator('#front').click()
     assert not errors, errors
     print('PASS card duplication, layers and redo invalidation')
     data=json.dumps(json.loads(layout)).encode()
+    page.locator('[data-tab="files"]').click()
     page.set_input_files('#import',{'name':'layout.json','mimeType':'application/json','buffer':data})
     assert page.locator('.el').count()==count
     assert not errors,errors
