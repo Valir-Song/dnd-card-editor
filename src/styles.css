@@ -27,3 +27,33 @@
 
 /* 3.1: disabled history buttons */
 .toolbar button:disabled{opacity:.42;cursor:not-allowed}
+
+
+/* 3.2: tabbed toolbar; controls retain their original handlers. */
+.toolbar{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0;background:#29253a;font:13px Arial,sans-serif}
+.toolbar-top{display:flex;align-items:center;gap:12px;padding:8px 12px 6px;min-height:48px}
+.toolbar-identity{font-size:13px;white-space:nowrap;margin-right:auto}
+.toolbar-history{display:flex;gap:6px;align-items:center}
+.toolbar-help{position:relative;margin-left:8px;font-size:12px}
+.toolbar-help summary{cursor:pointer;list-style:none;color:#e3dcec;padding:7px;border-radius:5px}
+.toolbar-help summary:hover{background:#ffffff16}
+.toolbar-help .hint{position:absolute;right:0;top:31px;z-index:205;width:min(390px,80vw);white-space:normal;background:#f8f4ff;border:1px solid #d2c5e1;border-radius:7px;box-shadow:0 5px 20px #0003;color:#29253a;padding:12px;line-height:1.6;opacity:1}
+.toolbar-tabs{display:flex;gap:3px;overflow-x:auto;scrollbar-width:thin;padding:0 10px;min-height:38px;align-items:end;border-bottom:1px solid #514765}
+.toolbar .toolbar-tab{flex:0 0 auto;border-radius:7px 7px 0 0;background:transparent;color:#ddd5eb;padding:9px 13px;border:1px solid transparent;border-bottom:0;white-space:nowrap;font-weight:500}
+.toolbar .toolbar-tab:hover{background:#413651;color:white}
+.toolbar .toolbar-tab[aria-selected="true"]{background:#f1edf7;color:#342344;border-color:#817298;font-weight:600}
+.toolbar .toolbar-tab:focus-visible{outline:2px solid #cca5f8;outline-offset:-3px}
+.toolbar-content{background:#f1edf7;color:#29253a;min-height:53px;padding:8px 12px;display:flex;align-items:center}
+.toolbar-panel{display:flex;align-items:center;flex-wrap:wrap;gap:7px;width:100%;min-height:37px}
+.toolbar-panel[hidden]{display:none!important}
+.toolbar-content button,.toolbar-content select,.toolbar-content label{background:white;border:1px solid #d9d1e2;border-radius:6px;padding:7px 10px;color:#352b49;box-shadow:0 1px 1px #00000009}
+.toolbar-content label{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.toolbar-content label select{box-shadow:none;padding:4px 5px}
+.toolbar-content button:hover,.toolbar-content label:hover{border-color:#9785b6}
+.toolbar-content input[type="range"]{accent-color:#7356a1;vertical-align:middle}
+.toolbar-content .tool-group{flex-wrap:wrap;gap:6px!important}
+.toolbar-content .tool-group label{background:#fff}
+.toolbar-content .tool-group button{white-space:nowrap}
+.toolbar-top button{white-space:nowrap}
+@media(max-width:650px){.toolbar-top{flex-wrap:wrap;padding:7px 8px}.toolbar-identity{width:100%}.toolbar-tabs{padding:0 6px}.toolbar .toolbar-tab{padding:8px 10px}.toolbar-content{padding:7px}}
+@media print{.toolbar{display:none!important}}
