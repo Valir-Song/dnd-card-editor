@@ -47,3 +47,19 @@ Open `dist/index.html` to run the offline Vite build. For automated browser inte
 GitHub Actions runs all checks for pull requests. Its **DND-Card-Editor-3.0.1** artifact contains the built single-file HTML.
 
 Version 3.0 remains available on the `main` branch until the 3.0.1 PR is reviewed and merged.
+
+
+## Version 3.1 — Undo/Redo
+
+The editor now has **Отменить** and **Повторить** buttons and keyboard shortcuts:
+
+- **Ctrl+Z** (or **Cmd+Z** on macOS): undo the last editor action.
+- **Ctrl+Y** / **Ctrl+Shift+Z** (or **Cmd+Shift+Z**): redo.
+
+Undo history includes text edits, formatting, card movement and resizing, text-frame movement and resizing, creation and deletion of objects, layer changes, background/image settings and JSON import.
+
+Pointer gestures create one history step when released; adjacent keystrokes and slider changes are grouped. Performing a new edit after undo clears the available redo branch.
+
+History is **in memory only**: it resets when you reload or close the page. Existing saved layouts and the `dnd-card-editor-v3` storage key remain compatible with version 3.0.1. The history has a 60-step / ~48 MiB cap; large embedded images may reduce available steps.
+
+To verify: `npm test`, `python tests/browser_smoke.py`, `npm run build`, `npm run check:build`.
