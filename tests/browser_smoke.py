@@ -148,7 +148,7 @@ with sync_playwright() as p:
     data=json.dumps(json.loads(layout)).encode()
     page.locator('[data-tab="files"]').click()
     page.set_input_files('#import',{'name':'layout.json','mimeType':'application/json','buffer':data})
-    assert page.locator('.el').count()==count
+    page.wait_for_function(f'document.querySelectorAll(".el").length === {count}')
     assert not errors,errors
     page.locator('#undo').click()
     assert page.locator('.el').count()==count+1, 'Import undo failed'
