@@ -90,6 +90,27 @@ with sync_playwright() as p:
     page.keyboard.press('Control+Shift+z')
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0, 'Ctrl+Shift+Z with card text focus'
     print('PASS keyboard history when inputs and card text retain focus')
+
+    # Simulate a Russian keyboard layout. On the same physical keys, event.key
+    # is Cyrillic 'я'/'н'; relying only on the Latin character misses Undo/Redo.
+    page.locator('.level').first.focus()
+    def localized_hotkey(key,code,shift=False):
+        return page.evaluate("""args=>{
+            const event=new KeyboardEvent('keydown',{
+                key:args[0],code:args[1],ctrlKey:true,shiftKey:args[2],
+                bubbles:true,cancelable:true
+            });
+            document.activeElement.dispatchEvent(event);
+            return event.defaultPrevented;
+        }""",[key,code,shift])
+    assert localized_hotkey('я','KeyZ'), 'Russian Ctrl+Z shortcut was not handled'
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0
+    assert localized_hotkey('н','KeyY'), 'Russian Ctrl+Y shortcut was not handled'
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0
+    assert localized_hotkey('Я','KeyZ',True), 'Russian Ctrl+Shift+Z shortcut was not handled'
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0
+    print('PASS shortcuts with Cyrillic keyboard layout and focused level badge')
+
     print('PASS card movement/resize undo/redo')
     count=page.locator('.el').count()
     page.locator('#rect').click()
