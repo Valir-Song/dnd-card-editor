@@ -13,6 +13,15 @@ const embedded=JSON.parse(document.getElementById('initial').textContent);
 try{const s=localStorage.getItem(key);items=s?JSON.parse(s):embedded}catch(e){items=embedded}
 let selected=null, activePage=1;
 items.forEach((v,i)=>{if(!Number.isFinite(v.z))v.z=i+1});
+// Legacy starter cards pinned the circle to the upper right. Switch those
+// defaults to the lower-right anchor, without overriding manually moved badges.
+let migratedBadges=false;
+for(const item of items){
+  if(item.kind==='card' && !item.badgeCustomPosition && item.badgeX===81.5 && item.badgeY===1.1){
+    delete item.badgeX;delete item.badgeY;migratedBadges=true;
+  }
+}
+if(migratedBadges){try{localStorage.setItem(key,JSON.stringify(items))}catch(e){console.warn('Could not persist badge migration',e)}}
 const pages=[document.getElementById('page1'),document.getElementById('page2')];
 const mm=v=>v+'mm',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function saveToStorage(){try{localStorage.setItem(key,JSON.stringify(items))}catch(e){console.warn('Storage limit exceeded: export HTML to save',e)}}
