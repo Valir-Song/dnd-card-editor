@@ -6,6 +6,7 @@ import { setupLayers } from './editor/layers.js';
 import { setupTextFormatting } from './editor/text-format.js';
 import { setupObjects } from './editor/objects.js';
 import { setupFiles } from './editor/files.js';
+import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 
 // State and DOM rendering remain together to minimize v3 regressions.
 const key='dnd-card-editor-v3';let items;
@@ -77,3 +78,4 @@ setupLayers({current,getItems,getSelected,persist,draw,select});
 setupFiles({getItems,setItems,getSelected,clearSelection,persist,draw,syncImageTools,syncBgTools});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 draw();
+setupToolbarTabs();
