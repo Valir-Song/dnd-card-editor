@@ -95,6 +95,13 @@ with sync_playwright() as p:
     page.keyboard.press('Control+Shift+z')
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0, 'Ctrl+Shift+Z with card text focus'
     print('PASS keyboard history when inputs and card text retain focus')
+    card.locator('.level').focus()
+    page.keyboard.press('Control+z')
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0, 'Ctrl+Z with level badge focused'
+    page.keyboard.press('Control+y')
+    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0, 'Ctrl+Y with level badge focused'
+    print('PASS keyboard history with circle text focused')
+
     print('PASS card movement/resize undo/redo')
     count=page.locator('.el').count()
     page.locator('#rect').click()
