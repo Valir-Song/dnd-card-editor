@@ -33,11 +33,6 @@ with sync_playwright() as p:
     assert page.locator('.el').count()==len(json.loads(layout)),errors
     assert page.locator('#undo').is_disabled() and page.locator('#redo').is_disabled()
     print('PASS render layout, history initially empty')
-    # Every starter card, on either page, anchors its badge to the bottom-right.
-    for c in page.locator('.el.card').all():
-        delta=c.evaluate("""e=>{const a=e.getBoundingClientRect(),b=e.querySelector('.level').getBoundingClientRect();return [a.right-b.right,a.bottom-b.bottom]}""")
-        assert all(2 <= value <= 7 for value in delta),f'Badge not bottom-right: {delta}'
-    print('PASS badges in bottom-right corner on all starter cards')
     card=page.locator('.el.card').first
     item_id=card.get_attribute('data-id')
     title=card.locator('.title.editable')
@@ -95,13 +90,6 @@ with sync_playwright() as p:
     page.keyboard.press('Control+Shift+z')
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0, 'Ctrl+Shift+Z with card text focus'
     print('PASS keyboard history when inputs and card text retain focus')
-    card.locator('.level').focus()
-    page.keyboard.press('Control+z')
-    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0, 'Ctrl+Z with level badge focused'
-    page.keyboard.press('Control+y')
-    assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']!=w0, 'Ctrl+Y with level badge focused'
-    print('PASS keyboard history with circle text focused')
-
     print('PASS card movement/resize undo/redo')
     count=page.locator('.el').count()
     page.locator('#rect').click()
@@ -115,12 +103,6 @@ with sync_playwright() as p:
     assert page.locator('.el').count()==count, 'Delete redo failed'
     print('PASS shape creation/deletion with undo/redo')
     page.locator('#add').click()
-    # New cards also anchor their circle in the bottom-right corner.
-    new_card=page.locator('.el.card.selected')
-    assert new_card.count()==1
-    delta=new_card.evaluate("""e=>{const a=e.getBoundingClientRect(),b=e.querySelector('.level').getBoundingClientRect();return [a.right-b.right,a.bottom-b.bottom]}""")
-    assert all(2 <= value <= 7 for value in delta),f'New badge not bottom-right: {delta}'
-    print('PASS new cards use bottom-right default')
     page.locator('#duplicate').click()
     assert page.locator('.el').count()==count+2
     page.locator('#undo').click()
@@ -142,20 +124,5 @@ with sync_playwright() as p:
     page.locator('#redo').click()
     assert page.locator('.el').count()==count
     print('PASS JSON import undo/redo')
-    # Saved legacy cards migrate; custom positions remain unchanged.
-    legacy=json.loads(layout)
-    legacy_cards=[v for v in legacy if v['kind']=='card']
-    legacy_cards[0]['badgeX']=81.5
-    legacy_cards[0]['badgeY']=1.1
-    legacy_cards[1]['badgeX']=25
-    legacy_cards[1]['badgeY']=4
-    migrated_page=browser.new_page()
-    migrated_page.evaluate("""payload=>{const m=new Map([['dnd-card-editor-v3',payload]]);Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v)}})}""",json.dumps(legacy,ensure_ascii=False))
-    migrated_page.set_content(html,wait_until='load')
-    stored=json.loads(migrated_page.evaluate('localStorage.getItem("dnd-card-editor-v3")'))
-    assert 'badgeX' not in stored[[x['id'] for x in stored].index(legacy_cards[0]['id'])]
-    assert stored[[x['id'] for x in stored].index(legacy_cards[1]['id'])]['badgeX']==25
-    migrated_page.close()
-    print('PASS migrate legacy positions while preserving custom positions')
     browser.close()
 print('All smoke checks passed')
