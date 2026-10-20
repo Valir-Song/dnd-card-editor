@@ -57,3 +57,6 @@
 .toolbar-top button{white-space:nowrap}
 @media(max-width:650px){.toolbar-top{flex-wrap:wrap;padding:7px 8px}.toolbar-identity{width:100%}.toolbar-tabs{padding:0 6px}.toolbar .toolbar-tab{padding:8px 10px}.toolbar-content{padding:7px}}
 @media print{.toolbar{display:none!important}}
+
+/* Expanded conditional groups participate in normal panel wrapping. */
+.toolbar-content #cardBgTools[style*="inline-flex"],.toolbar-content #imageTools[style*="inline-flex"]{display:contents!important}
