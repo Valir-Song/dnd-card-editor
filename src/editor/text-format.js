@@ -39,6 +39,7 @@ export function setupTextFormatting({current,persist}) {
     const item=current(),editor=currentEditor();
     if(!item||!editor)return;
     const isBox=item.kind==='textbox';
+    const selectedText=selectionIn(editor)&&!savedRange.collapsed;
     let probe=editor;
     if(selectionIn(editor)){
       const n=savedRange.startContainer;
@@ -47,21 +48,21 @@ export function setupTextFormatting({current,persist}) {
     }
     const css=getComputedStyle(probe);
     const field=isBox?{}:(item.textStyles?.[editor.classList[0]]||{});
-    const family=isBox?item.fontFamily:(field.fontFamily||css.fontFamily);
-    const points=isBox?(item.fontSize||12):(parseFloat(field.fontSize)||parseFloat(css.fontSize)*.75||12);
+    const family=isBox&&!selectedText?item.fontFamily:(field.fontFamily||css.fontFamily);
+    const points=isBox&&!selectedText?(item.fontSize||12):(parseFloat(field.fontSize)||parseFloat(css.fontSize)*.75||12);
     controls.fontFamily.value=fontName(family);
     controls.fontSize.value=String(Math.round(points*10)/10);
     controls.textAlign.value=isBox?(item.textAlign||'left'):(field.textAlign||getComputedStyle(editor).textAlign||'left');
-    const color=isBox?(item.textColor||'#262137'):(field.color||css.color);
+    const color=isBox&&!selectedText?(item.textColor||'#262137'):(field.color||css.color);
     const context=document.createElement('span');context.style.color=color;
     document.body.append(context);
     const rgb=getComputedStyle(context).color;
     context.remove();
     const match=rgb.match(/[\d.]+/g);
     if(match?.length>=3)controls.textColor.value='#'+match.slice(0,3).map(x=>Math.round(Number(x)).toString(16).padStart(2,'0')).join('');
-    const weight=isBox?(item.textWeight||'normal'):(field.fontWeight||css.fontWeight);
-    const italic=isBox?(item.fontStyle||'normal'):(field.fontStyle||css.fontStyle);
-    const decoration=isBox?(item.textDecoration||'none'):(field.textDecoration||css.textDecorationLine);
+    const weight=isBox&&!selectedText?(item.textWeight||'normal'):(field.fontWeight||css.fontWeight);
+    const italic=isBox&&!selectedText?(item.fontStyle||'normal'):(field.fontStyle||css.fontStyle);
+    const decoration=isBox&&!selectedText?(item.textDecoration||'none'):(field.textDecoration||css.textDecorationLine);
     for(const [i,on] of [Number(weight)>=600||weight==='bold',italic==='italic'||italic==='oblique',String(decoration).includes('underline')].entries()){
       buttons[i].setAttribute('aria-pressed',String(on));
     }
