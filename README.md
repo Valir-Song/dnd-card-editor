@@ -113,3 +113,17 @@ Chromium and Firefox, including live font growth, old JSON import, global
 Undo/Redo, new text boxes and offline round-trip export.
 
 Tiptap is MIT licensed. Source: https://github.com/ueberdosis/tiptap.
+
+
+## Version 3.2.0 — stable (2026-10-21)
+
+3.2 is now the supported mainline editor, using Tiptap for every text field.
+The former 3.1 mainline is preserved at `archive/stable-3.1-before-tiptap`.
+The 3.2 single-file build is `dist/index.html`; the editor's **Download HTML**
+command exports `DND_Card_Editor_3_2_Stable.html`.
+
+Automated verification runs Node source tests, Vite single-file build checks,
+and Playwright end-to-end tests on the compiled offline HTML in both Chromium
+and Firefox. These tests do not replace testing with real D&D layouts in the
+user's own browser. Before changing or importing a large layout, export a JSON
+backup and keep a copy of the standalone HTML.
