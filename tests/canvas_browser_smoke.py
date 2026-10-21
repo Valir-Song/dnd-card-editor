@@ -17,6 +17,7 @@ with sync_playwright() as p:
     page=context.new_page()
     errors=[]
     page.on('pageerror',lambda e: errors.append(str(e)))
+    page.on('console',lambda message: print('BROWSER',message.text,flush=True) if 'DND DEBUG' in message.text else None)
     page.goto(html.as_uri(),wait_until='load')
     page.wait_for_selector('.el.card .tiptap-content')
     assert not errors, errors
