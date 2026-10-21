@@ -87,7 +87,9 @@ export function setupTextFormatting({current,persist}) {
   }
   function persistFormatted(node,item,prop){
     const field=node.classList[0];
-    item[field+'Html']=node.innerHTML;
+    const cloned=node.cloneNode(true);
+    for(const active of cloned.querySelectorAll('.format-target'))active.classList.remove('format-target');
+    item[field+'Html']=cloned.innerHTML;
     item[field]=node.innerText;
     persist({group:'format:'+item.id+':'+field+':'+prop,windowMs:350});
     sync();
