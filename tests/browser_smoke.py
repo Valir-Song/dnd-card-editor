@@ -1,6 +1,7 @@
 """Headless Chromium smoke tests. Uses inlined ES modules to avoid requiring a server."""
 from pathlib import Path
 from shutil import which
+import os
 import json
 import re
 from playwright.sync_api import sync_playwright
@@ -23,8 +24,12 @@ html=html.replace('</body>','<script>'+'\n'.join(parts)+'</script></body>')
 
 with sync_playwright() as p:
     args={'headless':True,'args':['--no-sandbox']}
-    if which('chromium'): args['executable_path']=which('chromium')
-    browser=p.chromium.launch(**args)
+    engine=os.environ.get('EDITOR_BROWSER','chromium').lower()
+    if engine not in ('chromium','firefox'): raise ValueError('Unsupported browser: '+engine)
+    if engine=='chromium' and which('chromium'): args['executable_path']=which('chromium')
+    if engine=='firefox': args.pop('args',None)
+    browser=getattr(p,engine).launch(**args)
+    print('Testing browser:',engine)
     page=browser.new_page()
     errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
