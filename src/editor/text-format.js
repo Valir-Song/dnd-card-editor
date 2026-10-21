@@ -115,6 +115,22 @@ export function setupTextFormatting({current,persist}) {
   function wrapSelection(){
     if(liveSpan&&document.contains(liveSpan)&&contains(editor,liveSpan))return liveSpan;
     if(!isSelected())return null;
+    // If a whole formatted word is selected, reuse its outermost inline span.
+    // Editing an inner text node must not create nested spans with stale sizes.
+    const selected=range.toString();
+    if(range.startContainer===range.endContainer&&range.startContainer.nodeType===Node.TEXT_NODE&&
+       range.startOffset===0&&range.endOffset===range.startContainer.length){
+      let node=range.startContainer.parentElement,match=null;
+      while(node&&node!==editor&&contains(editor,node)&&node.textContent===selected){
+        if(node.tagName==='SPAN'||node.tagName==='FONT')match=node;
+        node=node.parentElement;
+      }
+      if(match){
+        range=document.createRange();range.selectNodeContents(match);
+        liveSpan=match;
+        return match;
+      }
+    }
     const saved=range.cloneRange();
     const fragment=saved.extractContents();
     const span=document.createElement('span');span.append(fragment);
