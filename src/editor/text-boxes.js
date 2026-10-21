@@ -1,12 +1,8 @@
-// Independent text boxes share the editor's object, layer, history and file systems.
+// Background, border and geometry controls for Tiptap-backed text boxes.
+// All typography is controlled by the shared Tiptap toolbar.
 export function setupTextBoxes({addObject,current,persist,draw}) {
-  const controls=document.getElementById('textBoxTools');
+  const group=document.getElementById('textBoxTools');
   const fields={
-    fontFamily:document.getElementById('boxFont'),
-    fontSize:document.getElementById('boxSize'),
-    textAlign:document.getElementById('boxAlign'),
-    textWeight:document.getElementById('boxBold'),
-    textColor:document.getElementById('boxTextColor'),
     bg:document.getElementById('boxBgColor'),
     borderColor:document.getElementById('boxBorderColor'),
     bgTransparent:document.getElementById('boxTransparent'),
@@ -20,32 +16,24 @@ export function setupTextBoxes({addObject,current,persist,draw}) {
     textColor:'#262137',bg:'#ffffff',borderColor:'#745193',
     bgTransparent:true,borderVisible:false,autoHeight:false
   });
-  const active=()=>{const c=current();return c?.kind==='textbox'?c:null};
-  const update=()=>{const c=active();if(!c)return;persist();draw();
-    const element=Array.from(document.querySelectorAll('.el.textbox')).find(e=>e.dataset.id===c.id);
-    if(element)element.classList.add('selected');
-  };
+  const active=()=>{const item=current();return item?.kind==='textbox'?item:null};
   function syncTextBoxTools(){
-    const c=active();controls.style.display=c?'inline-flex':'none';
-    if(!c)return;
-    for(const [key,input] of Object.entries(fields)){
-      if(key==='textWeight')input.checked=(c.textWeight==='bold');
-      else if(['bgTransparent','borderVisible','autoHeight'].includes(key))input.checked=!!c[key];
-      else input.value=c[key]??({fontFamily:'Georgia',fontSize:12,textAlign:'left',textColor:'#262137',bg:'#ffffff',borderColor:'#745193'}[key]||'');
+    const item=active();group.style.display=item?'inline-flex':'none';
+    if(!item)return;
+    for(const [property,field] of Object.entries(fields)){
+      if(field.type==='checkbox')field.checked=!!item[property];
+      else field.value=item[property]||({bg:'#ffffff',borderColor:'#745193'}[property]);
     }
-    fields.bg.disabled=!!c.bgTransparent;
-    fields.borderColor.disabled=!c.borderVisible;
+    fields.bg.disabled=!!item.bgTransparent;
+    fields.borderColor.disabled=!item.borderVisible;
   }
-  for(const [key,input] of Object.entries(fields)){
-    const handler=()=>{
-      const c=active();if(!c)return;
-      if(key==='textWeight')c.textWeight=input.checked?'bold':'normal';
-      else if(['bgTransparent','borderVisible','autoHeight'].includes(key))c[key]=input.checked;
-      else if(key==='fontSize')c.fontSize=Math.max(6,Math.min(72,Number(input.value)||12));
-      else c[key]=input.value;
-      update();syncTextBoxTools();
-    };
-    input.addEventListener(key==='fontSize'?'change':(input.type==='checkbox'||input.tagName==='SELECT'?'change':'input'),handler);
+  for(const [property,field] of Object.entries(fields)){
+    field.addEventListener(field.type==='checkbox'?'change':'input',()=>{
+      const item=active();if(!item)return;
+      item[property]=field.type==='checkbox'?field.checked:field.value;
+      persist({group:'textbox-style:'+item.id+':'+property,windowMs:400});
+      draw();syncTextBoxTools();
+    });
   }
   return {syncTextBoxTools};
 }
