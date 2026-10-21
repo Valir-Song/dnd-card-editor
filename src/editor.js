@@ -65,7 +65,7 @@ window.addEventListener('keydown',event=>{
 const getItems=()=>items,setItems=value=>{items=value};
 const getSelected=()=>selected,clearSelection=()=>{selected=null};
 let syncTextBoxTools=()=>{};
-const {setFocusedEditor,syncTextControls}=setupTextFormatting({current,persist});
+const {setFocusedEditor,syncTextControls,isFormatting}=setupTextFormatting({current,persist});
 const {startDrag,startTextMove,startTextResize,startResize}=createInteractions({select,persist,mm});
 const {syncBgTools}=setupCardBackground({current,persist,draw,getItems});
 const {syncImageTools}=setupImageTools({current,persist});
@@ -80,6 +80,7 @@ function setField(node,item,f){
       node.style[property]=property==='fontSize'?(parseFloat(value)+'pt'):value;
   }
   node.addEventListener('input',event=>{
+    if(isFormatting())return; // Native execCommand input fires before post-processing.
     item[f+'Html']=node.innerHTML;item[f]=node.innerText;
     if(isBox&&item.autoHeight){
       const box=node.closest('.el'),page=box.closest('.page');
