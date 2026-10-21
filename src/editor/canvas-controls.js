@@ -174,7 +174,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
         setSelection(ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
         return;
       }
-      if (!ids.includes(id)) setSelection([id], id);
+      if (inner?.hasSelection() || !ids.includes(id)) setSelection([id], id);
       const nativeEditor = e.target.closest('.editable, [contenteditable], input, textarea, select, .text-grip, .text-resize, .level');
       if (nativeEditor) return;
       // The gesture begins on the same click that selects the object.
