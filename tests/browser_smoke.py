@@ -98,21 +98,40 @@ with sync_playwright() as p:
     page.wait_for_timeout(40)
     assert page.locator('#fontSize').input_value()=='17'
     page.locator('#fontSize').click()
+    def selected_metrics():
+        return title.evaluate("""e=>{
+          const styled=e.querySelector('span[style*="font-size"]');
+          if(!styled)return null;
+          const bounds=styled.getBoundingClientRect();
+          return {font:parseFloat(getComputedStyle(styled).fontSize),
+                  height:bounds.height,count:e.querySelectorAll('span[style*="font-size"]').length,
+                  text:styled.textContent,highlight:styled.classList.contains('format-target')}
+        }""")
+    original=selected_metrics()
     page.keyboard.press('ArrowUp')
-    assert 'font-size: 18pt' in title.inner_html(),'Spinner ArrowUp must change highlighted text to 18pt'
+    raised=selected_metrics()
+    assert raised['font']>original['font'],'The glyphs must grow immediately after ArrowUp'
+    assert raised['height']>original['height'],'Live glyph height is unchanged'
+    assert raised['count']==1 and raised['highlight'],'Selected word lost during font-size editing'
+    assert page.evaluate('document.activeElement.id')=='fontSize','Spinner lost focus'
     page.keyboard.press('ArrowUp')
-    assert 'font-size: 19pt' in title.inner_html(),'Repeated spinner change must target same word'
-    assert page.evaluate('document.activeElement.id')=='fontSize','Size field should retain focus after arrow'
-    assert page.locator('#fontSize').input_value()=='19'
+    again=selected_metrics()
+    assert again['font']>raised['font'] and again['height']>raised['height']
+    assert again['count']==1,'Repeated arrows must update one span, not nest font elements'
+    assert page.evaluate('document.activeElement.id')=='fontSize'
     page.locator('#fontSize').fill('23')
-    assert 'font-size: 23pt' in title.inner_html(),'Manual number entry must change highlighted text'
+    manual=selected_metrics()
+    assert abs(manual['font']-23*4/3)<1 and manual['height']>again['height']
+    assert manual['count']==1 and manual['text']=='Модульный'
     assert page.evaluate('document.activeElement.id')=='fontSize'
     page.evaluate('getSelection().removeAllRanges()')
     page.locator('#fontSize').fill('24')
-    assert 'font-size: 24pt' in title.inner_html(),'Lost native selection must not change the target word'
-    assert page.locator('#fontSize').input_value()=='24'
+    removed_selection=selected_metrics()
+    assert abs(removed_selection['font']-32)<1
+    assert removed_selection['count']==1
+    assert 'format-target' not in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
     assert title.inner_text()=='Модульный тест'
-    print('PASS spinner arrows and manual font-size entry on selected card word')
+    print('PASS live glyph geometry, focused spinner, stable selection and no nested spans')
 
     title.click()
     page.locator('#textAlign').select_option('right')
