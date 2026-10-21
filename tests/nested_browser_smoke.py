@@ -55,7 +55,9 @@ with sync_playwright() as p:
       .filter(b => b.w>25 && b.h<9).sort((a,b)=>b.w-a.w)""")
     assert lines, 'No draggable nested Moveable border'
     rect=lines[0]
-    return rect['x']+rect['w']*.5,rect['y']+rect['h']*.5
+    # The middle of the top line is Moveable's N resize control. Use
+    # the first quarter of the line to exercise its draggable segment.
+    return rect['x']+rect['w']*.26,rect['y']+rect['h']*.5
 
   # Selecting a text field must show inner handles WITHOUT moving its card.
   title.locator('.tiptap-content').click()
