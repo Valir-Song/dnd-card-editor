@@ -75,6 +75,19 @@ with sync_playwright() as p:
     # Exact size persists through save/load and doesn't format the unselected word.
     assert title.locator('font').inner_text()=='Модульный'
     assert 'тест' in title.inner_text()
+    title.evaluate("""e=>{
+        const word=e.querySelector('font').firstChild,r=document.createRange(),sel=window.getSelection();
+        r.selectNodeContents(word);sel.removeAllRanges();sel.addRange(r)
+    }""")
+    page.wait_for_timeout(40)
+    page.locator('#fontFamily').select_option('Arial')
+    assert title.locator('font[face="Arial"]').count()==1,'Font family should affect highlighted word'
+    assert title.inner_text()=='Модульный тест'
+    page.locator('#undo').click()
+    assert title.locator('font[face="Arial"]').count()==0,'Font family should undo in one step'
+    page.locator('#redo').click()
+    assert title.locator('font[face="Arial"]').count()==1
+
 
     title.click()
     page.locator('#textAlign').select_option('right')
@@ -211,6 +224,7 @@ with sync_playwright() as p:
     saved=json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")'))
     textbox=next(i for i in saved if i['id']==text_id)
     assert textbox['textAlign']=='center' and textbox['fontSize']==16
+    assert textbox['fontFamily']=='Arial', 'The unified font picker must format text boxes'
     assert textbox['borderVisible'] and not textbox['bgTransparent'] and textbox['autoHeight']
     assert box.evaluate('e=>e.getBoundingClientRect().height')>=20
     grip=box.locator('.textbox-move')
