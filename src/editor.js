@@ -1,6 +1,7 @@
 import { createHistory } from './editor/history.js';
 import { createInnerInteractions } from './editor/interactions.js';
 import { createCanvasControls } from './editor/canvas-controls.js';
+import { createInnerCanvas } from './editor/inner-canvas.js';
 import { setupCardBackground } from './editor/card-background.js';
 import { setupImageTools } from './editor/image-tools.js';
 import { setupLayers } from './editor/layers.js';
@@ -64,10 +65,19 @@ window.addEventListener('keydown',event=>{
 },true);
 const getItems=()=>items,setItems=value=>{items=value};
 const getSelected=()=>selected,clearSelection=()=>{selected=null;canvas.clear()};
-const getSelectionIds=()=>canvas.getIds();
+// Deleting an embedded text frame must never remove its parent card.
+const getSelectionIds=()=>innerCanvas?.hasSelection()?[]:canvas.getIds();
 let syncTextBoxTools=()=>{};
-const rich=createRichText({current,select,persist});
-const {startBadgeDrag,startTextMove,startTextResize}=createInnerInteractions({select,persist,mm});
+let innerCanvas=null;
+const rich=createRichText({
+  current,select,persist,
+  selectText:(element,field)=>{
+    const item=getItems().find(v=>v.id===element?.dataset.id);
+    if(item?.kind==='textbox')select(element);
+    else if(item)innerCanvas?.selectField(item.id,field);
+  }
+});
+const {startBadgeDrag}=createInnerInteractions({select,persist,mm});
 const {syncBgTools}=setupCardBackground({current,persist,draw,getItems});
 const {syncImageTools}=setupImageTools({current,persist});
 const canvas=createCanvasControls({pages,getItems,persist,mm,onSelection:(ids,primary)=>{
@@ -77,6 +87,11 @@ const canvas=createCanvasControls({pages,getItems,persist,mm,onSelection:(ids,pr
   if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;
   syncImageTools();syncBgTools();syncTextBoxTools();
 }});
+innerCanvas=createInnerCanvas({
+  pages,getItems,persist,mm,
+  selectParent:id=>canvas.setSelection([id],id,{keepInner:true})
+});
+canvas.attachInner(innerCanvas);
 
 const pendingEditors=[];
 function setField(node,item,f){
@@ -101,7 +116,7 @@ function draw(){rich.destroy();pendingEditors.length=0;pages.forEach(p=>p.replac
   grip.textContent='⠿';grip.title='Перетащить текстовую рамку';
   grip.addEventListener('mousedown',ev=>canvas.startDrag(ev,item.id));
   e.append(grip);
-}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);const grip=document.createElement('span');grip.className='text-grip';grip.title='Перетащить текстовый блок';grip.textContent='⠿';grip.addEventListener('pointerdown',ev=>startTextMove(ev,item,e,f,wrap));wrap.append(grip);const rh=document.createElement('span');rh.className='text-resize';rh.title='Изменить ширину и высоту текста';rh.addEventListener('pointerdown',ev=>startTextResize(ev,item,e,f,wrap));wrap.append(rh);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{item.level=badge.textContent;persist({group:'badge:'+item.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,item,e,badge));e.append(badge)}pages[(item.page||1)-1].append(e)}pages.forEach((p,i)=>{const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)});if(selected){const s=document.querySelector('.el[data-id="'+selected+'"]');if(s)s.classList.add('selected')}for(const entry of pendingEditors)rich.mount(entry.node,entry.item,entry.field);canvas.afterDraw();syncTextBoxTools()}
+}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{item.level=badge.textContent;persist({group:'badge:'+item.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,item,e,badge));e.append(badge)}pages[(item.page||1)-1].append(e)}pages.forEach((p,i)=>{const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)});if(selected){const s=document.querySelector('.el[data-id="'+selected+'"]');if(s)s.classList.add('selected')}for(const entry of pendingEditors)rich.mount(entry.node,entry.item,entry.field);canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools()}
 function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}function addObject(o){const obj={...o,z:Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0))+1,id:'e'+Date.now()+Math.floor(Math.random()*10000),page:activePage};items.push(obj);persist();draw();select(document.querySelector('[data-id="'+obj.id+'"]'))}
 function addCard(copy){const src=copy||{kind:'card',x:12,y:120,w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Измени описание двойным щелчком.',level:'1',roles:'support',bg:'#ffffff'};addObject({...structuredClone(src),x:Math.min(115,src.x+5),y:Math.min(270,src.y+5)})}
