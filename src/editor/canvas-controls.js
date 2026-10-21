@@ -120,13 +120,14 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     .on('resize', applyResize)
     .on('resizeEnd', endGesture)
     .on('resizeGroupStart', e => {
+      console.info('DND DEBUG resizeGroupStart', (e.events || []).length, ids);
       begin();
       for(const ev of e.events || []){
         const record = gesture?.records.find(r => r.node === ev.target);
         if(record) ev.set([record.pixelW, record.pixelH]);
       }
     })
-    .on('resizeGroup', e => { for (const ev of e.events || []) applyResize(ev); })
+    .on('resizeGroup', e => { console.info('DND DEBUG resizeGroup', (e.events || []).map(v => ({width:v.width,dist:v.dist,dir:v.direction,id:v.target?.dataset.id}))); for (const ev of e.events || []) applyResize(ev); })
     .on('resizeGroupEnd', endGesture);
 
   pages.forEach((page, pageIndex) => {
