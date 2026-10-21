@@ -168,6 +168,11 @@ with sync_playwright() as p:
     assert editor.get_attribute('contenteditable')=='true'
     editor.fill('Заметка для барда\\nДополнительная строка')
     assert 'Заметка для барда' in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
+    page.keyboard.press('Control+z')
+    assert 'Заметка для барда' not in box.locator('.textbox-editor').inner_text()
+    assert box.locator('.textbox-editor').get_attribute('contenteditable')=='true'
+    page.keyboard.press('Control+Shift+z')
+    assert 'Заметка для барда' in box.locator('.textbox-editor').inner_text()
     page.locator('#boxFont').select_option('Arial')
     page.locator('#boxSize').fill('16')
     page.locator('#boxSize').dispatch_event('change')
