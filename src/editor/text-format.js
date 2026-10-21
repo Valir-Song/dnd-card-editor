@@ -152,8 +152,8 @@ export function setupTextFormatting({current,persist}) {
     const restored=document.createRange();
     restored.selectNodeContents(wrap);
     savedRange=restored;
-    const selection=window.getSelection();
-    selection.removeAllRanges();selection.addRange(restored);
+    // Do not call window.getSelection().addRange here: Chromium/Firefox can
+    // return keyboard focus to contenteditable, interrupting numeric typing.
     editor.dispatchEvent(new CustomEvent('input',{bubbles:true,detail:{history:'format'}}));
     sync(true);
   }
