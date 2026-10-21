@@ -46,6 +46,9 @@ export function setupToolbarTabs() {
     const summary=document.createElement('summary');summary.textContent='Подсказки';
     help.append(summary,hint);top.append(help);
   }
+  // Keep live multi-selection status when rebuilding the toolbar into tabs.
+  const selectionCount=toolbar.querySelector('#selectionCount');
+  if(selectionCount)top.append(selectionCount);
   toolbar.replaceChildren(top,tablist,content);
   function activate(index,focus=false){
     buttons.forEach((button,i)=>{
