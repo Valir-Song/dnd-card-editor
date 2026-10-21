@@ -50,7 +50,7 @@ with sync_playwright() as p:
   def border():
     # Moveable renders its editable frame outside the printable A4 DOM.
     # Drag only its horizontal border, never a Tiptap glyph.
-    lines=page.evaluate("""() => [...document.querySelectorAll('.dnd-inner-moveable .moveable-line')]
+    lines=page.evaluate("""() => [...document.querySelectorAll('.dnd-inner-moveable .moveable-edgeDraggable')]
       .map(el => { const b=el.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height} })
       .filter(b => b.w>25 && b.h<9).sort((a,b)=>b.w-a.w)""")
     assert lines, 'No draggable nested Moveable border'
