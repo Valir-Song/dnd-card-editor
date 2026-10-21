@@ -93,7 +93,34 @@ export function setupTextFormatting({current,persist}) {
     persist();
     sync(true);
   }
+  // Track a selection by text offsets: execCommand can replace the selected text
+  // nodes, invalidating a cloned DOM Range. This preserves successive commands
+  // such as changing size and then color on the same highlighted word.
+  function offsetsFor(editor,range){
+    if(!range||range.collapsed)return null;
+    const before=document.createRange();
+    before.selectNodeContents(editor);
+    before.setEnd(range.startContainer,range.startOffset);
+    const start=before.toString().length;
+    return {start,end:start+range.toString().length};
+  }
+  function rangeFor(editor,offsets){
+    if(!offsets)return null;
+    const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);
+    let cursor=0,first=null,last=null,node;
+    while((node=walker.nextNode())){
+      const next=cursor+node.textContent.length;
+      if(!first&&offsets.start<=next)first=[node,Math.min(node.length,Math.max(0,offsets.start-cursor))];
+      if(!last&&offsets.end<=next)last=[node,Math.min(node.length,Math.max(0,offsets.end-cursor))];
+      cursor=next;
+    }
+    if(!first||!last)return null;
+    const restored=document.createRange();
+    restored.setStart(...first);restored.setEnd(...last);
+    return restored;
+  }
   function inlineFormat(editor,cmd,value){
+    const textOffsets=offsetsFor(editor,savedRange);
     // execCommand preserves existing nested spans and formats only the selection.
     // HTML font sizes 1–7 are browser presets, so convert the generated size-7
     // wrapper into a precise point value immediately.
@@ -113,6 +140,12 @@ export function setupTextFormatting({current,persist}) {
         }
       }
     }finally{formattingDepth--}
+    const restored=rangeFor(editor,textOffsets);
+    if(restored){
+      savedRange=restored;
+      const selection=window.getSelection();
+      selection.removeAllRanges();selection.addRange(restored);
+    }
     editor.dispatchEvent(new CustomEvent('input',{bubbles:true,detail:{history:'format'}}));
     remember();sync(true);
   }
