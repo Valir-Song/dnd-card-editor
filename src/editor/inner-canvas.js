@@ -17,7 +17,9 @@ export function createInnerCanvas({pages,getItems,persist,mm,selectParent}) {
   const frame=(item,field)=>{item.textFrames ||= {};item.textFrames[field] ||= {};return item.textFrames[field]};
   const selected=()=>fields.length>0;
   const moveable=new Moveable(document.body,{
-    target:[],draggable:true,resizable:true,origin:false,
+    // edgeDraggable activates only with draggable:false (Moveable contract).
+    // Tiptap keeps ordinary text clicks; border gesture runs Moveable Drag.
+    target:[],draggable:false,resizable:true,origin:false,
     // Do not activate *resize* on the border: the same border is the drag
     // surface. Resize belongs exclusively to the eight visible handles.
     edge:false,edgeDraggable:true,keepRatio:false,snappable:false,
