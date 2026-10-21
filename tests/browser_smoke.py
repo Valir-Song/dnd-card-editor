@@ -64,7 +64,6 @@ with sync_playwright() as p:
     }""")
     page.wait_for_timeout(40)
     page.locator('#fontSize').fill('17')
-    page.locator('#fontSize').dispatch_event('change')
     assert 'font-size: 17pt' in title.inner_html(),title.inner_html()
     assert title.inner_text()=='Модульный тест'
     assert 'font-size: 17pt' in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
@@ -73,21 +72,40 @@ with sync_playwright() as p:
     page.locator('#redo').click()
     assert 'font-size: 17pt' in title.inner_html(),'Redo selected text formatting'
     # Exact size persists through save/load and doesn't format the unselected word.
-    assert title.locator('font').inner_text()=='Модульный'
+    assert title.locator('span[style*="font-size: 17pt"]').first.inner_text()=='Модульный'
     assert 'тест' in title.inner_text()
     title.evaluate("""e=>{
-        const word=e.querySelector('font').firstChild,r=document.createRange(),sel=window.getSelection();
+        const word=e.querySelector('span[style*=font-size]').firstChild,r=document.createRange(),sel=window.getSelection();
         r.selectNodeContents(word);sel.removeAllRanges();sel.addRange(r)
     }""")
     page.wait_for_timeout(40)
     page.locator('#fontFamily').select_option('Arial')
-    assert title.locator('font[face="Arial"]').count()==1,'Font family should affect highlighted word'
+    assert title.locator('span[style*="font-family: Arial"]').count()>=1,'Font family should affect highlighted word'
     assert title.inner_text()=='Модульный тест'
     page.locator('#undo').click()
-    assert title.locator('font[face="Arial"]').count()==0,'Font family should undo in one step'
+    assert title.locator('span[style*="font-family: Arial"]').count()==0,'Font family should undo in one step'
     page.locator('#redo').click()
-    assert title.locator('font[face="Arial"]').count()==1
+    assert title.locator('span[style*="font-family: Arial"]').count()>=1
 
+
+    # Real pointer/keyboard operations, not manually dispatched 'change' events:
+    # spinner and keyboard edits must continue to target the same word.
+    title.evaluate("""e=>{
+        const word=e.querySelector('span[style*=font-family]')?.firstChild||e.querySelector('span[style*=font-size]')?.firstChild;
+        const r=document.createRange(),s=getSelection();
+        r.selectNodeContents(word);s.removeAllRanges();s.addRange(r)
+    }""")
+    page.wait_for_timeout(40)
+    assert page.locator('#fontSize').input_value()=='17'
+    page.locator('#fontSize').click()
+    page.locator('#fontSize').press('ArrowUp')
+    assert 'font-size: 18pt' in title.inner_html(),'Spinner ArrowUp must change highlighted text to 18pt'
+    page.locator('#fontSize').press('ArrowUp')
+    assert 'font-size: 19pt' in title.inner_html(),'Repeated spinner change must target same word'
+    page.locator('#fontSize').fill('23')
+    assert 'font-size: 23pt' in title.inner_html(),'Manual number entry must change highlighted text'
+    assert title.inner_text()=='Модульный тест'
+    print('PASS spinner arrows and manual font-size entry on selected card word')
 
     title.click()
     page.locator('#textAlign').select_option('right')
@@ -216,7 +234,6 @@ with sync_playwright() as p:
     assert 'Заметка для барда' in box.locator('.textbox-editor').inner_text()
     page.locator('#fontFamily').select_option('Arial')
     page.locator('#fontSize').fill('16')
-    page.locator('#fontSize').dispatch_event('change')
     page.locator('#textAlign').select_option('center')
     page.locator('#boxBorderVisible').check()
     page.locator('#boxTransparent').uncheck()
@@ -225,6 +242,11 @@ with sync_playwright() as p:
     textbox=next(i for i in saved if i['id']==text_id)
     assert textbox['textAlign']=='center' and textbox['fontSize']==16
     assert textbox['fontFamily']=='Arial', 'The unified font picker must format text boxes'
+    # Reselect the same box: the shared size control must reflect its real value.
+    page.locator('.el.card').first.locator('.title.editable').click()
+    editor.click()
+    assert page.locator('#fontSize').input_value()=='16','Reselecting a textbox reset font size to 12'
+    assert abs(float(editor.evaluate('e=>getComputedStyle(e).fontSize').replace('px',''))-(16*4/3))<1
     assert textbox['borderVisible'] and not textbox['bgTransparent'] and textbox['autoHeight']
     assert box.evaluate('e=>e.getBoundingClientRect().height')>=20
     grip=box.locator('.textbox-move')
