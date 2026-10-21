@@ -120,7 +120,8 @@
 /* 3.3 nested Moveable. Text remains editable; only the border/handles move it.
    The parent card has no active Moveable frame while a nested field is selected. */
 .dnd-inner-moveable{z-index:190!important}
-.dnd-inner-moveable .moveable-line{
+.dnd-inner-moveable .moveable-line{pointer-events:none!important}
+.dnd-inner-moveable .moveable-edgeDraggable{
   pointer-events:auto!important;
   cursor:move!important;
   stroke-width:1;
