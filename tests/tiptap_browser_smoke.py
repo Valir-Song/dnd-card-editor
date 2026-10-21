@@ -91,6 +91,14 @@ with sync_playwright() as p:
     assert 'border' in box.get_attribute('style')
     field.click()
     size.fill('20')
+    if field.locator('[style*="font-size"]').count()==0:
+        print('DEBUG textbox after fontSize fill:',{
+            'html':field.inner_html()[:700],
+            'active':page.evaluate('document.activeElement.outerHTML.slice(0,500)'),
+            'selected':box.get_attribute('class'),
+            'size':size.input_value(),
+            'errors':errors
+        },flush=True)
     assert field.locator('[style*="font-size"]').count()>0
     field.click()
     assert abs(float(size.input_value())-20)<.6,'Text box loses saved size when reselected'
