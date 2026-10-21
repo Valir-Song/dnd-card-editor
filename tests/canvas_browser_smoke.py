@@ -68,6 +68,20 @@ with sync_playwright() as p:
     page.locator('#redo').click()
     assert abs(current('test-shape')['x']-after_shape['x'])<.2
     print('PASS '+browser_name+': Moveable group drag, geometry, one-step undo/redo')
+    # Group resize must update both selected objects proportionally. Unlike
+    # a saved group, this is a temporary editing selection on one A4 page.
+    group_handle=page.locator('.moveable-control-box [data-direction="se"]').last
+    assert group_handle.count()==1, 'Moveable group resize handle missing'
+    before_group_shape=current('test-shape').copy()
+    before_group_image=current('test-image').copy()
+    gx,gy=center(group_handle)
+    drag(gx,gy,26,17)
+    assert current('test-shape')['w']>before_group_shape['w']+1,(current('test-shape'),errors)
+    assert current('test-image')['w']>before_group_image['w']+1,(current('test-image'),errors)
+    page.locator('#undo').click()
+    assert abs(current('test-shape')['w']-before_group_shape['w'])<.1
+    assert abs(current('test-image')['w']-before_group_image['w'])<.1
+    print('PASS '+browser_name+': Moveable temporary group resize, one-step undo')
     # Explicitly remove the second target, preserving group-drag semantics when
     # clicking a selected member. Then resize a single target.
     img.click(modifiers=['Shift'],position={'x':10,'y':10})
@@ -92,6 +106,11 @@ with sync_playwright() as p:
     assert img.evaluate('e=>e.classList.contains("selected")')
     assert page.locator('#selectionCount').inner_text()=='Выбрано: 2'
     print('PASS '+browser_name+': Selecto marquee selection on empty page')
+    # On a printed sheet no editing affordance may remain visible.
+    page.emulate_media(media='print')
+    assert page.locator('.moveable-control-box').first.evaluate('e=>getComputedStyle(e).display')=='none'
+    page.emulate_media(media='screen')
+
     # Delete selected group as a single history action, then restore.
     page.keyboard.press('Delete')
     assert page.locator('[data-id="test-shape"]').count()==0
