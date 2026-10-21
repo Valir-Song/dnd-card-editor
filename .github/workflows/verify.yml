@@ -27,11 +27,11 @@ jobs:
       - run: |
           pip install playwright
           python -m playwright install --with-deps chromium firefox
-      - name: Tiptap browser smoke (real built HTML, Chromium)
-        run: EDITOR_BROWSER=chromium python tests/tiptap_browser_smoke.py
-      - name: Tiptap browser smoke (real built HTML, Firefox)
-        run: EDITOR_BROWSER=firefox python tests/tiptap_browser_smoke.py
       - name: Moveable + Selecto canvas browser test (Chromium)
         run: EDITOR_BROWSER=chromium python tests/canvas_browser_smoke.py
       - name: Moveable + Selecto canvas browser test (Firefox)
         run: EDITOR_BROWSER=firefox python tests/canvas_browser_smoke.py
+      - name: Tiptap browser smoke (real built HTML, Chromium)
+        run: EDITOR_BROWSER=chromium python tests/tiptap_browser_smoke.py
+      - name: Tiptap browser smoke (real built HTML, Firefox)
+        run: EDITOR_BROWSER=firefox python tests/tiptap_browser_smoke.py
