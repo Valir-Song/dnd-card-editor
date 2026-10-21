@@ -15,7 +15,7 @@ const fonts=['Georgia','Arial','Times New Roman','Verdana','Courier New'];
 const safeText=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const pxToPoints=px=>Math.round(parseFloat(px)*0.75*10)/10;
 
-export function createRichText({current,select,persist}){
+export function createRichText({current,select,persist,selectText=select}){
   const mounted=new Map();
   let activeKey=null,selection=null,silent=false;
   const controls={
@@ -97,7 +97,7 @@ export function createRichText({current,select,persist}){
       onFocus:({editor:instance})=>{
         activeKey=fieldKey;
         const element=node.closest('.el');
-        if(element)select(element);
+        if(element)selectText(element,field);
         selection={key:fieldKey,from:instance.state.selection.from,to:instance.state.selection.to};
         sync();
       },
