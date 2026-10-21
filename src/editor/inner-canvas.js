@@ -45,7 +45,7 @@ export function createInnerCanvas({pages,getItems,persist,mm,selectParent}) {
     const parent=parentFor(id),valid=validFields(id);
     if(!parent||!valid.length)return;
     const names=unique(next).filter(field=>valid.includes(field));
-    if(!names.length){clear();return;}
+    if(!names.length){clear();selectParent(id);return;}
     parentId=id;fields=names;
     // Parent remains the selected data record, but its Moveable handles are
     // hidden while one or more of its child text frames own the handles.
