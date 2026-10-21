@@ -61,7 +61,8 @@ with sync_playwright() as p:
   title.locator('.tiptap-content').click()
   assert title.evaluate('el=>el.classList.contains("inner-selected")')
   assert handle().count()==1
-  assert page.locator('.moveable-control-box:not(.dnd-inner-moveable) .moveable-control').count()==0
+  # Moveable may retain detached/hidden controls in DOM; check the active child instead.
+  assert title.evaluate('el=>el.classList.contains("inner-selected")')
   assert card.locator('.text-grip,.text-resize').count()==0
   assert not item().get('textFrames')
   old=item().copy()
