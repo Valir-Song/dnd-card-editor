@@ -116,3 +116,6 @@
 
 /* Parent hit areas pass through; actual resize handles keep pointer input. */
 .moveable-control-box .moveable-control{pointer-events:auto!important}
+
+/* A Moveable border line sometimes overlays a corner handle. Reserve hit tests for the handles. */
+.moveable-control-box .moveable-line{pointer-events:none!important}
