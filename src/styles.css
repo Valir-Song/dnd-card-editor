@@ -81,3 +81,8 @@
 .toolbar-content #textAlign{min-width:108px}
 .toolbar-content #textcolor{height:28px;width:32px;padding:1px}
 .toolbar-content #bold[aria-pressed="true"],.toolbar-content #italic[aria-pressed="true"],.toolbar-content #underline[aria-pressed="true"]{background:#dfd1f0;border-color:#8668ac}
+
+/* The editing target stays visibly highlighted while a toolbar input has focus.
+   This class is transient and excluded from saved HTML. */
+.el .editable .format-target{background-color:rgba(60,130,203,.18);outline:1px solid rgba(60,130,203,.35)}
+@media print{.el .editable .format-target{background:transparent!important;outline:none!important}}
