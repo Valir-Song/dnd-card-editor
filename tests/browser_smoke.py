@@ -13,7 +13,7 @@ html=html.replace('<script src="/src/main.js" type="module"></script>','')
 css=(root/'src/styles.css').read_text(encoding='utf-8')
 html=html.replace('</head>','<style>'+css+'</style></head>')
 parts=[]
-for name in ['history','interactions','card-background','image-tools','layers','text-format','objects','files','toolbar-tabs']:
+for name in ['history','interactions','card-background','image-tools','layers','text-format','objects','files','toolbar-tabs','text-boxes']:
     src=(root/('src/editor/'+name+'.js')).read_text(encoding='utf-8')
     parts.append(src.replace('export function ','function '))
 core=(root/'src/editor.js').read_text(encoding='utf-8')
@@ -155,6 +155,53 @@ with sync_playwright() as p:
     page.locator('#redo').click()
     assert page.locator('.el').count()==count
     print('PASS JSON import undo/redo')
+
+    # A text box is independent of cards and participates in history and layout.
+    page.locator('[data-tab="text"]').click()
+    page.locator('#addTextBox').click()
+    box=page.locator('.el.textbox').last
+    assert box.count()==1 and box.locator('.textbox-editor').count()==1
+    text_id=box.get_attribute('data-id')
+    assert page.locator('#boxFont').is_visible()
+    editor=box.locator('.textbox-editor')
+    editor.dblclick()
+    assert editor.get_attribute('contenteditable')=='true'
+    editor.fill('Заметка для барда\\nДополнительная строка')
+    assert 'Заметка для барда' in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
+    page.locator('#boxFont').select_option('Arial')
+    page.locator('#boxSize').fill('16')
+    page.locator('#boxSize').dispatch_event('change')
+    page.locator('#boxAlign').select_option('center')
+    page.locator('#boxBorderVisible').check()
+    page.locator('#boxTransparent').uncheck()
+    page.locator('#boxAutoHeight').check()
+    saved=json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")'))
+    textbox=next(i for i in saved if i['id']==text_id)
+    assert textbox['textAlign']=='center' and textbox['fontSize']==16
+    assert textbox['borderVisible'] and not textbox['bgTransparent'] and textbox['autoHeight']
+    assert box.evaluate('e=>e.getBoundingClientRect().height')>=20
+    grip=box.locator('.textbox-move')
+    old_x=textbox['x']
+    grip.dispatch_event('pointerdown',{'button':0,'clientX':110,'clientY':110})
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointermove',{clientX:150,clientY:110}))")
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointerup'))")
+    moved=next(i for i in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if i['id']==text_id)
+    assert moved['x']!=old_x,'Text box movement failed'
+    page.locator('#undo').click()
+    assert next(i for i in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if i['id']==text_id)['x']==old_x
+    page.locator('#redo').click()
+    box.locator('.resize').dispatch_event('pointerdown',{'button':0,'clientX':150,'clientY':150})
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointermove',{clientX:190,clientY:180}))")
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointerup'))")
+    resized=next(i for i in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if i['id']==text_id)
+    assert not resized['autoHeight'] and resized['w']!=textbox['w']
+    page.locator('[data-tab="layers"]').click()
+    page.locator('#front').click()
+    assert not errors,errors
+    page.locator('#undo').click()
+    page.locator('#redo').click()
+    print('PASS independent textbox edit, style, drag, resize, layers and history')
+
     # Exporting an edited HTML page must rebuild working tab listeners on reopening.
     page.locator('[data-tab="files"]').click()
     page.evaluate("""() => {
@@ -175,6 +222,8 @@ with sync_playwright() as p:
     assert reopened.locator('#bg').is_visible()
     reopened.locator('[data-tab="files"]').click()
     assert reopened.locator('#print').is_visible()
+    assert reopened.locator('.el.textbox').count()==1
+    assert 'Заметка для барда' in reopened.locator('.el.textbox').inner_text()
     assert not reopened_errors,reopened_errors
     reopened.close()
     print('PASS standalone HTML export and reopened tab listeners')
