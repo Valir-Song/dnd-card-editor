@@ -30,6 +30,12 @@ export function setupTextFormatting({current,persist}) {
     }
   }
   document.addEventListener('selectionchange',remember);
+  // Capture the current range *before* toolbar controls take keyboard focus.
+  // Firefox can clear the DOM selection when focusing a number input.
+  const toolbar=document.querySelector('.toolbar');
+  toolbar?.addEventListener('pointerdown',event=>{
+    if(event.target.closest('input,select,button,label'))remember();
+  },true);
   function fontName(value) {
     const name=String(value||'').replace(/["']/g,'').toLowerCase();
     return fonts.find(font=>name.includes(font.toLowerCase()))||'Georgia';
@@ -120,6 +126,33 @@ export function setupTextFormatting({current,persist}) {
     restored.setStart(...first);restored.setEnd(...last);
     return restored;
   }
+  function styleSelected(editor,property,value){
+    // Editing a saved DOM Range does not require re-focusing contenteditable.
+    // This is much more reliable than execCommand('fontSize'), especially in
+    // Firefox, where a numeric input steals the editor's text selection.
+    const offsets=offsetsFor(editor,savedRange);
+    if(!offsets)return;
+    const original=savedRange.cloneRange();
+    const contents=original.extractContents();
+    const wrap=document.createElement('span');
+    const propertyNames={fontSize:'font-size',fontFamily:'font-family',textColor:'color'};
+    const cssProperty=propertyNames[property];
+    for(const descendant of contents.querySelectorAll('*')){
+      if(descendant.style)descendant.style.removeProperty(cssProperty);
+      if(descendant.tagName==='FONT'){
+        if(property==='fontSize')descendant.removeAttribute('size');
+        if(property==='fontFamily')descendant.removeAttribute('face');
+        if(property==='textColor')descendant.removeAttribute('color');
+      }
+    }
+    wrap.style.setProperty(cssProperty,property==='fontSize'?value+'pt':value);
+    wrap.append(contents);
+    original.insertNode(wrap);
+    const restored=rangeFor(editor,offsets);
+    if(restored)savedRange=restored;
+    editor.dispatchEvent(new CustomEvent('input',{bubbles:true,detail:{history:'format'}}));
+    sync(true);
+  }
   function inlineFormat(editor,cmd,value){
     const textOffsets=offsetsFor(editor,savedRange);
     // execCommand preserves existing nested spans and formats only the selection.
@@ -153,6 +186,21 @@ export function setupTextFormatting({current,persist}) {
   function apply(property,value){
     const item=current(),editor=currentEditor();if(!item||!editor)return;
     const hasSelection=selectionIn(editor)&&!savedRange.collapsed;
+    // If the entire independent box is selected, this is a box-wide style:
+    // keep the item's own fontSize up to date for the next selection.
+    if(item.kind==='textbox'&&hasSelection&&['fontFamily','fontSize','textColor'].includes(property)){
+      const region=offsetsFor(editor,savedRange);
+      if(region?.start===0&&region.end===editor.textContent.length){
+        for(const descendant of editor.querySelectorAll('*')){
+          const cssProperty={fontFamily:'font-family',fontSize:'font-size',textColor:'color'}[property];
+          descendant.style?.removeProperty(cssProperty);
+          if(descendant.tagName==='FONT')descendant.removeAttribute({fontSize:'size',fontFamily:'face',textColor:'color'}[property]);
+        }
+        item.textHtml=editor.innerHTML;
+        changeBlock(item,editor,property,value);
+        return;
+      }
+    }
     if(property==='textAlign'){changeBlock(item,editor,'textAlign',value);return}
     const toggles={bold:['textWeight','bold','normal'],italic:['fontStyle','italic','normal'],underline:['textDecoration','underline','none']};
     if(!hasSelection){
@@ -166,17 +214,25 @@ export function setupTextFormatting({current,persist}) {
       }else changeBlock(item,editor,property,value);
       return;
     }
-    const commands={bold:'bold',italic:'italic',underline:'underline',fontFamily:'fontName',fontSize:'fontSize',textColor:'foreColor'};
-    inlineFormat(editor,commands[property],value);
+    if(['fontFamily','fontSize','textColor'].includes(property)){
+      styleSelected(editor,property,value);
+    }else{
+      const commands={bold:'bold',italic:'italic',underline:'underline'};
+      inlineFormat(editor,commands[property],value);
+    }
   }
   for(const button of buttons){
     button.addEventListener('mousedown',e=>e.preventDefault());
     button.onclick=()=>apply(button.id);
   }
   controls.fontFamily.addEventListener('change',e=>apply('fontFamily',e.target.value));
-  controls.fontSize.addEventListener('change',e=>{
-    const value=Number(e.target.value);
-    if(!Number.isFinite(value)||value<6||value>96){sync(true);return}
+  // 'input' fires for spinner arrows as well as typing; 'change' alone
+  // can wait until blur and lose the browser selection in Firefox.
+  controls.fontSize.addEventListener('input',e=>{
+    const raw=e.target.value;
+    if(raw===''||raw==='-'||raw==='.')return;
+    const value=Number(raw);
+    if(!Number.isFinite(value)||value<6||value>96)return;
     apply('fontSize',value);
   });
   controls.textAlign.addEventListener('change',e=>apply('textAlign',e.target.value));
