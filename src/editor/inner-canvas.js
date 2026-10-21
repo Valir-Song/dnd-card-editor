@@ -18,7 +18,9 @@ export function createInnerCanvas({pages,getItems,persist,mm,selectParent}) {
   const selected=()=>fields.length>0;
   const moveable=new Moveable(document.body,{
     target:[],draggable:true,resizable:true,origin:false,
-    edge:true,edgeDraggable:true,keepRatio:false,snappable:false,
+    // Do not activate *resize* on the border: the same border is the drag
+    // surface. Resize belongs exclusively to the eight visible handles.
+    edge:false,edgeDraggable:true,keepRatio:false,snappable:false,
     throttleDrag:0,throttleResize:0,
     renderDirections:['nw','n','ne','w','e','sw','s','se'],
     className:'dnd-inner-moveable'
