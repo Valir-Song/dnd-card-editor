@@ -148,6 +148,17 @@ with sync_playwright() as p:
     assert page.locator('.dnd-inner-moveable [data-direction="se"]').count()>0
     assert page.locator('[data-id="test-card"] .text-grip').count()==0
     handle=page.locator('.dnd-inner-moveable [data-direction="se"]').last
+    if not handle.is_visible():
+        print('DIAG nested handles',page.evaluate("""() => ({
+          innerSelected:[...document.querySelectorAll('.text-wrap.inner-selected')].map(n=>n.dataset.field),
+          boxes:[...document.querySelectorAll('.moveable-control-box')].map(n=>({
+            className:n.className,display:getComputedStyle(n).display,
+            visibility:getComputedStyle(n).visibility,
+            bbox:n.getBoundingClientRect().toJSON(),
+            handle:n.querySelector('[data-direction="se"]')?.getBoundingClientRect().toJSON(),
+            handleDisplay:n.querySelector('[data-direction="se"]')&&getComputedStyle(n.querySelector('[data-direction="se"]')).display
+          }))
+        })"""))
     fx,fy=center(handle)
     drag(fx,fy,18,10)
     frame=current('test-card').get('textFrames',{}).get('title',{})
