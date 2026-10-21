@@ -60,3 +60,17 @@
 
 /* Expanded conditional groups participate in normal panel wrapping. */
 .toolbar-content #cardBgTools[style*="inline-flex"],.toolbar-content #imageTools[style*="inline-flex"]{display:contents!important}
+
+
+/* 3.2 independent text fields. Keep selection handles invisible on paper. */
+.el.textbox{padding:2mm;min-width:12mm;min-height:8mm;overflow:visible;box-shadow:none;background-clip:padding-box}
+.el.textbox>.textbox-editor{box-sizing:border-box;display:block;width:100%;max-height:100%;overflow:auto;white-space:pre-wrap;word-break:break-word;line-height:1.28;min-height:4mm;cursor:text}
+.el.textbox>.textbox-editor[contenteditable="false"]{cursor:default}
+.el.textbox.auto-height>.textbox-editor{max-height:none;overflow:visible}
+.el.textbox .textbox-move{display:none;position:absolute;left:0;top:0;width:15px;height:15px;border:1px solid #458ac9;border-radius:3px;background:#fff;color:#2272b3;cursor:grab;font:16px/13px sans-serif;text-align:center;z-index:70;user-select:none;touch-action:none}
+.el.textbox.selected>.textbox-move{display:block}
+.toolbar-content #textBoxTools[style*="inline-flex"]{display:contents!important}
+.toolbar-content #textBoxTools input[type=checkbox]{accent-color:#7356a1;margin:0}
+.toolbar-content #textBoxTools input[type=color]{width:27px;height:25px;padding:1px}
+.toolbar-content #textBoxTools input[type=number]{width:52px}
+@media print{.el.textbox>.textbox-move{display:none!important}.el.textbox>.textbox-editor{overflow:visible}}
