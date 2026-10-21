@@ -74,3 +74,31 @@
 .toolbar-content #textBoxTools input[type=color]{width:27px;height:25px;padding:1px}
 .toolbar-content #textBoxTools input[type=number]{width:52px}
 @media print{.el.textbox>.textbox-move{display:none!important}.el.textbox>.textbox-editor{overflow:visible}}
+
+
+/* Tiptap is the single text engine across ALL document fields. */
+.el .editable>.tiptap-content{
+  font:inherit;color:inherit;letter-spacing:inherit;text-decoration:inherit;
+  display:block;box-sizing:border-box;min-height:1em;width:100%;
+  white-space:normal;word-break:break-word;overflow-wrap:anywhere;
+  outline:none;background:transparent;border:0;cursor:text;
+}
+.el .tiptap-content p,.el .tiptap-content h1,.el .tiptap-content h2,
+.el .tiptap-content h3,.el .tiptap-content blockquote{font:inherit;margin:0;padding:0;line-height:inherit;color:inherit}
+.el .tiptap-content p{white-space:pre-wrap}
+.el .tiptap-content ul,.el .tiptap-content ol{margin:0;padding-left:1.5em;list-style-position:outside}
+.el .tiptap-content li{margin:0}
+.el .tiptap-content li p{display:inline}
+.el .editable .tiptap-content:focus{outline:none}
+.el .editable:focus-within{background:#fffae8}
+.el.textbox>.textbox-editor>.tiptap-content{font:inherit;color:inherit;line-height:1.28;min-height:4mm;max-height:inherit;overflow:inherit}
+.el.textbox>.textbox-editor>.tiptap-content p{white-space:pre-wrap}
+.toolbar-content #fontSize{width:56px;padding:3px 5px}
+.toolbar-content #fontFamily{min-width:116px;max-width:145px}
+.toolbar-content #textAlign{min-width:103px}
+.toolbar-content #textcolor{width:33px;height:27px;padding:1px}
+.toolbar-content button[aria-pressed="true"]{background:#d9c9ee;border-color:#8462a8}
+.toolbar-content #textBoxTools[style*="inline-flex"]{display:contents!important}
+.toolbar-content #textBoxTools input[type=checkbox]{accent-color:#7356a1;margin:0}
+.toolbar-content #textBoxTools input[type=color]{width:27px;height:25px;padding:1px}
+@media print{.el .editable:focus-within{background:transparent!important}.el .tiptap-content{outline:none!important}}
