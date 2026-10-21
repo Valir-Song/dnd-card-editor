@@ -37,7 +37,7 @@ const history=createHistory({read:()=>items,restore:restored=>{
   draw();syncImageTools();syncBgTools();saveToStorage();
   if(editingField&&editingId){
     const node=Array.from(document.querySelectorAll('.el')).find(e=>e.dataset.id===editingId)?.querySelector('.'+editingField+'.editable');
-    if(node){node.focus();const range=document.createRange();range.selectNodeContents(node);range.collapse(false);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range)}
+    if(node){if(editingField==='text'&&node.closest('.textbox'))node.contentEditable='true';node.focus();const range=document.createRange();range.selectNodeContents(node);range.collapse(false);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range)}
   }
 },onChange:({undo,redo})=>{
   document.getElementById('undo').disabled=!undo;
