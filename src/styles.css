@@ -27,3 +27,78 @@
 
 /* 3.1: disabled history buttons */
 .toolbar button:disabled{opacity:.42;cursor:not-allowed}
+
+
+/* 3.2: tabbed toolbar; controls retain their original handlers. */
+.toolbar{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0;background:#29253a;font:13px Arial,sans-serif}
+.toolbar-top{display:flex;align-items:center;gap:12px;padding:8px 12px 6px;min-height:48px}
+.toolbar-identity{font-size:13px;white-space:nowrap;margin-right:auto}
+.toolbar-history{display:flex;gap:6px;align-items:center}
+.toolbar-help{position:relative;margin-left:8px;font-size:12px}
+.toolbar-help summary{cursor:pointer;list-style:none;color:#e3dcec;padding:7px;border-radius:5px}
+.toolbar-help summary:hover{background:#ffffff16}
+.toolbar-help .hint{position:absolute;right:0;top:31px;z-index:205;width:min(390px,80vw);white-space:normal;background:#f8f4ff;border:1px solid #d2c5e1;border-radius:7px;box-shadow:0 5px 20px #0003;color:#29253a;padding:12px;line-height:1.6;opacity:1}
+.toolbar-tabs{display:flex;gap:3px;overflow-x:auto;scrollbar-width:thin;padding:0 10px;min-height:38px;align-items:end;border-bottom:1px solid #514765}
+.toolbar .toolbar-tab{flex:0 0 auto;border-radius:7px 7px 0 0;background:transparent;color:#ddd5eb;padding:9px 13px;border:1px solid transparent;border-bottom:0;white-space:nowrap;font-weight:500}
+.toolbar .toolbar-tab:hover{background:#413651;color:white}
+.toolbar .toolbar-tab[aria-selected="true"]{background:#f1edf7;color:#342344;border-color:#817298;font-weight:600}
+.toolbar .toolbar-tab:focus-visible{outline:2px solid #cca5f8;outline-offset:-3px}
+.toolbar-content{background:#f1edf7;color:#29253a;min-height:53px;padding:8px 12px;display:flex;align-items:center}
+.toolbar-panel{display:flex;align-items:center;flex-wrap:wrap;gap:7px;width:100%;min-height:37px}
+.toolbar-panel[hidden]{display:none!important}
+.toolbar-content button,.toolbar-content select,.toolbar-content label{background:white;border:1px solid #d9d1e2;border-radius:6px;padding:7px 10px;color:#352b49;box-shadow:0 1px 1px #00000009}
+.toolbar-content label{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.toolbar-content label select{box-shadow:none;padding:4px 5px}
+.toolbar-content button:hover,.toolbar-content label:hover{border-color:#9785b6}
+.toolbar-content input[type="range"]{accent-color:#7356a1;vertical-align:middle}
+.toolbar-content .tool-group{flex-wrap:wrap;gap:6px!important}
+.toolbar-content .tool-group label{background:#fff}
+.toolbar-content .tool-group button{white-space:nowrap}
+.toolbar-top button{white-space:nowrap}
+@media(max-width:650px){.toolbar-top{flex-wrap:wrap;padding:7px 8px}.toolbar-identity{width:100%}.toolbar-tabs{padding:0 6px}.toolbar .toolbar-tab{padding:8px 10px}.toolbar-content{padding:7px}}
+@media print{.toolbar{display:none!important}}
+
+/* Expanded conditional groups participate in normal panel wrapping. */
+.toolbar-content #cardBgTools[style*="inline-flex"],.toolbar-content #imageTools[style*="inline-flex"]{display:contents!important}
+
+
+/* 3.2 independent text fields. Keep selection handles invisible on paper. */
+.el.textbox{padding:2mm;min-width:12mm;min-height:8mm;overflow:visible;box-shadow:none;background-clip:padding-box}
+.el.textbox>.textbox-editor{box-sizing:border-box;display:block;width:100%;max-height:100%;overflow:auto;white-space:pre-wrap;word-break:break-word;line-height:1.28;min-height:4mm;cursor:text}
+.el.textbox>.textbox-editor[contenteditable="false"]{cursor:default}
+.el.textbox.auto-height>.textbox-editor{max-height:none;overflow:visible}
+.el.textbox .textbox-move{display:none;position:absolute;left:0;top:0;width:15px;height:15px;border:1px solid #458ac9;border-radius:3px;background:#fff;color:#2272b3;cursor:grab;font:16px/13px sans-serif;text-align:center;z-index:70;user-select:none;touch-action:none}
+.el.textbox.selected>.textbox-move{display:block}
+.toolbar-content #textBoxTools[style*="inline-flex"]{display:contents!important}
+.toolbar-content #textBoxTools input[type=checkbox]{accent-color:#7356a1;margin:0}
+.toolbar-content #textBoxTools input[type=color]{width:27px;height:25px;padding:1px}
+.toolbar-content #textBoxTools input[type=number]{width:52px}
+@media print{.el.textbox>.textbox-move{display:none!important}.el.textbox>.textbox-editor{overflow:visible}}
+
+
+/* Tiptap is the single text engine across ALL document fields. */
+.el .editable>.tiptap-content{
+  font:inherit;color:inherit;letter-spacing:inherit;text-decoration:inherit;
+  display:block;box-sizing:border-box;min-height:1em;width:100%;
+  white-space:normal;word-break:break-word;overflow-wrap:anywhere;
+  outline:none;background:transparent;border:0;cursor:text;
+}
+.el .tiptap-content p,.el .tiptap-content h1,.el .tiptap-content h2,
+.el .tiptap-content h3,.el .tiptap-content blockquote{font:inherit;margin:0;padding:0;line-height:inherit;color:inherit}
+.el .tiptap-content p{white-space:pre-wrap}
+.el .tiptap-content ul,.el .tiptap-content ol{margin:0;padding-left:1.5em;list-style-position:outside}
+.el .tiptap-content li{margin:0}
+.el .tiptap-content li p{display:inline}
+.el .editable .tiptap-content:focus{outline:none}
+.el .editable:focus-within{background:#fffae8}
+.el.textbox>.textbox-editor>.tiptap-content{font:inherit;color:inherit;line-height:1.28;min-height:4mm;max-height:inherit;overflow:inherit}
+.el.textbox>.textbox-editor>.tiptap-content p{white-space:pre-wrap}
+.toolbar-content #fontSize{width:56px;padding:3px 5px}
+.toolbar-content #fontFamily{min-width:116px;max-width:145px}
+.toolbar-content #textAlign{min-width:103px}
+.toolbar-content #textcolor{width:33px;height:27px;padding:1px}
+.toolbar-content button[aria-pressed="true"]{background:#d9c9ee;border-color:#8462a8}
+.toolbar-content #textBoxTools[style*="inline-flex"]{display:contents!important}
+.toolbar-content #textBoxTools input[type=checkbox]{accent-color:#7356a1;margin:0}
+.toolbar-content #textBoxTools input[type=color]{width:27px;height:25px;padding:1px}
+@media print{.el .editable:focus-within{background:transparent!important}.el .tiptap-content{outline:none!important}}
