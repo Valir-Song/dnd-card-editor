@@ -98,10 +98,12 @@ with sync_playwright() as p:
     page.wait_for_timeout(40)
     assert page.locator('#fontSize').input_value()=='17'
     page.locator('#fontSize').click()
-    page.locator('#fontSize').press('ArrowUp')
+    page.keyboard.press('ArrowUp')
     assert 'font-size: 18pt' in title.inner_html(),'Spinner ArrowUp must change highlighted text to 18pt'
-    page.locator('#fontSize').press('ArrowUp')
+    page.keyboard.press('ArrowUp')
     assert 'font-size: 19pt' in title.inner_html(),'Repeated spinner change must target same word'
+    assert page.evaluate('document.activeElement.id')=='fontSize','Size field should retain focus after arrow'
+    assert page.locator('#fontSize').input_value()=='19'
     page.locator('#fontSize').fill('23')
     assert 'font-size: 23pt' in title.inner_html(),'Manual number entry must change highlighted text'
     assert title.inner_text()=='Модульный тест'
