@@ -1,6 +1,7 @@
 """Headless Chromium smoke tests. Uses inlined ES modules to avoid requiring a server."""
 from pathlib import Path
 from shutil import which
+import os
 import json
 import re
 from playwright.sync_api import sync_playwright
@@ -13,7 +14,7 @@ html=html.replace('<script src="/src/main.js" type="module"></script>','')
 css=(root/'src/styles.css').read_text(encoding='utf-8')
 html=html.replace('</head>','<style>'+css+'</style></head>')
 parts=[]
-for name in ['history','interactions','card-background','image-tools','layers','text-format','objects','files']:
+for name in ['history','interactions','card-background','image-tools','layers','text-format','objects','files','toolbar-tabs','text-boxes']:
     src=(root/('src/editor/'+name+'.js')).read_text(encoding='utf-8')
     parts.append(src.replace('export function ','function '))
 core=(root/'src/editor.js').read_text(encoding='utf-8')
@@ -23,14 +24,25 @@ html=html.replace('</body>','<script>'+'\n'.join(parts)+'</script></body>')
 
 with sync_playwright() as p:
     args={'headless':True,'args':['--no-sandbox']}
-    if which('chromium'): args['executable_path']=which('chromium')
-    browser=p.chromium.launch(**args)
+    engine=os.environ.get('EDITOR_BROWSER','chromium').lower()
+    if engine not in ('chromium','firefox'): raise ValueError('Unsupported browser: '+engine)
+    if engine=='chromium' and which('chromium'): args['executable_path']=which('chromium')
+    if engine=='firefox': args.pop('args',None)
+    browser=getattr(p,engine).launch(**args)
+    print('Testing browser:',engine)
     page=browser.new_page()
     errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
     page.evaluate("""() => {const m=new Map(); Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v)}});}""")
     page.set_content(html,wait_until='load')
     assert page.locator('.el').count()==len(json.loads(layout)),errors
+    assert page.locator('[role="tab"]').count()==6
+    assert page.locator('#panel-cards').is_visible() and page.locator('#panel-files').is_hidden()
+    page.locator('[data-tab="appearance"]').click()
+    assert page.locator('#panel-appearance').is_visible() and page.locator('#panel-cards').is_hidden()
+    page.locator('[data-tab="cards"]').click()
+    print('PASS accessible toolbar tabs and panel switching')
+
     assert page.locator('#undo').is_disabled() and page.locator('#redo').is_disabled()
     print('PASS render layout, history initially empty')
     card=page.locator('.el.card').first
@@ -47,6 +59,91 @@ with sync_playwright() as p:
     page.keyboard.press('Control+Shift+z')
     assert card.locator('.title').inner_text()=='Модульный тест'
     print('PASS selection, editing, persistence and keyboard undo/redo')
+
+    # Select just one word in a card. Exact point sizes must not affect the rest.
+    page.locator('[data-tab="text"]').click()
+    title.evaluate("""e=>{
+        const text=e.firstChild,r=document.createRange(),sel=window.getSelection();
+        r.setStart(text,0);r.setEnd(text,'Модульный'.length);
+        sel.removeAllRanges();sel.addRange(r)
+    }""")
+    page.wait_for_timeout(40)
+    page.locator('#fontSize').fill('17')
+    assert 'font-size: 17pt' in title.inner_html(),title.inner_html()
+    assert title.inner_text()=='Модульный тест'
+    assert 'font-size: 17pt' in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
+    page.locator('#undo').click()
+    assert title.inner_html()=='Модульный тест','One undo must completely revert selected text formatting'
+    page.locator('#redo').click()
+    assert 'font-size: 17pt' in title.inner_html(),'Redo selected text formatting'
+    # Exact size persists through save/load and doesn't format the unselected word.
+    assert title.locator('span[style*="font-size: 17pt"]').first.inner_text()=='Модульный'
+    assert 'тест' in title.inner_text()
+    title.evaluate("""e=>{
+        const word=e.querySelector('span[style*=font-size]').firstChild,r=document.createRange(),sel=window.getSelection();
+        r.selectNodeContents(word);sel.removeAllRanges();sel.addRange(r)
+    }""")
+    page.wait_for_timeout(40)
+    page.locator('#fontFamily').select_option('Arial')
+    assert title.locator('span[style*="font-family: Arial"]').count()>=1,'Font family should affect highlighted word'
+    assert title.inner_text()=='Модульный тест'
+    page.locator('#undo').click()
+    assert title.locator('span[style*="font-family: Arial"]').count()==0,'Font family should undo in one step'
+    page.locator('#redo').click()
+    assert title.locator('span[style*="font-family: Arial"]').count()>=1
+
+
+    # Real pointer/keyboard operations, not manually dispatched 'change' events:
+    # spinner and keyboard edits must continue to target the same word.
+    title.evaluate("""e=>{
+        const word=e.querySelector('span[style*=font-family]')?.firstChild||e.querySelector('span[style*=font-size]')?.firstChild;
+        const r=document.createRange(),s=getSelection();
+        r.selectNodeContents(word);s.removeAllRanges();s.addRange(r)
+    }""")
+    page.wait_for_timeout(40)
+    assert page.locator('#fontSize').input_value()=='17'
+    page.locator('#fontSize').click()
+    def selected_metrics():
+        return title.evaluate("""e=>{
+          const styled=e.querySelector('span[style*="font-size"]');
+          if(!styled)return null;
+          const bounds=styled.getBoundingClientRect();
+          return {font:parseFloat(getComputedStyle(styled).fontSize),
+                  height:bounds.height,count:e.querySelectorAll('span[style*="font-size"]').length,
+                  text:styled.textContent,highlight:styled.classList.contains('format-target')}
+        }""")
+    original=selected_metrics()
+    page.keyboard.press('ArrowUp')
+    raised=selected_metrics()
+    assert raised['font']>original['font'],'The glyphs must grow immediately after ArrowUp'
+    assert raised['height']>original['height'],'Live glyph height is unchanged'
+    assert raised['count']==1 and raised['highlight'],'Selected word lost during font-size editing'
+    assert page.evaluate('document.activeElement.id')=='fontSize','Spinner lost focus'
+    page.keyboard.press('ArrowUp')
+    again=selected_metrics()
+    assert again['font']>raised['font'] and again['height']>raised['height']
+    assert again['count']==1,'Repeated arrows must update one span, not nest font elements'
+    assert page.evaluate('document.activeElement.id')=='fontSize'
+    page.locator('#fontSize').fill('23')
+    manual=selected_metrics()
+    assert abs(manual['font']-23*4/3)<1 and manual['height']>again['height']
+    assert manual['count']==1 and manual['text']=='Модульный'
+    assert page.evaluate('document.activeElement.id')=='fontSize'
+    page.evaluate('getSelection().removeAllRanges()')
+    page.locator('#fontSize').fill('24')
+    removed_selection=selected_metrics()
+    assert abs(removed_selection['font']-32)<1
+    assert removed_selection['count']==1
+    assert 'format-target' not in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
+    assert title.inner_text()=='Модульный тест'
+    print('PASS live glyph geometry, focused spinner, stable selection and no nested spans')
+
+    title.click()
+    page.locator('#textAlign').select_option('right')
+    saved=json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")'))
+    assert next(i for i in saved if i['id']==item_id)['textStyles']['title']['textAlign']=='right'
+    print('PASS shared typography: precise 17pt word formatting and block alignment')
+
     card.locator('.title').click()
     grip=card.locator('.text-grip').first
     grip.dispatch_event('pointerdown',{'button':0,'clientX':100,'clientY':100})
@@ -79,7 +176,7 @@ with sync_playwright() as p:
     page.locator('#undo').click()
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0
     page.locator('#redo').click()
-    page.locator('#bg').focus()
+    page.locator('[data-tab="appearance"]').click(); page.locator('#bg').focus()
     page.keyboard.press('Control+z')
     assert next(x for x in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if x['id']==item_id)['w']==w0, 'Ctrl+Z with toolbar focus'
     page.keyboard.press('Control+y')
@@ -115,37 +212,120 @@ with sync_playwright() as p:
 
     print('PASS card movement/resize undo/redo')
     count=page.locator('.el').count()
-    page.locator('#rect').click()
+    page.locator('[data-tab="figures"]').click(); page.locator('#rect').click()
     assert page.locator('.el').count()==count+1
     assert page.locator('.el.selected.shape').count()==1
-    page.locator('#delete').click()
+    page.locator('[data-tab="cards"]').click(); page.locator('#delete').click()
     assert page.locator('.el').count()==count
     page.locator('#undo').click()
     assert page.locator('.el').count()==count+1, 'Delete undo failed'
     page.locator('#redo').click()
     assert page.locator('.el').count()==count, 'Delete redo failed'
     print('PASS shape creation/deletion with undo/redo')
-    page.locator('#add').click()
-    page.locator('#duplicate').click()
+    page.locator('[data-tab="cards"]').click(); page.locator('#add').click()
+    page.locator('[data-tab="cards"]').click(); page.locator('#duplicate').click()
     assert page.locator('.el').count()==count+2
     page.locator('#undo').click()
     assert page.locator('.el').count()==count+1, 'Layer undo or duplicate undo failed'
-    page.locator('#rect').click()
+    page.locator('[data-tab="figures"]').click(); page.locator('#rect').click()
     assert page.locator('#redo').is_disabled(), 'New edit after undo must clear redo'
     page.locator('#undo').click()
-    page.locator('#front').click()
+    page.locator('[data-tab="layers"]').click(); page.locator('#front').click()
     assert not errors, errors
-    page.locator('#front').click()
+    page.locator('[data-tab="layers"]').click(); page.locator('#front').click()
     assert not errors, errors
     print('PASS card duplication, layers and redo invalidation')
     data=json.dumps(json.loads(layout)).encode()
+    page.locator('[data-tab="files"]').click()
     page.set_input_files('#import',{'name':'layout.json','mimeType':'application/json','buffer':data})
-    assert page.locator('.el').count()==count
+    page.wait_for_function(f'document.querySelectorAll(".el").length === {count}')
     assert not errors,errors
     page.locator('#undo').click()
     assert page.locator('.el').count()==count+1, 'Import undo failed'
     page.locator('#redo').click()
     assert page.locator('.el').count()==count
     print('PASS JSON import undo/redo')
+
+    # A text box is independent of cards and participates in history and layout.
+    page.locator('[data-tab="text"]').click()
+    page.locator('#addTextBox').click()
+    box=page.locator('.el.textbox').last
+    assert box.count()==1 and box.locator('.textbox-editor').count()==1
+    text_id=box.get_attribute('data-id')
+    assert page.locator('#fontFamily').is_visible()
+    editor=box.locator('.textbox-editor')
+    editor.dblclick()
+    assert editor.get_attribute('contenteditable')=='true'
+    editor.fill('Заметка для барда\\nДополнительная строка')
+    assert 'Заметка для барда' in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
+    page.keyboard.press('Control+z')
+    assert 'Заметка для барда' not in box.locator('.textbox-editor').inner_text()
+    assert box.locator('.textbox-editor').get_attribute('contenteditable')=='true'
+    page.keyboard.press('Control+Shift+z')
+    assert 'Заметка для барда' in box.locator('.textbox-editor').inner_text()
+    page.locator('#fontFamily').select_option('Arial')
+    page.locator('#fontSize').fill('16')
+    page.locator('#textAlign').select_option('center')
+    page.locator('#boxBorderVisible').check()
+    page.locator('#boxTransparent').uncheck()
+    page.locator('#boxAutoHeight').check()
+    saved=json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")'))
+    textbox=next(i for i in saved if i['id']==text_id)
+    assert textbox['textAlign']=='center' and textbox['fontSize']==16
+    assert textbox['fontFamily']=='Arial', 'The unified font picker must format text boxes'
+    # Reselect the same box: the shared size control must reflect its real value.
+    page.locator('.el.card').first.locator('.title.editable').click()
+    editor.click()
+    assert page.locator('#fontSize').input_value()=='16','Reselecting a textbox reset font size to 12'
+    assert abs(float(editor.evaluate('e=>getComputedStyle(e).fontSize').replace('px',''))-(16*4/3))<1
+    assert textbox['borderVisible'] and not textbox['bgTransparent'] and textbox['autoHeight']
+    assert box.evaluate('e=>e.getBoundingClientRect().height')>=20
+    grip=box.locator('.textbox-move')
+    old_x=textbox['x']
+    grip.dispatch_event('pointerdown',{'button':0,'clientX':110,'clientY':110})
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointermove',{clientX:150,clientY:110}))")
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointerup'))")
+    moved=next(i for i in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if i['id']==text_id)
+    assert moved['x']!=old_x,'Text box movement failed'
+    page.locator('#undo').click()
+    assert next(i for i in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if i['id']==text_id)['x']==old_x
+    page.locator('#redo').click()
+    box.locator('.resize').dispatch_event('pointerdown',{'button':0,'clientX':150,'clientY':150})
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointermove',{clientX:190,clientY:180}))")
+    page.evaluate("window.dispatchEvent(new PointerEvent('pointerup'))")
+    resized=next(i for i in json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")')) if i['id']==text_id)
+    assert not resized['autoHeight'] and resized['w']!=textbox['w']
+    page.locator('[data-tab="layers"]').click()
+    page.locator('#front').click()
+    assert not errors,errors
+    page.locator('#undo').click()
+    page.locator('#redo').click()
+    print('PASS independent textbox edit, style, drag, resize, layers and history')
+
+    # Exporting an edited HTML page must rebuild working tab listeners on reopening.
+    page.locator('[data-tab="files"]').click()
+    page.evaluate("""() => {
+      URL.createObjectURL=blob=>{window.__exportBlob=blob;return 'blob:mock'};
+      HTMLAnchorElement.prototype.click=function(){window.__exportName=this.download}
+    }""")
+    page.locator('#export').click()
+    assert page.evaluate('window.__exportName')=='DND_Card_Editor_3_2.html',errors
+    exported=page.evaluate('async()=>window.__exportBlob.text()')
+    assert 'data-tabs-ready="true"' not in exported.split('class="toolbar"',1)[1].split('>',1)[0]
+    reopened=browser.new_page()
+    reopened_errors=[]
+    reopened.on('pageerror',lambda error:reopened_errors.append(str(error)))
+    reopened.evaluate("""() => {const m=new Map();Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v)}})}""")
+    reopened.set_content(exported,wait_until='load')
+    assert reopened.locator('[role="tab"]').count()==6,reopened_errors
+    reopened.locator('[data-tab="appearance"]').click()
+    assert reopened.locator('#bg').is_visible()
+    reopened.locator('[data-tab="files"]').click()
+    assert reopened.locator('#print').is_visible()
+    assert reopened.locator('.el.textbox').count()==1
+    assert 'Заметка для барда' in reopened.locator('.el.textbox').inner_text()
+    assert not reopened_errors,reopened_errors
+    reopened.close()
+    print('PASS standalone HTML export and reopened tab listeners')
     browser.close()
 print('All smoke checks passed')

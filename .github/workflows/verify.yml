@@ -18,7 +18,7 @@ jobs:
       - name: Save standalone HTML
         uses: actions/upload-artifact@v4
         with:
-          name: DND-Card-Editor-3.1
+          name: DND-Card-Editor-3.2
           path: dist/index.html
           retention-days: 30
       - uses: actions/setup-python@v5
@@ -28,3 +28,7 @@ jobs:
           pip install playwright
           python -m playwright install --with-deps chromium
       - run: python tests/browser_smoke.py
+      - name: Install Firefox for cross-browser verification
+        run: python -m playwright install --with-deps firefox
+      - name: Firefox smoke tests
+        run: EDITOR_BROWSER=firefox python tests/browser_smoke.py

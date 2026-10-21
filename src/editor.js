@@ -6,6 +6,8 @@ import { setupLayers } from './editor/layers.js';
 import { setupTextFormatting } from './editor/text-format.js';
 import { setupObjects } from './editor/objects.js';
 import { setupFiles } from './editor/files.js';
+import { setupToolbarTabs } from './editor/toolbar-tabs.js';
+import { setupTextBoxes } from './editor/text-boxes.js';
 
 // State and DOM rendering remain together to minimize v3 regressions.
 const key='dnd-card-editor-v3';let items;
@@ -35,7 +37,7 @@ const history=createHistory({read:()=>items,restore:restored=>{
   draw();syncImageTools();syncBgTools();saveToStorage();
   if(editingField&&editingId){
     const node=Array.from(document.querySelectorAll('.el')).find(e=>e.dataset.id===editingId)?.querySelector('.'+editingField+'.editable');
-    if(node){node.focus();const range=document.createRange();range.selectNodeContents(node);range.collapse(false);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range)}
+    if(node){if(editingField==='text'&&node.closest('.textbox'))node.contentEditable='true';node.focus();const range=document.createRange();range.selectNodeContents(node);range.collapse(false);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range)}
   }
 },onChange:({undo,redo})=>{
   document.getElementById('undo').disabled=!undo;
@@ -62,18 +64,64 @@ window.addEventListener('keydown',event=>{
 },true);
 const getItems=()=>items,setItems=value=>{items=value};
 const getSelected=()=>selected,clearSelection=()=>{selected=null};
-const {setFocusedEditor}=setupTextFormatting();
+let syncTextBoxTools=()=>{};
+const {setFocusedEditor,syncTextControls,isFormatting}=setupTextFormatting({current,persist});
 const {startDrag,startTextMove,startTextResize,startResize}=createInteractions({select,persist,mm});
 const {syncBgTools}=setupCardBackground({current,persist,draw,getItems});
 const {syncImageTools}=setupImageTools({current,persist});
 
-function setField(node,item,f){node.className=f+' editable';node.contentEditable='true';node.spellcheck=false;node.innerHTML=item[f+'Html']!==undefined?item[f+'Html']:esc(item[f]||'').replace(/\n/g,'<br>');node.addEventListener('input',event=>{item[f+'Html']=node.innerHTML;item[f]=node.innerText;persist(event.detail?.history==='format'?undefined:{group:'text:'+item.id+':'+f})});node.addEventListener('focus',()=>{setFocusedEditor(node);select(node.closest('.el'))});node.addEventListener('pointerdown',ev=>{ev.stopPropagation();select(node.closest('.el'))});}
-function draw(){pages.forEach(p=>p.replaceChildren());for(const item of items){const e=document.createElement('div');e.className='el '+(item.kind==='image'?'image-el':item.kind==='shape'?'shape '+(item.shape||'rect'):item.kind);e.dataset.id=item.id;e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);e.style.height=mm(item.h);if(item.bg)e.style.backgroundColor=item.bg;if(item.kind==='card'&&item.bgImage){const bi=document.createElement('img');bi.className='card-bg-image';bi.src=item.bgImage;bi.draggable=false;bi.style.objectFit=item.bgFit||'cover';bi.style.opacity=(item.bgOpacity??100)/100;bi.style.transform=`translate(${item.bgX||0}%,${item.bgY||0}%) scale(${(item.bgZoom??100)/100})`;e.append(bi);const shade=document.createElement('div');shade.className='card-bg-shade';shade.style.opacity=(item.bgShade||0)/100;e.append(shade)}if(item.kind==='card'){/* Цветовые полосы отключены */}if(item.kind==='shape'){e.style.backgroundColor=item.bg||'#d8c5ed';if(item.shape==='line')e.style.height='2px'}if(item.kind==='image'){const im=document.createElement('img');im.src=item.src;im.draggable=false;im.style.objectFit=item.fit||'contain';im.style.filter=`brightness(${item.brightness??100}%) contrast(${item.contrast??100}%)`;im.style.transform=`rotate(${item.rotation||0}deg)`;e.style.opacity=(item.opacity??100)/100;e.append(im)}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);const grip=document.createElement('span');grip.className='text-grip';grip.title='Перетащить текстовый блок';grip.textContent='⠿';grip.addEventListener('pointerdown',ev=>startTextMove(ev,item,e,f,wrap));wrap.append(grip);const rh=document.createElement('span');rh.className='text-resize';rh.title='Изменить ширину и высоту текста';rh.addEventListener('pointerdown',ev=>startTextResize(ev,item,e,f,wrap));wrap.append(rh);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{item.level=badge.textContent;persist({group:'badge:'+item.id})});badge.addEventListener('pointerdown',ev=>startDrag(ev,item,e,true,badge));e.append(badge)}const resize=document.createElement('div');resize.className='resize';resize.addEventListener('pointerdown',ev=>startResize(ev,item,e));e.append(resize);e.addEventListener('pointerdown',ev=>{if(ev.target.closest('.editable'))return;startDrag(ev,item,e,false)});pages[(item.page||1)-1].append(e)}pages.forEach((p,i)=>{const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)});if(selected){const s=document.querySelector('.el[data-id="'+selected+'"]');if(s)s.classList.add('selected')}}
-function select(e){document.querySelectorAll('.el.selected').forEach(x=>x.classList.remove('selected'));selected=e?.dataset.id||null;if(e){e.classList.add('selected');activePage=+(e.closest('.page')?.dataset.page||1);const c=current();if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;syncImageTools();syncBgTools()}}
+function setField(node,item,f){
+  const isBox=item.kind==='textbox'&&f==='text';
+  node.className=f+' editable'+(isBox?' textbox-editor':'');
+  node.contentEditable=isBox?'false':'true';node.spellcheck=false;
+  node.innerHTML=item[f+'Html']!==undefined?item[f+'Html']:esc(item[f]||'').replace(/\n/g,'<br>');
+  if(!isBox)for(const [property,value] of Object.entries(item.textStyles?.[f]||{})){
+    if(['fontFamily','fontSize','fontWeight','fontStyle','textDecoration','textAlign','color'].includes(property))
+      node.style[property]=property==='fontSize'?(parseFloat(value)+'pt'):value;
+  }
+  node.addEventListener('input',event=>{
+    if(isFormatting())return; // Native execCommand input fires before post-processing.
+    item[f+'Html']=node.innerHTML;item[f]=node.innerText;
+    if(isBox&&item.autoHeight){
+      const box=node.closest('.el'),page=box.closest('.page');
+      item.h=Math.max(8,Math.min(297-item.y,box.getBoundingClientRect().height*210/page.getBoundingClientRect().width));
+    }
+    persist(event.detail?.history==='format'?undefined:{group:'text:'+item.id+':'+f});
+  });
+  node.addEventListener('focus',()=>{setFocusedEditor(node);select(node.closest('.el'))});
+  node.addEventListener('pointerdown',ev=>{ev.stopPropagation();select(node.closest('.el'))});
+  if(isBox){
+    node.addEventListener('dblclick',ev=>{ev.stopPropagation();node.contentEditable='true';node.focus()});
+    node.addEventListener('blur',()=>{node.contentEditable='false'});
+  }
+}
+function draw(){pages.forEach(p=>p.replaceChildren());for(const item of items){const e=document.createElement('div');e.className='el '+(item.kind==='image'?'image-el':item.kind==='shape'?'shape '+(item.shape||'rect'):item.kind);e.dataset.id=item.id;e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);e.style.height=mm(item.h);if(item.bg&&item.kind!=='textbox')e.style.backgroundColor=item.bg;if(item.kind==='card'&&item.bgImage){const bi=document.createElement('img');bi.className='card-bg-image';bi.src=item.bgImage;bi.draggable=false;bi.style.objectFit=item.bgFit||'cover';bi.style.opacity=(item.bgOpacity??100)/100;bi.style.transform=`translate(${item.bgX||0}%,${item.bgY||0}%) scale(${(item.bgZoom??100)/100})`;e.append(bi);const shade=document.createElement('div');shade.className='card-bg-shade';shade.style.opacity=(item.bgShade||0)/100;e.append(shade)}if(item.kind==='card'){/* Цветовые полосы отключены */}if(item.kind==='shape'){e.style.backgroundColor=item.bg||'#d8c5ed';if(item.shape==='line')e.style.height='2px'}if(item.kind==='image'){const im=document.createElement('img');im.src=item.src;im.draggable=false;im.style.objectFit=item.fit||'contain';im.style.filter=`brightness(${item.brightness??100}%) contrast(${item.contrast??100}%)`;im.style.transform=`rotate(${item.rotation||0}deg)`;e.style.opacity=(item.opacity??100)/100;e.append(im)}if(item.kind==='textbox'){
+  e.classList.toggle('auto-height',!!item.autoHeight);
+  e.style.height=item.autoHeight?'auto':mm(item.h);
+  e.style.maxHeight=item.autoHeight?mm(297-item.y):'';
+  e.style.backgroundColor=item.bgTransparent?'transparent':(item.bg||'#ffffff');
+  e.style.border=item.borderVisible?'1px solid '+(item.borderColor||'#745193'):'1px solid transparent';
+  const content=document.createElement('div');setField(content,item,'text');
+  content.style.fontFamily=item.fontFamily||'Georgia';
+  content.style.fontSize=(item.fontSize||12)+'pt';
+  content.style.fontWeight=item.textWeight||'normal';
+  content.style.fontStyle=item.fontStyle||'normal';
+  content.style.textDecoration=item.textDecoration||'none';
+  content.style.textAlign=item.textAlign||'left';
+  content.style.color=item.textColor||'#262137';
+  e.append(content);
+  const grip=document.createElement('span');grip.className='textbox-move';
+  grip.textContent='⠿';grip.title='Перетащить текстовую рамку';
+  grip.addEventListener('pointerdown',ev=>startDrag(ev,item,e,false));
+  e.append(grip);
+}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);const grip=document.createElement('span');grip.className='text-grip';grip.title='Перетащить текстовый блок';grip.textContent='⠿';grip.addEventListener('pointerdown',ev=>startTextMove(ev,item,e,f,wrap));wrap.append(grip);const rh=document.createElement('span');rh.className='text-resize';rh.title='Изменить ширину и высоту текста';rh.addEventListener('pointerdown',ev=>startTextResize(ev,item,e,f,wrap));wrap.append(rh);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{item.level=badge.textContent;persist({group:'badge:'+item.id})});badge.addEventListener('pointerdown',ev=>startDrag(ev,item,e,true,badge));e.append(badge)}const resize=document.createElement('div');resize.className='resize';resize.addEventListener('pointerdown',ev=>startResize(ev,item,e));e.append(resize);e.addEventListener('pointerdown',ev=>{if(ev.target.closest('.editable'))return;startDrag(ev,item,e,false)});pages[(item.page||1)-1].append(e)}pages.forEach((p,i)=>{const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)});if(selected){const s=document.querySelector('.el[data-id="'+selected+'"]');if(s)s.classList.add('selected')}syncTextBoxTools();syncTextControls()}
+function select(e){document.querySelectorAll('.el.selected').forEach(x=>x.classList.remove('selected'));selected=e?.dataset.id||null;if(e){e.classList.add('selected');activePage=+(e.closest('.page')?.dataset.page||1);const c=current();if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;syncImageTools();syncBgTools();syncTextBoxTools();syncTextControls()}}
 function current(){return items.find(x=>x.id===selected)}function addObject(o){const obj={...o,z:Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0))+1,id:'e'+Date.now()+Math.floor(Math.random()*10000),page:activePage};items.push(obj);persist();draw();select(document.querySelector('[data-id="'+obj.id+'"]'))}
 function addCard(copy){const src=copy||{kind:'card',x:12,y:120,w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Измени описание двойным щелчком.',level:'1',roles:'support',bg:'#ffffff'};addObject({...structuredClone(src),x:Math.min(115,src.x+5),y:Math.min(270,src.y+5)})}
 setupObjects({addCard,addObject,current,getItems,setItems,getSelected,clearSelection,persist,draw,syncImageTools,syncBgTools});
+({syncTextBoxTools}=setupTextBoxes({addObject,current,persist,draw}));
 setupLayers({current,getItems,getSelected,persist,draw,select});
 setupFiles({getItems,setItems,getSelected,clearSelection,persist,draw,syncImageTools,syncBgTools});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 draw();
+setupToolbarTabs();
