@@ -8,8 +8,9 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.mjs",
-    "test:e2e": "python tests/browser_smoke.py",
-    "check:build": "node tests/validate-build.mjs"
+    "test:e2e": "npm run build && python tests/tiptap_browser_smoke.py",
+    "check:build": "node tests/validate-build.mjs",
+    "test:e2e:firefox": "npm run build && EDITOR_BROWSER=firefox python tests/tiptap_browser_smoke.py"
   },
   "devDependencies": {
     "vite": "^7.3.0",
