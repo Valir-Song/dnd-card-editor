@@ -45,6 +45,23 @@ export function createRichText({current,select,persist}){
   function makeHTML(item,field){
     let html=item[field+'Html'];
     if(typeof html!=='string')html=safeText(item[field]||'').replace(/\n/g,'<br>');
+    // Legacy contenteditable data may contain <font face/color/size>.
+    // Convert obsolete HTML formatting to marks that Tiptap can parse without
+    // losing historical card styles. Only the text engine owns this conversion.
+    const template=document.createElement('template');
+    template.innerHTML=html;
+    const oldSizes={1:'8pt',2:'10pt',3:'12pt',4:'14pt',5:'18pt',6:'24pt',7:'32pt'};
+    for(const legacy of template.content.querySelectorAll('font')){
+      const span=document.createElement('span');
+      span.style.cssText=legacy.getAttribute('style')||'';
+      if(legacy.hasAttribute('face')&&!span.style.fontFamily)span.style.fontFamily=legacy.getAttribute('face');
+      if(legacy.hasAttribute('color')&&!span.style.color)span.style.color=legacy.getAttribute('color');
+      if(legacy.hasAttribute('size')&&!span.style.fontSize)
+        span.style.fontSize=oldSizes[legacy.getAttribute('size')]||'12pt';
+      while(legacy.firstChild)span.append(legacy.firstChild);
+      legacy.replaceWith(span);
+    }
+    html=template.innerHTML;
     if(!/^\s*<(p|div|ul|ol|h[1-6]|blockquote|pre)\b/i.test(html))html='<p>'+html+'</p>';
     return html;
   }
