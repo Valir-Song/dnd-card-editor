@@ -1,245 +1,183 @@
-// One text toolbar for both card fields and independent text boxes.
+// Shared card/textbox typography. Selection is retained independently of input focus.
+// A live formatting span is updated in place instead of nesting a new span
+// for every click on the font-size spinner.
 export function setupTextFormatting({current,persist}) {
-  let lastEditor=null,savedRange=null,formattingDepth=0;
   const fonts=['Georgia','Arial','Times New Roman','Verdana','Courier New'];
   const controls={
-    fontFamily:document.getElementById('fontFamily'),
-    fontSize:document.getElementById('fontSize'),
-    textAlign:document.getElementById('textAlign'),
-    textColor:document.getElementById('textcolor')
+    family:document.getElementById('fontFamily'),
+    size:document.getElementById('fontSize'),
+    align:document.getElementById('textAlign'),
+    color:document.getElementById('textcolor')
   };
   const buttons=['bold','italic','underline'].map(id=>document.getElementById(id));
-  function currentEditor() {
+  let editor=null,range=null,liveSpan=null;
+  const pageEditor=element=>element?.closest?.('.editable')?.closest('.page')?element.closest('.editable'):null;
+  const contains=(root,node)=>!!(root&&node&&root.contains(node));
+  const selectionBelongs=()=>!!(editor&&range&&contains(editor,range.commonAncestorContainer));
+  const isSelected=()=>selectionBelongs()&&!range.collapsed;
+  function forgetRange(){
+    liveSpan?.classList.remove('format-target');
+    liveSpan=null;range=null;
+  }
+  function editorForSelected(){
     const item=current();
     if(!item)return null;
-    if(lastEditor&&document.contains(lastEditor)&&lastEditor.closest('.el')?.dataset.id===item.id)return lastEditor;
-    if(item.kind==='textbox')return [...document.querySelectorAll('.el.textbox')].find(e=>e.dataset.id===item.id)?.querySelector('.textbox-editor')||null;
-    return null;
+    if(editor&&document.contains(editor)&&editor.closest('.el')?.dataset.id===item.id)return editor;
+    const el=[...document.querySelectorAll('.el')].find(el=>el.dataset.id===item.id);
+    if(!el)return null;
+    return item.kind==='textbox'?el.querySelector('.textbox-editor'):null;
   }
-  function selectionIn(editor) {
-    return !!(editor&&savedRange&&editor.contains(savedRange.commonAncestorContainer));
-  }
-  function remember(){
-    const s=window.getSelection();
-    if(!s?.rangeCount||document.activeElement?.closest('.toolbar'))return;
-    const node=s.anchorNode;
-    const editor=(node?.nodeType===1?node:node?.parentElement)?.closest?.('.editable');
-    if(editor&&editor.closest('.page')&&s.getRangeAt(0).commonAncestorContainer&&editor.contains(s.getRangeAt(0).commonAncestorContainer)){
-      lastEditor=editor;savedRange=s.getRangeAt(0).cloneRange();
-      sync();
+  function capture(){
+    const s=window.getSelection();if(!s?.rangeCount)return;
+    const r=s.getRangeAt(0);
+    const anchor=s.anchorNode?.nodeType===1?s.anchorNode:s.anchorNode?.parentElement;
+    const next=pageEditor(anchor);
+    if(!next||!contains(next,s.focusNode)||!contains(next,r.commonAncestorContainer))return;
+    if(next!==editor){forgetRange();editor=next}
+    const currentText=r.toString();
+    if(liveSpan&&(!contains(next,liveSpan)||currentText!==liveSpan.textContent)) {
+      liveSpan.classList.remove('format-target');liveSpan=null;
     }
+    range=r.cloneRange();
+    if(r.collapsed&&liveSpan){liveSpan.classList.remove('format-target');liveSpan=null}
+    sync();
   }
-  document.addEventListener('selectionchange',remember);
-  // Capture the current range *before* toolbar controls take keyboard focus.
-  // Firefox can clear the DOM selection when focusing a number input.
-  const toolbar=document.querySelector('.toolbar');
-  toolbar?.addEventListener('pointerdown',event=>{
-    if(event.target.closest('input,select,button,label'))remember();
+  document.addEventListener('selectionchange',()=>{
+    // The browser often moves its Selection to a number input. That must not
+    // replace the saved editing range.
+    if(document.activeElement?.closest('.toolbar'))return;
+    capture();
+  });
+  document.querySelector('.toolbar')?.addEventListener('pointerdown',e=>{
+    if(e.target.closest('input,select,button,label'))capture();
   },true);
-  function fontName(value) {
-    const name=String(value||'').replace(/["']/g,'').toLowerCase();
-    return fonts.find(font=>name.includes(font.toLowerCase()))||'Georgia';
+  document.querySelector('.stage')?.addEventListener('pointerup',()=>queueMicrotask(capture));
+  document.querySelector('.stage')?.addEventListener('keyup',()=>queueMicrotask(capture));
+  function cssProbe(active) {
+    if(liveSpan&&document.contains(liveSpan)&&contains(active,liveSpan))return liveSpan;
+    if(!selectionBelongs())return active;
+    let node=range.startContainer;
+    if(node?.nodeType===1)node=node.childNodes[range.startOffset]||node.childNodes[Math.max(0,range.startOffset-1)]||node;
+    while(node?.nodeType===1&&node.firstChild)node=node.firstChild;
+    return (node?.nodeType===3?node.parentElement:node)||active;
   }
-  function sync(force=false) {
-    if(!force&&document.activeElement?.closest('.toolbar'))return;
-    const item=current(),editor=currentEditor();
-    if(!item||!editor)return;
-    const isBox=item.kind==='textbox';
-    const selectedText=selectionIn(editor)&&!savedRange.collapsed;
-    let probe=editor;
-    if(selectionIn(editor)){
-      const n=savedRange.startContainer;
-      const atStart=n?.nodeType===1?(n.childNodes[savedRange.startOffset]||n.childNodes[Math.max(0,savedRange.startOffset-1)]||n):n;
-      const candidate=atStart?.nodeType===1?atStart:atStart?.parentElement;
-      if(candidate&&editor.contains(candidate))probe=candidate;
-    }
-    const css=getComputedStyle(probe);
-    const field=isBox?{}:(item.textStyles?.[editor.classList[0]]||{});
-    const family=isBox&&!selectedText?item.fontFamily:(field.fontFamily||css.fontFamily);
-    const points=isBox&&!selectedText?(item.fontSize||12):(parseFloat(field.fontSize)||parseFloat(css.fontSize)*.75||12);
-    controls.fontFamily.value=fontName(family);
-    controls.fontSize.value=String(Math.round(points*10)/10);
-    controls.textAlign.value=isBox?(item.textAlign||'left'):(field.textAlign||getComputedStyle(editor).textAlign||'left');
-    const color=isBox&&!selectedText?(item.textColor||'#262137'):(field.color||css.color);
-    const context=document.createElement('span');context.style.color=color;
-    document.body.append(context);
-    const rgb=getComputedStyle(context).color;
-    context.remove();
-    const match=rgb.match(/[\d.]+/g);
-    if(match?.length>=3)controls.textColor.value='#'+match.slice(0,3).map(x=>Math.round(Number(x)).toString(16).padStart(2,'0')).join('');
-    const weight=isBox&&!selectedText?(item.textWeight||'normal'):(field.fontWeight||css.fontWeight);
-    const italic=isBox&&!selectedText?(item.fontStyle||'normal'):(field.fontStyle||css.fontStyle);
-    const decoration=isBox&&!selectedText?(item.textDecoration||'none'):(field.textDecoration||css.textDecorationLine);
-    for(const [i,on] of [Number(weight)>=600||weight==='bold',italic==='italic'||italic==='oblique',String(decoration).includes('underline')].entries()){
-      buttons[i].setAttribute('aria-pressed',String(on));
-    }
+  function rgbHex(color) {
+    const numbers=String(color).match(/[\d.]+/g);
+    return numbers?.length>=3?'#'+numbers.slice(0,3).map(v=>Math.max(0,Math.min(255,Math.round(Number(v)))).toString(16).padStart(2,'0')).join(''):'#262137';
   }
-  function restoreSelection(editor) {
-    const restored=selectionIn(editor)?savedRange.cloneRange():null;
-    if(editor.closest('.textbox')&&editor.contentEditable==='false')editor.contentEditable='true';
-    editor.focus();
-    if(restored){
-      const s=window.getSelection();
-      s.removeAllRanges();s.addRange(restored);
-      savedRange=restored.cloneRange();
-    }
+  const normalizeFont=val=>fonts.find(font=>String(val).replace(/["']/g,'').toLowerCase().includes(font.toLowerCase()))||fonts[0];
+  function sync(){
+    const item=current(),node=editorForSelected();if(!item||!node)return;
+    const box=item.kind==='textbox', selected=isSelected();
+    const computed=getComputedStyle(cssProbe(node));
+    const rootCss=getComputedStyle(node);
+    const props=box?{}:(item.textStyles?.[node.classList[0]]||{});
+    const family=selected?computed.fontFamily:(box?item.fontFamily:(props.fontFamily||rootCss.fontFamily));
+    const size=selected?parseFloat(computed.fontSize)*.75:(box?item.fontSize:(parseFloat(props.fontSize)||parseFloat(rootCss.fontSize)*.75));
+    controls.family.value=normalizeFont(family);
+    // Do not overwrite the value the user is currently typing or spinning.
+    if(document.activeElement!==controls.size&&Number.isFinite(size))
+      controls.size.value=String(Math.round(size*10)/10);
+    controls.align.value=box?(item.textAlign||'left'):(props.textAlign||rootCss.textAlign||'left');
+    controls.color.value=rgbHex(selected?computed.color:(box?(item.textColor||'#262137'):(props.color||rootCss.color)));
+    const weight=selected?computed.fontWeight:(box?(item.textWeight||'normal'):(props.fontWeight||rootCss.fontWeight));
+    const italic=selected?computed.fontStyle:(box?(item.fontStyle||'normal'):(props.fontStyle||rootCss.fontStyle));
+    const deco=selected?computed.textDecorationLine:(box?(item.textDecoration||'none'):(props.textDecoration||rootCss.textDecorationLine));
+    [Number(weight)>=600||weight==='bold',italic==='italic'||italic==='oblique',String(deco).includes('underline')].forEach((on,i)=>buttons[i].setAttribute('aria-pressed',String(on)));
   }
-  function changeBlock(item,editor,property,value){
+  function persistFormatted(node,item,prop){
+    const field=node.classList[0];
+    item[field+'Html']=node.innerHTML;
+    item[field]=node.innerText;
+    persist({group:'format:'+item.id+':'+field+':'+prop,windowMs:350});
+    sync();
+  }
+  function changeBlock(item,node,prop,value){
     if(item.kind==='textbox'){
-      item[property]=value;
-      const styles={fontFamily:'fontFamily',fontSize:'fontSize',textAlign:'textAlign',textColor:'color',textWeight:'fontWeight',fontStyle:'fontStyle',textDecoration:'textDecoration'};
-      const cssProperty=styles[property];
-      if(cssProperty)editor.style[cssProperty]=property==='fontSize'?value+'pt':value;
-    } else {
-      const field=editor.classList[0];
-      item.textStyles ||= {};
-      item.textStyles[field] ||= {};
-      const cssProperty=property==='textColor'?'color':property;
-      item.textStyles[field][cssProperty]=value;
-      editor.style[cssProperty]=property==='fontSize'?value+'pt':value;
+      item[prop]=value;
+    }else {
+      const field=node.classList[0];
+      item.textStyles ||= {};item.textStyles[field] ||= {};
+      item.textStyles[field][prop==='textColor'?'color':prop]=value;
     }
-    persist();
-    sync(true);
+    const cssName=prop==='textColor'?'color':prop;
+    node.style[cssName]=prop==='fontSize'?value+'pt':value;
+    persist({group:'format:'+item.id+':'+node.classList[0]+':'+prop,windowMs:350});
+    sync();
   }
-  // Track a selection by text offsets: execCommand can replace the selected text
-  // nodes, invalidating a cloned DOM Range. This preserves successive commands
-  // such as changing size and then color on the same highlighted word.
-  function offsetsFor(editor,range){
-    if(!range||range.collapsed)return null;
-    const before=document.createRange();
-    before.selectNodeContents(editor);
-    before.setEnd(range.startContainer,range.startOffset);
-    const start=before.toString().length;
-    return {start,end:start+range.toString().length};
+  function wrapSelection(){
+    if(liveSpan&&document.contains(liveSpan)&&contains(editor,liveSpan))return liveSpan;
+    if(!isSelected())return null;
+    const saved=range.cloneRange();
+    const fragment=saved.extractContents();
+    const span=document.createElement('span');span.append(fragment);
+    saved.insertNode(span);
+    range=document.createRange();range.selectNodeContents(span);
+    liveSpan=span;
+    return span;
   }
-  function rangeFor(editor,offsets){
-    if(!offsets)return null;
-    const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);
-    let cursor=0,first=null,last=null,node;
-    while((node=walker.nextNode())){
-      const next=cursor+node.textContent.length;
-      if(!first&&offsets.start<next)first=[node,Math.min(node.length,Math.max(0,offsets.start-cursor))];
-      if(!last&&offsets.end<=next)last=[node,Math.min(node.length,Math.max(0,offsets.end-cursor))];
-      cursor=next;
-    }
-    if(!first||!last)return null;
-    const restored=document.createRange();
-    restored.setStart(...first);restored.setEnd(...last);
-    return restored;
-  }
-  function styleSelected(editor,property,value){
-    // Editing a saved DOM Range does not require re-focusing contenteditable.
-    // This is much more reliable than execCommand('fontSize'), especially in
-    // Firefox, where a numeric input steals the editor's text selection.
-    const offsets=offsetsFor(editor,savedRange);
-    if(!offsets)return;
-    const original=savedRange.cloneRange();
-    const contents=original.extractContents();
-    const wrap=document.createElement('span');
-    const propertyNames={fontSize:'font-size',fontFamily:'font-family',textColor:'color'};
-    const cssProperty=propertyNames[property];
-    for(const descendant of contents.querySelectorAll('*')){
-      if(descendant.style)descendant.style.removeProperty(cssProperty);
+  function selectedStyle(item,node,prop,value){
+    const span=wrapSelection();if(!span)return;
+    const cssProp=prop==='textColor'?'color':prop;
+    // The selected value has precedence over older styling nested within it.
+    const cssAttr=prop==='fontSize'?'font-size':prop==='fontFamily'?'font-family':prop==='textColor'?'color':cssProp.replace(/[A-Z]/g,c=>'-'+c.toLowerCase());
+    for(const descendant of span.querySelectorAll('*')){
+      descendant.style?.removeProperty(cssAttr);
       if(descendant.tagName==='FONT'){
-        if(property==='fontSize')descendant.removeAttribute('size');
-        if(property==='fontFamily')descendant.removeAttribute('face');
-        if(property==='textColor')descendant.removeAttribute('color');
+        const attr={fontSize:'size',fontFamily:'face',textColor:'color'}[prop];
+        if(attr)descendant.removeAttribute(attr);
       }
     }
-    wrap.style.setProperty(cssProperty,property==='fontSize'?value+'pt':value);
-    wrap.append(contents);
-    original.insertNode(wrap);
-    const restored=document.createRange();
-    restored.selectNodeContents(wrap);
-    savedRange=restored;
-    // Do not call window.getSelection().addRange here: Chromium/Firefox can
-    // return keyboard focus to contenteditable, interrupting numeric typing.
-    editor.dispatchEvent(new CustomEvent('input',{bubbles:true,detail:{history:'format'}}));
-    sync(true);
+    if(prop==='bold'||prop==='italic'||prop==='underline'){
+      const css=getComputedStyle(span);
+      const on=prop==='bold'?(css.fontWeight==='bold'||Number(css.fontWeight)>=600):prop==='italic'?css.fontStyle==='italic':css.textDecorationLine.includes('underline');
+      const key={bold:'fontWeight',italic:'fontStyle',underline:'textDecoration'}[prop];
+      span.style[key]=on?({fontWeight:'normal',fontStyle:'normal',textDecoration:'none'}[key]):({fontWeight:'bold',fontStyle:'italic',textDecoration:'underline'}[key]);
+    }else span.style[cssProp]=prop==='fontSize'?value+'pt':value;
+    // Maintain an explicit highlight while the numeric input has focus.
+    span.classList.add('format-target');
+    range=document.createRange();range.selectNodeContents(span);
+    persistFormatted(node,item,prop);
   }
-  function inlineFormat(editor,cmd,value){
-    const textOffsets=offsetsFor(editor,savedRange);
-    // execCommand preserves existing nested spans and formats only the selection.
-    // HTML font sizes 1–7 are browser presets, so convert the generated size-7
-    // wrapper into a precise point value immediately.
-    if(cmd==='fontSize'){
-      for(const old of editor.querySelectorAll('font[size="7"]')){
-        old.style.fontSize=getComputedStyle(old).fontSize;
-        old.removeAttribute('size');
-      }
-    }
-    formattingDepth++;
-    try {
-      restoreSelection(editor);
-      document.execCommand(cmd,false,cmd==='fontSize'?'7':value);
-      if(cmd==='fontSize'){
-        for(const el of editor.querySelectorAll('font[size="7"]')){
-          el.style.fontSize=value+'pt';el.removeAttribute('size');
-        }
-      }
-    }finally{formattingDepth--}
-    const restored=rangeFor(editor,textOffsets);
-    if(restored){
-      savedRange=restored;
-      const selection=window.getSelection();
-      selection.removeAllRanges();selection.addRange(restored);
-    }
-    editor.dispatchEvent(new CustomEvent('input',{bubbles:true,detail:{history:'format'}}));
-    remember();sync(true);
-  }
-  function apply(property,value){
-    const item=current(),editor=currentEditor();if(!item||!editor)return;
-    const hasSelection=selectionIn(editor)&&!savedRange.collapsed;
-    // If the entire independent box is selected, this is a box-wide style:
-    // keep the item's own fontSize up to date for the next selection.
-    if(item.kind==='textbox'&&hasSelection&&['fontFamily','fontSize','textColor'].includes(property)){
-      const region=offsetsFor(editor,savedRange);
-      if(region?.start===0&&region.end===editor.textContent.length){
-        for(const descendant of editor.querySelectorAll('*')){
-          const cssProperty={fontFamily:'font-family',fontSize:'font-size',textColor:'color'}[property];
-          descendant.style?.removeProperty(cssProperty);
-          if(descendant.tagName==='FONT')descendant.removeAttribute({fontSize:'size',fontFamily:'face',textColor:'color'}[property]);
-        }
-        item.textHtml=editor.innerHTML;
-        changeBlock(item,editor,property,value);
-        return;
-      }
-    }
-    if(property==='textAlign'){changeBlock(item,editor,'textAlign',value);return}
-    const toggles={bold:['textWeight','bold','normal'],italic:['fontStyle','italic','normal'],underline:['textDecoration','underline','none']};
-    if(!hasSelection){
-      if(toggles[property]){
-        const [key,on,off]=toggles[property];
-        const existing=item.kind==='textbox'?item[key]:item.textStyles?.[editor.classList[0]]?.[key];
-        const computed=getComputedStyle(editor);
-        const active=existing??(key==='textWeight'?computed.fontWeight:key==='fontStyle'?computed.fontStyle:computed.textDecorationLine);
-        const isOn=key==='textWeight'?(active==='bold'||Number(active)>=600):String(active).includes(on);
-        changeBlock(item,editor,key,isOn?off:on);
-      }else changeBlock(item,editor,property,value);
-      return;
-    }
-    if(['fontFamily','fontSize','textColor'].includes(property)){
-      styleSelected(editor,property,value);
-    }else{
-      const commands={bold:'bold',italic:'italic',underline:'underline'};
-      inlineFormat(editor,commands[property],value);
-    }
+  function apply(prop,value){
+    const item=current();const node=editorForSelected();if(!item||!node)return;
+    editor=node;
+    if(prop==='textAlign'){changeBlock(item,node,prop,value);return}
+    if(isSelected()){
+      if(item.kind==='textbox'&&range.toString()===node.textContent&&['fontSize','fontFamily','textColor'].includes(prop)){
+        // Whole-box formatting must update the model's default too.
+        if(liveSpan){liveSpan.classList.remove('format-target');liveSpan=null}
+        range=null;
+        if(prop==='fontSize')for(const child of node.querySelectorAll('*'))child.style?.removeProperty('font-size');
+        changeBlock(item,node,prop,value);
+      }else selectedStyle(item,node,prop,value);
+    }else if(['bold','italic','underline'].includes(prop)){
+      const computed=getComputedStyle(node);
+      const key={bold:'fontWeight',italic:'fontStyle',underline:'textDecoration'}[prop];
+      const old=key==='fontWeight'?computed.fontWeight:key==='fontStyle'?computed.fontStyle:computed.textDecorationLine;
+      const on=prop==='bold'?(old==='bold'||Number(old)>=600):prop==='italic'?old==='italic':old.includes('underline');
+      const newValue=on?({fontWeight:'normal',fontStyle:'normal',textDecoration:'none'}[key]):({fontWeight:'bold',fontStyle:'italic',textDecoration:'underline'}[key]);
+      changeBlock(item,node,key,newValue);
+    }else changeBlock(item,node,prop,value);
   }
   for(const button of buttons){
     button.addEventListener('mousedown',e=>e.preventDefault());
-    button.onclick=()=>apply(button.id);
+    button.addEventListener('click',()=>apply(button.id));
   }
-  controls.fontFamily.addEventListener('change',e=>apply('fontFamily',e.target.value));
-  // 'input' fires for spinner arrows as well as typing; 'change' alone
-  // can wait until blur and lose the browser selection in Firefox.
-  controls.fontSize.addEventListener('input',e=>{
-    const raw=e.target.value;
-    if(raw===''||raw==='-'||raw==='.')return;
-    const value=Number(raw);
-    if(!Number.isFinite(value)||value<6||value>96)return;
-    apply('fontSize',value);
+  controls.family.addEventListener('change',e=>apply('fontFamily',e.target.value));
+  controls.size.addEventListener('input',e=>{
+    const v=e.target.value;if(v===''||v==='-'||v==='.')return;
+    const n=Number(v);if(n<6||n>96||!Number.isFinite(n))return;
+    apply('fontSize',n);
   });
-  controls.textAlign.addEventListener('change',e=>apply('textAlign',e.target.value));
-  controls.textColor.addEventListener('input',e=>apply('textColor',e.target.value));
-  return {setFocusedEditor(node){lastEditor=node;remember();sync(true)},syncTextControls:()=>sync(true),isFormatting:()=>formattingDepth>0};
+  controls.align.addEventListener('change',e=>apply('textAlign',e.target.value));
+  controls.color.addEventListener('input',e=>apply('textColor',e.target.value));
+  return {
+    setFocusedEditor(node){
+      if(editor!==node){forgetRange();editor=node}
+      capture();sync();
+    },
+    syncTextControls:sync,
+    isFormatting:()=>false
+  };
 }
