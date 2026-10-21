@@ -135,7 +135,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
       const found = e.selected.filter(node => node.closest('.page') === page).map(node => node.dataset.id);
       setSelection(found);
     });
-    page.addEventListener('pointerdown', e => {
+    page.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       const element = e.target.closest?.('.el');
       if (!element || element.closest('.page') !== page) {
