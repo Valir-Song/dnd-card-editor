@@ -21,7 +21,7 @@ export function setupTextFormatting({current,persist}) {
   }
   function remember(){
     const s=window.getSelection();
-    if(!s?.rangeCount)return;
+    if(!s?.rangeCount||document.activeElement?.closest('.toolbar'))return;
     const node=s.anchorNode;
     const editor=(node?.nodeType===1?node:node?.parentElement)?.closest?.('.editable');
     if(editor&&editor.closest('.page')&&s.getRangeAt(0).commonAncestorContainer&&editor.contains(s.getRangeAt(0).commonAncestorContainer)){
@@ -67,11 +67,13 @@ export function setupTextFormatting({current,persist}) {
     }
   }
   function restoreSelection(editor) {
+    const restored=selectionIn(editor)?savedRange.cloneRange():null;
     if(editor.closest('.textbox')&&editor.contentEditable==='false')editor.contentEditable='true';
     editor.focus();
-    if(selectionIn(editor)){
+    if(restored){
       const s=window.getSelection();
-      s.removeAllRanges();s.addRange(savedRange);
+      s.removeAllRanges();s.addRange(restored);
+      savedRange=restored.cloneRange();
     }
   }
   function changeBlock(item,editor,property,value){
