@@ -73,8 +73,10 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     const record = gesture.records.find(r => r.node === e.target);
     if (!record) return;
     const {scale} = gesture, direction = e.direction || [1, 1];
-    const width = record.w + (e.width - record.pixelW) * scale;
-    const height = record.h + (e.height - record.pixelH) * scale;
+    // e.dist is the change in pixel dimensions; unlike e.width it is safe
+    // when the underlying CSS width is expressed in mm instead of px.
+    const width = record.w + (e.dist?.[0] ?? (e.width - record.pixelW)) * scale;
+    const height = record.h + (e.dist?.[1] ?? (e.height - record.pixelH)) * scale;
     const right = record.x + record.w, bottom = record.y + record.h;
     const rawX = direction[0] < 0 ? right - width : record.x;
     const rawY = direction[1] < 0 ? bottom - height : record.y;
@@ -110,10 +112,20 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     .on('dragGroupStart', begin)
     .on('dragGroup', e => applyDrag(e.events?.[0]?.beforeDist || e.events?.[0]?.dist))
     .on('dragGroupEnd', endGesture)
-    .on('resizeStart', begin)
+    .on('resizeStart', e => {
+      begin();
+      const record = gesture?.records.find(r => r.node === e.target);
+      if(record) e.set([record.pixelW, record.pixelH]);
+    })
     .on('resize', applyResize)
     .on('resizeEnd', endGesture)
-    .on('resizeGroupStart', begin)
+    .on('resizeGroupStart', e => {
+      begin();
+      for(const ev of e.events || []){
+        const record = gesture?.records.find(r => r.node === ev.target);
+        if(record) ev.set([record.pixelW, record.pixelH]);
+      }
+    })
     .on('resizeGroup', e => { for (const ev of e.events || []) applyResize(ev); })
     .on('resizeGroupEnd', endGesture);
 
