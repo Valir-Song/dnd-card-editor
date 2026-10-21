@@ -48,7 +48,7 @@ export function setupTextFormatting({current,persist}) {
     const css=getComputedStyle(probe);
     const field=isBox?{}:(item.textStyles?.[editor.classList[0]]||{});
     const family=isBox?item.fontFamily:(field.fontFamily||css.fontFamily);
-    const points=isBox?(item.fontSize||12):(field.fontSize||parseFloat(css.fontSize)*.75||12);
+    const points=isBox?(item.fontSize||12):(parseFloat(field.fontSize)||parseFloat(css.fontSize)*.75||12);
     controls.fontFamily.value=fontName(family);
     controls.fontSize.value=String(Math.round(points*10)/10);
     controls.textAlign.value=isBox?(item.textAlign||'left'):(field.textAlign||getComputedStyle(editor).textAlign||'left');
@@ -85,7 +85,7 @@ export function setupTextFormatting({current,persist}) {
       item.textStyles ||= {};
       item.textStyles[field] ||= {};
       const cssProperty=property==='textColor'?'color':property;
-      item.textStyles[field][cssProperty]=property==='fontSize'?value+'pt':value;
+      item.textStyles[field][cssProperty]=value;
       editor.style[cssProperty]=property==='fontSize'?value+'pt':value;
     }
     persist();
