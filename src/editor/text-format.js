@@ -49,7 +49,8 @@ export function setupTextFormatting({current,persist}) {
     let probe=editor;
     if(selectionIn(editor)){
       const n=savedRange.startContainer;
-      const candidate=n?.nodeType===1?n:n?.parentElement;
+      const atStart=n?.nodeType===1?(n.childNodes[savedRange.startOffset]||n.childNodes[Math.max(0,savedRange.startOffset-1)]||n):n;
+      const candidate=atStart?.nodeType===1?atStart:atStart?.parentElement;
       if(candidate&&editor.contains(candidate))probe=candidate;
     }
     const css=getComputedStyle(probe);
@@ -117,7 +118,7 @@ export function setupTextFormatting({current,persist}) {
     let cursor=0,first=null,last=null,node;
     while((node=walker.nextNode())){
       const next=cursor+node.textContent.length;
-      if(!first&&offsets.start<=next)first=[node,Math.min(node.length,Math.max(0,offsets.start-cursor))];
+      if(!first&&offsets.start<next)first=[node,Math.min(node.length,Math.max(0,offsets.start-cursor))];
       if(!last&&offsets.end<=next)last=[node,Math.min(node.length,Math.max(0,offsets.end-cursor))];
       cursor=next;
     }
@@ -148,8 +149,11 @@ export function setupTextFormatting({current,persist}) {
     wrap.style.setProperty(cssProperty,property==='fontSize'?value+'pt':value);
     wrap.append(contents);
     original.insertNode(wrap);
-    const restored=rangeFor(editor,offsets);
-    if(restored)savedRange=restored;
+    const restored=document.createRange();
+    restored.selectNodeContents(wrap);
+    savedRange=restored;
+    const selection=window.getSelection();
+    selection.removeAllRanges();selection.addRange(restored);
     editor.dispatchEvent(new CustomEvent('input',{bubbles:true,detail:{history:'format'}}));
     sync(true);
   }
