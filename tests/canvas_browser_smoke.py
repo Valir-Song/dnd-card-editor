@@ -76,6 +76,13 @@ with sync_playwright() as p:
     before_group_shape=current('test-shape').copy()
     before_group_image=current('test-image').copy()
     gx,gy=center(group_handle)
+    print('GROUP HANDLE HIT',page.evaluate('''([x,y]) => {
+      const handle=document.querySelector('.moveable-control-box [data-direction="se"]');
+      const hit=document.elementFromPoint(x,y);
+      return {handler:handle?.outerHTML.slice(0,360),hit:hit?.outerHTML.slice(0,360),
+              handlePointer:handle?getComputedStyle(handle).pointerEvents:null,
+              areaPointer:handle?.parentElement?getComputedStyle(handle.parentElement).pointerEvents:null}
+    }''',[gx,gy]),flush=True)
     drag(gx,gy,26,17)
     assert current('test-shape')['w']>before_group_shape['w']+1,(current('test-shape'),errors)
     assert current('test-image')['w']>before_group_image['w']+1,(current('test-image'),errors)
