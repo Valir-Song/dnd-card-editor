@@ -46,7 +46,7 @@ with sync_playwright() as p:
     page.mouse.move(x+dx,y+dy,steps=12)
     page.mouse.up()
   def handle():
-    return page.locator('.dnd-inner-moveable [data-direction="se"]').last
+    return page.locator('.dnd-inner-moveable [data-direction="se"]:visible').last
   def border():
     # Moveable renders its editable frame outside the printable A4 DOM.
     # Drag only its horizontal border, never a Tiptap glyph.
