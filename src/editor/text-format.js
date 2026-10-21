@@ -1,6 +1,6 @@
 // One text toolbar for both card fields and independent text boxes.
 export function setupTextFormatting({current,persist}) {
-  let lastEditor=null,savedRange=null;
+  let lastEditor=null,savedRange=null,formattingDepth=0;
   const fonts=['Georgia','Arial','Times New Roman','Verdana','Courier New'];
   const controls={
     fontFamily:document.getElementById('fontFamily'),
@@ -103,13 +103,16 @@ export function setupTextFormatting({current,persist}) {
         old.removeAttribute('size');
       }
     }
-    restoreSelection(editor);
-    document.execCommand(cmd,false,cmd==='fontSize'?'7':value);
-    if(cmd==='fontSize'){
-      for(const el of editor.querySelectorAll('font[size="7"]')){
-        el.style.fontSize=value+'pt';el.removeAttribute('size');
+    formattingDepth++;
+    try {
+      restoreSelection(editor);
+      document.execCommand(cmd,false,cmd==='fontSize'?'7':value);
+      if(cmd==='fontSize'){
+        for(const el of editor.querySelectorAll('font[size="7"]')){
+          el.style.fontSize=value+'pt';el.removeAttribute('size');
+        }
       }
-    }
+    }finally{formattingDepth--}
     editor.dispatchEvent(new CustomEvent('input',{bubbles:true,detail:{history:'format'}}));
     remember();sync(true);
   }
@@ -144,5 +147,5 @@ export function setupTextFormatting({current,persist}) {
   });
   controls.textAlign.addEventListener('change',e=>apply('textAlign',e.target.value));
   controls.textColor.addEventListener('input',e=>apply('textColor',e.target.value));
-  return {setFocusedEditor(node){lastEditor=node;remember();sync(true)},syncTextControls:()=>sync(true)};
+  return {setFocusedEditor(node){lastEditor=node;remember();sync(true)},syncTextControls:()=>sync(true),isFormatting:()=>formattingDepth>0};
 }
