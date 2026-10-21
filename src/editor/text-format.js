@@ -51,6 +51,11 @@ export function setupTextFormatting({current,persist}) {
   document.querySelector('.toolbar')?.addEventListener('pointerdown',e=>{
     if(e.target.closest('input,select,button,label'))capture();
   },true);
+  document.querySelector('.stage')?.addEventListener('pointerdown',event=>{
+    // Leaving the text editor ends its transient highlight and selection.
+    const element=event.target.closest('.el');
+    if(!element||element!==editor?.closest('.el'))forgetRange();
+  },true);
   document.querySelector('.stage')?.addEventListener('pointerup',()=>queueMicrotask(capture));
   document.querySelector('.stage')?.addEventListener('keyup',()=>queueMicrotask(capture));
   function cssProbe(active) {
