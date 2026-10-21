@@ -63,3 +63,53 @@ Pointer gestures create one history step when released; adjacent keystrokes and 
 History is **in memory only**: it resets when you reload or close the page. Existing saved layouts and the `dnd-card-editor-v3` storage key remain compatible with version 3.0.1. The history has a 60-step / ~48 MiB cap; large embedded images may reduce available steps.
 
 To verify: `npm test`, `python tests/browser_smoke.py`, `npm run build`, `npm run check:build`.
+ 
+
+## Experimental 3.2 Tiptap — unified text foundation (branch `feature/3.2-tiptap-core`)
+
+This is a **draft** replacing the previous homegrown `contenteditable` formatters. It is
+based on the last validated 3.2 tabbed-toolbar/text-box snapshot **fac50cad**
+and is not merged into `main`.
+
+- One Tiptap 3 / ProseMirror implementation powers every editable field:
+  cards (title, metadata and details), header/subtitle, notes/resources,
+  section labels, and free-positioned text boxes.
+- One toolbar in the Text tab controls selection formatting: bold, italic,
+  underline, strike, family, precise 6–96 pt font size, color, alignment,
+  numbered/bulleted lists and clear formatting.
+- Clicking with a caret but without an active text selection applies styling
+  to the whole focused text field, not merely to future typing. For a portion
+  of the text, select the exact word(s) before using the toolbar.
+- A textbox still has *object* settings for background, border, auto-height and
+  position. These are not separate text-format engines.
+- Text content and formatting are stored as portable HTML in the existing
+  `titleHtml`/`subtitleHtml`/`metaHtml`/`detailHtml`/`textHtml` properties.
+  Old `<font>` markup is converted to Tiptap-compatible spans when loaded.
+  Positions, card sizes, layer ordering and localStorage key remain compatible.
+- Undo/Redo continues to use the existing **whole-document** snapshot history
+  (including text and object changes). Tiptap's own per-editor UndoRedo is
+  intentionally disabled to prevent competing histories.
+- `npm run build` bundles Tiptap and all dependencies directly into
+  `dist/index.html`. No CDN or server is needed to open the exported HTML.
+  The *HTML export* is created from pristine application markup plus the current
+  JSON layout, rather than copying active ProseMirror editor DOM.
+- Original small card boxes may clip or overflow if you choose a very large
+  font; this is a **layout constraint**, not a rich-text engine problem.
+
+### Reproducible checks
+
+```sh
+npm install
+npm test
+npm run build
+npm run check:build
+python -m playwright install chromium firefox
+npm run test:e2e
+npm run test:e2e:firefox
+```
+
+CI runs the end-to-end suite against the **real compiled HTML** in both
+Chromium and Firefox, including live font growth, old JSON import, global
+Undo/Redo, new text boxes and offline round-trip export.
+
+Tiptap is MIT licensed. Source: https://github.com/ueberdosis/tiptap.
