@@ -14,7 +14,6 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
   const mmPerPx = page => 210 / page.getBoundingClientRect().width;
   const itemFor = id => getItems().find(item => item.id === id);
   const clip = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
-  const pageFor = id => pages.find(page => page.querySelector('.el[data-id="' + CSS.escape(id) + '"]'));
   function setSelection(next, preferred = null) {
     const unique = [...new Set(next)].filter(id => !!itemFor(id));
     const first = unique[0], page = first ? (itemFor(first).page || 1) : null;
@@ -40,7 +39,8 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     if (status) status.textContent = ids.length > 1 ? 'Выбрано: ' + ids.length : '';
   }
   function begin() {
-    const chosen = ids.map(id => ({id, item: itemFor(id), node: elements().find(node => node.dataset.id === id)}))
+    const byId=new Map(elements().map(node => [node.dataset.id,node]));
+    const chosen = ids.map(id => ({id, item: itemFor(id), node: byId.get(id)}))
       .filter(record => record.item && record.node);
     if (!chosen.length) { gesture = null; return; }
     const page = chosen[0].node.closest('.page');
@@ -120,17 +120,16 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     .on('resize', applyResize)
     .on('resizeEnd', endGesture)
     .on('resizeGroupStart', e => {
-      console.info('DND DEBUG resizeGroupStart', (e.events || []).length, ids);
       begin();
       for(const ev of e.events || []){
         const record = gesture?.records.find(r => r.node === ev.target);
         if(record) ev.set([record.pixelW, record.pixelH]);
       }
     })
-    .on('resizeGroup', e => { console.info('DND DEBUG resizeGroup', (e.events || []).map(v => ({width:v.width,dist:v.dist,dir:v.direction,id:v.target?.dataset.id}))); for (const ev of e.events || []) applyResize(ev); })
+    .on('resizeGroup', e => { for (const ev of e.events || []) applyResize(ev); })
     .on('resizeGroupEnd', endGesture);
 
-  pages.forEach((page, pageIndex) => {
+  pages.forEach(page => {
     const selecto = new Selecto({
       container: document.body, dragContainer: page,
       selectableTargets: ['#' + page.id + ' .el'],
