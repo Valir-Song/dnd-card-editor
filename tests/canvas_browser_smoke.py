@@ -68,6 +68,10 @@ with sync_playwright() as p:
     page.locator('#redo').click()
     assert abs(current('test-shape')['x']-after_shape['x'])<.2
     print('PASS '+browser_name+': Moveable group drag, geometry, one-step undo/redo')
+    # Explicitly remove the second target, preserving group-drag semantics when
+    # clicking a selected member. Then resize a single target.
+    img.click(modifiers=['Shift'],position={'x':10,'y':10})
+    assert img.evaluate('e=>!e.classList.contains("selected")')
     # Single resize from the bottom right handle: it must update physical mm.
     shape.click(position={'x':12,'y':10})
     handles=page.locator('.moveable-control-box [data-direction="se"]')
