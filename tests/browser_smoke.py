@@ -69,9 +69,13 @@ with sync_playwright() as p:
     assert title.inner_text()=='Модульный тест'
     assert 'font-size: 17pt' in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
     page.locator('#undo').click()
-    assert 'font-size: 17pt' not in title.inner_html(),'Undo selected text formatting'
+    assert title.inner_html()=='Модульный тест','One undo must completely revert selected text formatting'
     page.locator('#redo').click()
     assert 'font-size: 17pt' in title.inner_html(),'Redo selected text formatting'
+    # Exact size persists through save/load and doesn't format the unselected word.
+    assert title.locator('font').inner_text()=='Модульный'
+    assert 'тест' in title.inner_text()
+
     title.click()
     page.locator('#textAlign').select_option('right')
     saved=json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")'))
