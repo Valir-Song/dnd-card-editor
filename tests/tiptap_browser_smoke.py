@@ -2,6 +2,8 @@
 Exercise all text surfaces with real keyboard interactions in Chromium/Firefox.
 """
 import os
+import shutil
+import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -104,11 +106,16 @@ with sync_playwright() as p:
     assert download.suggested_filename.endswith('.html')
     export_file=Path(download.path())
     exported=export_file.read_text(encoding='utf-8')
+    # Playwright stores downloads under an extensionless GUID. Opening that
+    # directly as file:// can be treated as binary instead of HTML in Chromium.
+    # Restore the actual .html extension before validating the exported app.
+    opened_path=Path(tempfile.mkdtemp(prefix='dnd-tiptap-export-'))/'exported.html'
+    shutil.copy2(export_file,opened_path)
     assert 'Tiptap unified example' in exported
     reopen=context.new_page()
     reopen_errors=[]
     reopen.on('pageerror',lambda error:reopen_errors.append(str(error)))
-    reopen.goto(export_file.as_uri(),wait_until='load')
+    reopen.goto(opened_path.as_uri(),wait_until='load')
     reopen.wait_for_selector('.el .tiptap-content')
     assert reopen.locator('.el.textbox .tiptap-content').count()==1,reopen_errors
     assert 'Tiptap unified example' in reopen.locator('.el.textbox').inner_text()
