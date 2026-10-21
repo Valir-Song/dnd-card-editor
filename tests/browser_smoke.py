@@ -106,6 +106,11 @@ with sync_playwright() as p:
     assert page.locator('#fontSize').input_value()=='19'
     page.locator('#fontSize').fill('23')
     assert 'font-size: 23pt' in title.inner_html(),'Manual number entry must change highlighted text'
+    assert page.evaluate('document.activeElement.id')=='fontSize'
+    page.evaluate('getSelection().removeAllRanges()')
+    page.locator('#fontSize').fill('24')
+    assert 'font-size: 24pt' in title.inner_html(),'Lost native selection must not change the target word'
+    assert page.locator('#fontSize').input_value()=='24'
     assert title.inner_text()=='Модульный тест'
     print('PASS spinner arrows and manual font-size entry on selected card word')
 
