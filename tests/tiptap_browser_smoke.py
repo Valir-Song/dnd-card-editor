@@ -2,6 +2,7 @@
 Exercise all text surfaces with real keyboard interactions in Chromium/Firefox.
 """
 import os
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -124,6 +125,28 @@ with sync_playwright() as p:
     assert abs(float(reopen.locator('#fontSize').input_value())-20)<.6
     assert not reopen_errors,reopen_errors
     print('PASS '+engine+': exported HTML reopens with full offline text editing')
+
+    # Old 3.1/3.2 JSON files should import without changing card positions,
+    # losing text content, or dropping legacy <font> typography.
+    old=json.loads((html_path.parent.parent/'src'/'starter-layout.json').read_text(encoding='utf-8'))
+    old_card=next(item for item in old if item['kind']=='card')
+    old_card['title']='Старый заголовок'
+    old_card['titleHtml']='<font face="Verdana" color="#a03459" style="font-size:17pt"><b>Старый заголовок</b></font>'
+    old[old.index(old_card)]=old_card
+    reopen.locator('[data-tab="files"]').click()
+    reopen.set_input_files('#import',{'name':'legacy-layout.json',
+      'mimeType':'application/json','buffer':json.dumps(old,ensure_ascii=False).encode('utf-8')})
+    legacy_title=reopen.locator('.el.card .title .tiptap-content').first
+    reopen.wait_for_function('document.querySelector(".el.card .title .tiptap-content")?.textContent.includes("Старый заголовок")')
+    assert 'Старый заголовок' in legacy_title.inner_text()
+    assert legacy_title.locator('strong').count()>0
+    legacy_size=legacy_title.evaluate("""e=>{
+      const span=e.querySelector('[style*=font-size]');
+      return span?parseFloat(getComputedStyle(span).fontSize):0
+    }""")
+    assert abs(legacy_size-17*4/3)<1.1,('Legacy 17pt font was lost',legacy_size)
+    assert not reopen_errors,reopen_errors
+    print('PASS '+engine+': legacy JSON import and HTML font styles')
 
     assert not errors,errors
     browser.close()
