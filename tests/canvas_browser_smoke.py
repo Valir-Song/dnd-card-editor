@@ -133,8 +133,25 @@ with sync_playwright() as p:
     title.press('End')
     page.keyboard.type(' + правка')
     assert 'правка' in title.inner_text()
+    # Compatibility: existing badge drag and in-card text-frame grips are not
+    # top-level Moveable objects and must remain independently draggable.
+    badge=page.locator('[data-id="test-card"] .level')
+    card_before=current('test-card').copy()
+    bx,by=center(badge)
+    drag(bx,by,-17,6)
+    badge_after=current('test-card')
+    assert badge_after.get('badgeCustomPosition'),('Badge gesture failed',badge_after,errors)
+    assert badge_after['x']==card_before['x'] and badge_after['y']==card_before['y']
+    title.hover()
+    grip=page.locator('[data-id="test-card"] .text-wrap').first.locator('.text-grip')
+    grip.wait_for(state='visible')
+    fx,fy=center(grip)
+    drag(fx,fy,18,10)
+    frame=current('test-card').get('textFrames',{}).get('title',{})
+    assert frame.get('x',0)>1 and frame.get('y',0)>1,('Text-frame grip failed',frame,errors)
+    assert current('test-card')['x']==card_before['x']
     assert not errors,errors
-    print('PASS '+browser_name+': Tiptap focus/edit, geometry retained, multi-delete undo')
+    print('PASS '+browser_name+': Tiptap, legacy badge/text-frame grips and multi-delete undo')
     page.locator('[data-tab="files"]').click()
     with page.expect_download() as outcome:
         page.locator('#export').click()
