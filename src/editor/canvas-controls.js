@@ -120,7 +120,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
   pages.forEach((page, pageIndex) => {
     const selecto = new Selecto({
       container: document.body, dragContainer: page,
-      selectableTargets: [page.querySelectorAll('.el')],
+      selectableTargets: ['#' + page.id + ' .el'],
       selectByClick: false, selectFromInside: false,
       continueSelect: false, hitRate: 12,
       preventDefault: false, ratio: 0
@@ -168,7 +168,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     for (const id of ids.slice()) if (!itemFor(id)) ids = ids.filter(value => value !== id);
     if (primary && !ids.includes(primary)) primary = null;
     for (const [i, selecto] of selectos.entries()) {
-      selecto.selectableTargets = [pages[i].querySelectorAll('.el')];
+      selecto.selectableTargets = ['#' + pages[i].id + ' .el'];
     }
     sync();
   }
