@@ -74,3 +74,10 @@
 .toolbar-content #textBoxTools input[type=color]{width:27px;height:25px;padding:1px}
 .toolbar-content #textBoxTools input[type=number]{width:52px}
 @media print{.el.textbox>.textbox-move{display:none!important}.el.textbox>.textbox-editor{overflow:visible}}
+
+/* Shared typography controls for card text and independent text boxes. */
+.toolbar-content #fontSize{width:54px;min-width:54px;padding:3px 5px}
+.toolbar-content #fontFamily{min-width:118px;max-width:156px}
+.toolbar-content #textAlign{min-width:108px}
+.toolbar-content #textcolor{height:28px;width:32px;padding:1px}
+.toolbar-content #bold[aria-pressed="true"],.toolbar-content #italic[aria-pressed="true"],.toolbar-content #underline[aria-pressed="true"]{background:#dfd1f0;border-color:#8668ac}
