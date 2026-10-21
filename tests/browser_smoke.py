@@ -54,6 +54,30 @@ with sync_playwright() as p:
     page.keyboard.press('Control+Shift+z')
     assert card.locator('.title').inner_text()=='Модульный тест'
     print('PASS selection, editing, persistence and keyboard undo/redo')
+
+    # Select just one word in a card. Exact point sizes must not affect the rest.
+    page.locator('[data-tab="text"]').click()
+    title.evaluate("""e=>{
+        const text=e.firstChild,r=document.createRange(),sel=window.getSelection();
+        r.setStart(text,0);r.setEnd(text,'Модульный'.length);
+        sel.removeAllRanges();sel.addRange(r)
+    }""")
+    page.wait_for_timeout(40)
+    page.locator('#fontSize').fill('17')
+    page.locator('#fontSize').dispatch_event('change')
+    assert 'font-size: 17pt' in title.inner_html(),title.inner_html()
+    assert title.inner_text()=='Модульный тест'
+    assert 'font-size: 17pt' in page.evaluate('localStorage.getItem("dnd-card-editor-v3")')
+    page.locator('#undo').click()
+    assert 'font-size: 17pt' not in title.inner_html(),'Undo selected text formatting'
+    page.locator('#redo').click()
+    assert 'font-size: 17pt' in title.inner_html(),'Redo selected text formatting'
+    title.click()
+    page.locator('#textAlign').select_option('right')
+    saved=json.loads(page.evaluate('localStorage.getItem("dnd-card-editor-v3")'))
+    assert next(i for i in saved if i['id']==item_id)['textStyles']['title']['textAlign']=='right'
+    print('PASS shared typography: precise 17pt word formatting and block alignment')
+
     card.locator('.title').click()
     grip=card.locator('.text-grip').first
     grip.dispatch_event('pointerdown',{'button':0,'clientX':100,'clientY':100})
@@ -162,7 +186,7 @@ with sync_playwright() as p:
     box=page.locator('.el.textbox').last
     assert box.count()==1 and box.locator('.textbox-editor').count()==1
     text_id=box.get_attribute('data-id')
-    assert page.locator('#boxFont').is_visible()
+    assert page.locator('#fontFamily').is_visible()
     editor=box.locator('.textbox-editor')
     editor.dblclick()
     assert editor.get_attribute('contenteditable')=='true'
@@ -173,10 +197,10 @@ with sync_playwright() as p:
     assert box.locator('.textbox-editor').get_attribute('contenteditable')=='true'
     page.keyboard.press('Control+Shift+z')
     assert 'Заметка для барда' in box.locator('.textbox-editor').inner_text()
-    page.locator('#boxFont').select_option('Arial')
-    page.locator('#boxSize').fill('16')
-    page.locator('#boxSize').dispatch_event('change')
-    page.locator('#boxAlign').select_option('center')
+    page.locator('#fontFamily').select_option('Arial')
+    page.locator('#fontSize').fill('16')
+    page.locator('#fontSize').dispatch_event('change')
+    page.locator('#textAlign').select_option('center')
     page.locator('#boxBorderVisible').check()
     page.locator('#boxTransparent').uncheck()
     page.locator('#boxAutoHeight').check()
