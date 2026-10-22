@@ -107,7 +107,7 @@
 .moveable-control-box{z-index:180!important}
 .moveable-control-box .moveable-control{background:#2678bb;border:1px solid #fff}
 .selecto-selection{z-index:179!important;background:#2678bb19!important;border:1px solid #2678bb!important}
-.el.selected{outline:1px dashed #2678bb;outline-offset:1px}
+@media screen{.el.selected{outline:1px dashed #2678bb;outline-offset:1px}}
 #selectionCount{font:12px Arial,sans-serif;color:#ded6ec}
 @media print{.moveable-control-box,.selecto-selection,#selectionCount{display:none!important}}
 
@@ -129,3 +129,6 @@
 .notice button:hover{border-color:#a8742a}
 .notice .notice-close{border:0;background:transparent;font-size:18px;line-height:1;padding:2px 6px}
 @media print{.notices{display:none!important}}
+
+/* 3.3.1: editing outlines never reach paper or PDF, whatever is selected or focused. */
+@media print{.el.selected,.el .editable:focus,.el .editable:focus-within,.text-wrap:hover{outline:none!important}}
