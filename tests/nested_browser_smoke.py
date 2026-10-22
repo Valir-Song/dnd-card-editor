@@ -120,6 +120,23 @@ with sync_playwright() as p:
   assert abs(item()['textFrames']['title']['x']-before_title['x'])<.25
   assert abs(item()['textFrames'].get('meta',{}).get('x',0)-before_meta.get('x',0))<.25
   print('PASS '+engine+': group drag of two child frames and one-step undo')
+  # Both fields resize together through Moveable's GROUP handles, and Undo
+  # restores their original dimensions without affecting the enclosing card.
+  group_before=item().copy()
+  size_before_title=item()['textFrames']['title'].get('w',0)
+  size_before_meta=item()['textFrames'].get('meta',{}).get('w',0)
+  group_handle=page.locator('.dnd-inner-moveable [data-direction="se"]:visible').last
+  group_handle.wait_for(state='visible')
+  ghx,ghy=center(group_handle)
+  drag(ghx,ghy,24,13)
+  group_after=item()
+  assert group_after['textFrames']['title']['w']>size_before_title+1
+  assert group_after['textFrames']['meta']['w']>size_before_meta+1
+  assert group_after['x']==group_before['x'] and group_after['w']==group_before['w']
+  page.locator('#undo').click()
+  assert item()['textFrames']['title'].get('w',0)==size_before_title
+  assert item()['textFrames'].get('meta',{}).get('w',0)==size_before_meta
+  print('PASS '+engine+': grouped inner resize with parent unchanged and one-step undo')
 
   # Selecting an in-card text field must never let Delete remove the parent.
   page.keyboard.press('Escape')
@@ -160,6 +177,16 @@ with sync_playwright() as p:
     })"""))
     raise
   assert card.locator('.tiptap-content').count()==3
+  # Alt+marquee inside the blank portion of the parent selects its own child
+  # text fields, not text fields of other cards or any page-level shapes.
+  box=card.bounding_box()
+  page.keyboard.down('Alt')
+  drag(box['x']+25,box['y']+90,218,-85)
+  page.keyboard.up('Alt')
+  assert card.locator('.text-wrap.inner-selected').count()==3
+  assert page.locator('[data-id="other-card"] .text-wrap.inner-selected').count()==0
+  assert item('other-card').get('textFrames') is None
+  print('PASS '+engine+': Alt+marquee selects three sibling fields in one card only')
   page.emulate_media(media='print')
   assert page.locator('.dnd-inner-moveable').first.evaluate('e=>getComputedStyle(e).display')=='none'
   page.emulate_media(media='screen')
