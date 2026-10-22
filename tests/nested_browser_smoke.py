@@ -1,4 +1,4 @@
-"""Nested Moveable/Selecto regression tests on the real offline HTML.
+"""Nested gesture-layer regression tests on the real offline HTML.
 Card text frames stay inside their parent item and keep Tiptap editable.
 """
 import json,os,shutil,tempfile
@@ -46,24 +46,24 @@ with sync_playwright() as p:
     page.mouse.move(x+dx,y+dy,steps=12)
     page.mouse.up()
   def handle():
-    return page.locator('.dnd-inner-moveable [data-direction="se"]:visible').last
+    return page.locator('.gesture-frame.inner:not([hidden]) [data-dir="se"]').last
   def border():
-    # Moveable renders its editable frame outside the printable A4 DOM.
-    # Drag only its horizontal border, never a Tiptap glyph.
-    lines=page.evaluate("""() => [...document.querySelectorAll('.dnd-inner-moveable .moveable-edgeDraggable')]
+    # The text frame's drag bands sit just outside it, on the gesture layer.
+    # Drag only a horizontal band, never a Tiptap glyph.
+    lines=page.evaluate("""() => [...document.querySelectorAll('.gesture-frame.inner:not([hidden]) .gesture-edge.top, .gesture-frame.inner:not([hidden]) .gesture-edge.bottom')]
       .map(el => { const b=el.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height} })
       .filter(b => b.w>25 && b.h<9).sort((a,b)=>b.w-a.w)""")
-    assert lines, 'No draggable nested Moveable border'
+    assert lines, 'No drag band on the selected text frame'
     rect=lines[0]
-    # The middle of the top line is Moveable's N resize control. Use
-    # the first quarter of the line to exercise its draggable segment.
+    # The middle of the band is under the N resize handle. Use the
+    # first quarter of the band to exercise its draggable segment.
     return rect['x']+rect['w']*.26,rect['y']+rect['h']*.5
 
   # Selecting a text field must show inner handles WITHOUT moving its card.
   title.locator('.tiptap-content').click()
   assert title.evaluate('el=>el.classList.contains("inner-selected")')
   assert handle().count()==1
-  # Moveable may retain detached/hidden controls in DOM; check the active child instead.
+  # gesture-layer may retain detached/hidden controls in DOM; check the active child instead.
   assert title.evaluate('el=>el.classList.contains("inner-selected")')
   assert card.locator('.text-grip,.text-resize').count()==0
   assert not item().get('textFrames')
@@ -75,9 +75,9 @@ with sync_playwright() as p:
   assert item()['x']==old['x'] and item()['y']==old['y']
   assert item()['w']==old['w'] and item()['h']==old['h']
   after_move=frame.copy()
-  print('PASS '+engine+': drag title using Moveable border, parent card stays still')
+  print('PASS '+engine+': drag title by its frame band, parent card stays still')
 
-  # Resize by Moveable corner. Existing text and formatting still owned by Tiptap.
+  # Resize by gesture-layer corner. Existing text and formatting still owned by Tiptap.
   hx,hy=center(handle())
   drag(hx,hy,-30,24)
   resized=item()['textFrames']['title'].copy()
@@ -86,9 +86,9 @@ with sync_playwright() as p:
   assert item()['textFrames']['title']['x']==after_move['x']
   page.locator('#redo').click()
   assert item()['textFrames']['title']['w']==resized['w']
-  print('PASS '+engine+': nested Moveable resize has one undo/redo checkpoint')
+  print('PASS '+engine+': text-frame resize has one undo/redo checkpoint')
 
-  # Tiptap focuses without accidentally starting a Moveable drag.
+  # Tiptap focuses without accidentally starting a gesture-layer drag.
   title.locator('.tiptap-content').click()
   field=title.locator('.tiptap-content')
   field.press('End')
@@ -96,7 +96,7 @@ with sync_playwright() as p:
   assert 'действует сейчас' in field.inner_text()
   assert item()['x']==old['x'] and item()['y']==old['y']
   assert item()['textFrames']['title']['x']==after_move['x']
-  print('PASS '+engine+': click-to-edit text and nested Moveable do not interfere')
+  print('PASS '+engine+': click-to-edit text and the text frame do not interfere')
 
   # Shift-click selects multiple sibling text frames, but not the whole cards.
   title.locator('.tiptap-content').click()
@@ -120,12 +120,12 @@ with sync_playwright() as p:
   assert abs(item()['textFrames']['title']['x']-before_title['x'])<.25
   assert abs(item()['textFrames'].get('meta',{}).get('x',0)-before_meta.get('x',0))<.25
   print('PASS '+engine+': group drag of two child frames and one-step undo')
-  # Both fields resize together through Moveable's GROUP handles, and Undo
+  # Both fields resize together through the gesture layer's GROUP handles, and Undo
   # restores their original dimensions without affecting the enclosing card.
   group_before=item().copy()
   size_before_title=item()['textFrames']['title'].get('w',0)
   size_before_meta=item()['textFrames'].get('meta',{}).get('w',0)
-  group_handle=page.locator('.dnd-inner-moveable [data-direction="se"]:visible').last
+  group_handle=page.locator('.gesture-frame.inner:not([hidden]) [data-dir="se"]').last
   group_handle.wait_for(state='visible')
   ghx,ghy=center(group_handle)
   drag(ghx,ghy,24,13)
@@ -143,7 +143,7 @@ with sync_playwright() as p:
   page.locator('[data-tab="cards"]').click()
   page.locator('#delete').click()
   assert card.count()==1, 'Inner selection must not delete its parent'
-  # Parent Moveable takes over when blank area of the card is selected.
+  # Parent gesture-layer takes over when blank area of the card is selected.
   bbox=card.bounding_box()
   page.mouse.click(bbox['x']+bbox['width']-15,bbox['y']+bbox['height']-14)
   assert not title.evaluate('e=>e.classList.contains("inner-selected")')
@@ -164,14 +164,14 @@ with sync_playwright() as p:
   except Exception:
     print('DIAGNOSTIC reselect',page.evaluate("""() => ({
       nestedSelected: [...document.querySelectorAll('.text-wrap.inner-selected')].map(n=>n.dataset.field),
-      innerBoxes: [...document.querySelectorAll('.dnd-inner-moveable')].map(n=>({
+      innerBoxes: [...document.querySelectorAll('.gesture-frame.inner')].map(n=>({
         display:getComputedStyle(n).display,
         html:n.outerHTML.slice(0,400),
         rect:n.getBoundingClientRect().toJSON()
       })),
-      controls:[...document.querySelectorAll('.dnd-inner-moveable [data-direction="se"]')].map(n=>({
+      controls:[...document.querySelectorAll('.gesture-frame.inner [data-dir="se"]')].map(n=>({
         display:getComputedStyle(n).display,
-        parentDisplay:getComputedStyle(n.closest('.dnd-inner-moveable')).display,
+        parentDisplay:getComputedStyle(n.closest('.gesture-frame')).display,
         rect:n.getBoundingClientRect().toJSON()
       }))
     })"""))
@@ -188,7 +188,7 @@ with sync_playwright() as p:
   assert item('other-card').get('textFrames') is None
   print('PASS '+engine+': Alt+marquee selects three sibling fields in one card only')
   page.emulate_media(media='print')
-  assert page.locator('.dnd-inner-moveable').first.evaluate('e=>getComputedStyle(e).display')=='none'
+  assert page.locator('.gesture-layer').first.evaluate('e=>getComputedStyle(e).display')=='none'
   page.emulate_media(media='screen')
   assert not errors,errors
 
@@ -209,4 +209,4 @@ with sync_playwright() as p:
   assert not reopened_errors,reopened_errors
   print('PASS '+engine+': HTML export retains ownership, relative offsets and editable text')
   browser.close()
-print('Nested Moveable/Selecto checks passed in '+engine)
+print('Nested text-frame checks passed in '+engine)

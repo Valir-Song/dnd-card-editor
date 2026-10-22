@@ -1,7 +1,7 @@
 {
   "name": "dnd-card-editor",
   "private": true,
-  "version": "3.5.0-beta.1",
+  "version": "3.5.0-beta.2",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -19,10 +19,8 @@
   },
   "dependencies": {
     "@tiptap/core": "3.11.1",
-    "@tiptap/starter-kit": "3.11.1",
-    "@tiptap/extension-text-style": "3.11.1",
     "@tiptap/extension-text-align": "3.11.1",
-    "moveable": "0.53.0",
-    "selecto": "1.26.3"
+    "@tiptap/extension-text-style": "3.11.1",
+    "@tiptap/starter-kit": "3.11.1"
   }
 }
