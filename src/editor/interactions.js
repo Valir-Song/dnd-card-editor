@@ -1,6 +1,6 @@
 // The only remaining special-case gesture is the spell-level badge.
 // All other geometry is on the gesture layer: canvas-controls.js and inner-canvas.js.
-export function createInnerInteractions({select,persist,mm}) {
+export function createInnerInteractions({select,store,mm}) {
   function startBadgeDrag(event,item,element,badge) {
     if(event.button!==0)return;
     event.preventDefault();event.stopPropagation();
@@ -20,7 +20,7 @@ export function createInnerInteractions({select,persist,mm}) {
     const finish=()=>{
       window.removeEventListener('pointermove',move);
       window.removeEventListener('pointerup',finish);
-      persist();
+      store.commit();
     };
     window.addEventListener('pointermove',move);
     window.addEventListener('pointerup',finish);

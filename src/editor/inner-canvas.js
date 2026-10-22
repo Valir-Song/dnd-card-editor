@@ -10,10 +10,10 @@ const EDGES = ['top', 'right', 'bottom', 'left'];
 const CLICK_SLOP = 3;
 const NO_LIMIT = {w: Infinity, h: Infinity};
 
-export function createInnerCanvas({pages, getItems, persist, mm, selectParent}) {
+export function createInnerCanvas({pages, store, mm, selectParent}) {
   let parentId = null, fields = [], gesture = null;
   const unique = values => [...new Set(values)];
-  const parentFor = id => getItems().find(item => item.id === id);
+  const parentFor = id => store.find(id);
   const parentNode = id => pages.flatMap(p => [...p.querySelectorAll('.el')]).find(el => el.dataset.id === id);
   const wraps = id => [...(parentNode(id)?.querySelectorAll('.text-wrap') || [])];
   const nodeFor = (id, field) => wraps(id).find(el => el.dataset.field === field);
@@ -162,7 +162,7 @@ export function createInnerCanvas({pages, getItems, persist, mm, selectParent}) 
       document.body.classList.remove('gesture-active');
       if (!started) return;
       gesture = null;
-      persist(); // the whole gesture is one undo checkpoint
+      store.commit(); // the whole gesture is one undo checkpoint
       render();
     };
     window.addEventListener('pointermove', move, true);

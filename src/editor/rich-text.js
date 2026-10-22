@@ -15,7 +15,7 @@ const fonts=['Georgia','Arial','Times New Roman','Verdana','Courier New'];
 const safeText=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const pxToPoints=px=>Math.round(parseFloat(px)*0.75*10)/10;
 
-export function createRichText({current,select,persist,selectText=select,onEdited=()=>{}}){
+export function createRichText({current,select,store,selectText=select}){
   const mounted=new Map();
   let activeKey=null,selection=null,silent=false;
   const controls={
@@ -132,8 +132,7 @@ export function createRichText({current,select,persist,selectText=select,onEdite
             item.h=Math.max(8,Math.min(297-item.y,box.getBoundingClientRect().height*factor));
           }
         }
-        onEdited(item);
-        persist({group:'text:'+id+':'+field,windowMs:650});
+        store.shown(item,{group:'text:'+id+':'+field,windowMs:650});
         sync();
       }
     });
@@ -201,8 +200,7 @@ export function createRichText({current,select,persist,selectText=select,onEdite
     // one final state and preserve the text engine's own selected range.
     a.item[a.field+'Html']=ed.getHTML();
     a.item[a.field]=ed.getText({blockSeparator:'\n'});
-    onEdited(a.item);
-    persist({group:'format:'+a.item.id+':'+a.field+':'+(styleKey||command),windowMs:450});
+    store.shown(a.item,{group:'format:'+a.item.id+':'+a.field+':'+(styleKey||command),windowMs:450});
     selection={key:activeKey,from:ed.state.selection.from,to:ed.state.selection.to};
     sync();
   }

@@ -1,6 +1,6 @@
 // Background, border and geometry controls for Tiptap-backed text boxes.
 // All typography is controlled by the shared Tiptap toolbar.
-export function setupTextBoxes({addObject,current,persist,draw}) {
+export function setupTextBoxes({addObject,current,store}) {
   const group=document.getElementById('textBoxTools');
   const fields={
     bg:document.getElementById('boxBgColor'),
@@ -30,9 +30,8 @@ export function setupTextBoxes({addObject,current,persist,draw}) {
   for(const [property,field] of Object.entries(fields)){
     field.addEventListener(field.type==='checkbox'?'change':'input',()=>{
       const item=active();if(!item)return;
-      item[property]=field.type==='checkbox'?field.checked:field.value;
-      persist({group:'textbox-style:'+item.id+':'+property,windowMs:400});
-      draw();syncTextBoxTools();
+      store.change(()=>{item[property]=field.type==='checkbox'?field.checked:field.value},{group:'textbox-style:'+item.id+':'+property,windowMs:400});
+      syncTextBoxTools();
     });
   }
   return {syncTextBoxTools};
