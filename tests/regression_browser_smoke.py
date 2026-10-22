@@ -254,5 +254,56 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': one-motion drag of an unselected object moves the full distance')
 
+    # 9. Snapping: a dragged object aligns with another object's edge, shows a
+    #    guide, can be switched off or bypassed with Alt, and follows the grid.
+    def snap_case(setup,modifier=None,dx_mm=0,dy_mm=0):
+        context=browser.new_context()
+        page=open_editor(context)
+        page.evaluate("s=>localStorage.setItem('dnd-card-editor-snap',JSON.stringify(s))",setup)
+        layout=[{'id':'a','kind':'shape','shape':'rect','page':1,'x':20,'y':20,'w':30,'h':20,'z':1},
+                {'id':'b','kind':'shape','shape':'rect','page':1,'x':100,'y':100,'w':30,'h':20,'z':2}]
+        page.reload(); page.wait_for_selector('.page')
+        import_json(page,layout)
+        node=page.locator('.el[data-id="b"]')
+        node.scroll_into_view_if_needed()
+        k=page.locator('#page1').bounding_box()['width']/210
+        box=node.bounding_box(); x0,y0=box['x']+box['width']/2,box['y']+box['height']/2
+        page.mouse.move(x0,y0); page.mouse.down()
+        if modifier: page.keyboard.down(modifier)
+        page.mouse.move(x0+dx_mm*k,y0+dy_mm*k,steps=12)
+        guide=page.locator('#page1 > .snap-guide.x').count()
+        page.mouse.up()
+        if modifier: page.keyboard.up(modifier)
+        page.wait_for_timeout(100)
+        b=next(x for x in json.loads(stored(page)) if x['id']=='b')
+        leftover=page.locator('.snap-guide').count()
+        assert not page.errors,page.errors
+        context.close()
+        return b,guide,leftover
+    b,guide,leftover=snap_case({'enabled':True,'gridMm':0},dx_mm=-79,dy_mm=-30)   # lands 1 mm right of a
+    assert abs(b['x']-20)<1e-6 and guide==1 and leftover==0,(b,guide,leftover)
+    b,_,_=snap_case({'enabled':False,'gridMm':0},dx_mm=-79,dy_mm=-30)
+    assert abs(b['x']-21)<0.3,b
+    b,_,_=snap_case({'enabled':True,'gridMm':0},modifier='Alt',dx_mm=-79,dy_mm=-30)
+    assert abs(b['x']-21)<0.3,('Alt must bypass snapping',b)
+    b,_,_=snap_case({'enabled':True,'gridMm':5},dx_mm=-17.3,dy_mm=13.6)            # far from other lines
+    assert abs(b['x']%5)<1e-6 and abs(b['y']%5)<1e-6,('Grid not applied',b)
+    # Resizing snaps the dragged edge only.
+    context=browser.new_context()
+    page=open_editor(context)
+    import_json(page,[{'id':'a','kind':'shape','shape':'rect','page':1,'x':20,'y':20,'w':30,'h':20,'z':1},
+                      {'id':'b','kind':'shape','shape':'rect','page':1,'x':20,'y':100,'w':40,'h':20,'z':2}])
+    page.locator('.el[data-id="b"]').click(); page.wait_for_timeout(100)
+    handle=page.locator('.moveable-control-box .moveable-e').first.bounding_box()
+    k=page.locator('#page1').bounding_box()['width']/210
+    hx,hy=handle['x']+handle['width']/2,handle['y']+handle['height']/2
+    page.mouse.move(hx,hy); page.mouse.down(); page.mouse.move(hx-9*k,hy,steps=10); page.mouse.up()
+    page.wait_for_timeout(100)
+    b=next(x for x in json.loads(stored(page)) if x['id']=='b')
+    assert abs(b['x']-20)<1e-6 and abs(b['x']+b['w']-50)<1e-6,('Resized edge did not snap',b)
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': snapping aligns to objects with a guide; off switch, Alt and grid work')
+
     browser.close()
 print('All 3.3.1 regression checks passed for '+engine)

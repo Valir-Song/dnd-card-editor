@@ -145,3 +145,14 @@
 
 /* 3.3.1: editing outlines never reach paper or PDF, whatever is selected or focused. */
 @media print{.el.selected,.el .editable:focus,.el .editable:focus-within,.text-wrap:hover{outline:none!important}}
+
+/* 3.4: snapping controls next to undo/redo; guides stay off paper. */
+.toolbar-history .snap-tools{display:inline-flex;gap:6px;align-items:center;margin-left:6px}
+.toolbar-history .snap-tools label{display:inline-flex;align-items:center;gap:5px;background:#ffffff14;color:#e9e3f3;border-radius:5px;padding:5px 8px;font-size:12px;cursor:pointer}
+.toolbar-history .snap-tools select{background:#fff;color:#2b2440;border:0;border-radius:4px;padding:2px 4px;font:inherit}
+.toolbar-history .snap-tools select:disabled{opacity:.5}
+.toolbar-history .snap-tools input{accent-color:#b994e6;margin:0}
+.snap-guide{position:absolute;z-index:170;pointer-events:none;background:#d6337a}
+.snap-guide.x{top:0;bottom:0;width:1px;margin-left:-.5px}
+.snap-guide.y{left:0;right:0;height:1px;margin-top:-.5px}
+@media print{.snap-guide{display:none!important}}
