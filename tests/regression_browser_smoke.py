@@ -41,12 +41,12 @@ def handle_offset(page,element):
     """Distance in px between the element's bottom-right corner and Moveable's SE handle.
     Moveable draws handles on a later frame, so wait for a visible one and let two
     animation frames pass before measuring (slow CI runners need it)."""
-    page.wait_for_function("""()=>[...document.querySelectorAll('.moveable-control-box .moveable-se')]
+    page.wait_for_function("""()=>[...document.querySelectorAll('.gesture-frame:not([hidden]) [data-dir="se"], .dnd-inner-moveable .moveable-se')]
       .some(n=>{const r=n.getBoundingClientRect();return r.width>0&&r.height>0})""",timeout=5000)
     page.evaluate("()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
     return page.evaluate("""e=>{
       const r=e.getBoundingClientRect();
-      const h=[...document.querySelectorAll('.moveable-control-box .moveable-se')]
+      const h=[...document.querySelectorAll('.gesture-frame:not([hidden]) [data-dir="se"], .dnd-inner-moveable .moveable-se')]
         .map(n=>n.getBoundingClientRect()).find(r=>r.width>0&&r.height>0);
       return Math.hypot(h.x+h.width/2-r.right,h.y+h.height/2-r.bottom)
     }""",element.element_handle())
@@ -118,7 +118,7 @@ with sync_playwright() as p:
     boxes=None  # one control box per Moveable instance; must not grow per generation
     for generation in range(3):
         page=open_editor(context,url)
-        count=page.locator('.moveable-control-box').count()
+        count=page.locator('.moveable-control-box, .gesture-layer').count()
         boxes=boxes if boxes is not None else count
         assert count==boxes,('Control boxes accumulate after re-export',generation,count,boxes)
         page.locator('[data-tab="files"]').click()
@@ -128,7 +128,7 @@ with sync_playwright() as p:
         shutil.copy2(downloaded.value.path(),exported)
         text=exported.read_text(encoding='utf-8')
         # Library source mentions these names, so look for real markup only.
-        for pattern in [r'<div[^>]+class="moveable-control-box',r'<div[^>]+class="selecto-selection',
+        for pattern in [r'<div[^>]+class="gesture-layer',r'<div[^>]+class="moveable-control-box',r'<div[^>]+class="selecto-selection',
                         r'<style[^>]+data-styled-id',r'<div[^>]+class="notice"']:
             assert not re.search(pattern,text),(generation,pattern)
         sizes.append(len(text))
@@ -148,7 +148,7 @@ with sync_playwright() as p:
     assert card.evaluate('e=>getComputedStyle(e).outlineStyle')=='dashed'
     page.emulate_media(media='print')
     assert card.evaluate('e=>getComputedStyle(e).outlineStyle')=='none','Selected outline leaks into print'
-    assert page.evaluate("()=>[...document.querySelectorAll('.moveable-control-box,.selecto-selection,.toolbar')].every(e=>getComputedStyle(e).display==='none')")
+    assert page.evaluate("()=>[...document.querySelectorAll('.gesture-layer,.moveable-control-box,.selecto-selection,.toolbar')].every(e=>getComputedStyle(e).display==='none')")
     page.emulate_media(media='screen')
     print('PASS '+engine+': selection outlines, handles and toolbar are hidden in print')
 
@@ -266,10 +266,10 @@ with sync_playwright() as p:
     import_json(page,[{'id':'b','kind':'shape','shape':'rect','page':1,'x':100,'y':100,'w':30,'h':20,'z':1}])
     k=page.locator('#page1').bounding_box()['width']/210
     burst="""([up,dist])=>{const el=document.querySelector('.el[data-id="b"]');const r=el.getBoundingClientRect();
-      const x=r.left+r.width/2,y=r.top+r.height/2,o={bubbles:true,cancelable:true,button:0,buttons:1};
-      el.dispatchEvent(new MouseEvent('mousedown',{...o,clientX:x,clientY:y}));
-      if(dist)for(let i=1;i<=5;i++)document.dispatchEvent(new MouseEvent('mousemove',{...o,clientX:x+8*i,clientY:y+6*i}));
-      if(up)document.dispatchEvent(new MouseEvent('mouseup',{...o,buttons:0,clientX:x+(dist?40:0),clientY:y+(dist?30:0)}));
+      const x=r.left+r.width/2,y=r.top+r.height/2,o={bubbles:true,cancelable:true,button:0,buttons:1,pointerId:7,isPrimary:true,pointerType:'mouse'};
+      el.dispatchEvent(new PointerEvent('pointerdown',{...o,clientX:x,clientY:y}));
+      if(dist)for(let i=1;i<=5;i++)document.dispatchEvent(new PointerEvent('pointermove',{...o,clientX:x+8*i,clientY:y+6*i}));
+      if(up)document.dispatchEvent(new PointerEvent('pointerup',{...o,buttons:0,clientX:x+(dist?40:0),clientY:y+(dist?30:0)}));
       return [x,y]}"""
     shape=lambda:next(i for i in json.loads(stored(page)) if i['id']=='b')
     page.evaluate(burst,[True,True]); page.wait_for_timeout(150)
@@ -277,7 +277,7 @@ with sync_playwright() as p:
     page.keyboard.press('Control+z'); page.wait_for_timeout(100)
     page.locator('#page1').click(position={'x':4,'y':4})
     x,y=page.evaluate(burst,[False,True]); page.wait_for_timeout(150)   # drag started after the moves
-    page.evaluate("([x,y])=>document.dispatchEvent(new MouseEvent('mouseup',{bubbles:true,button:0,buttons:0,clientX:x,clientY:y}))",[x+40,y+30])
+    page.evaluate("([x,y])=>document.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,button:0,buttons:0,pointerId:7,isPrimary:true,pointerType:'mouse',clientX:x,clientY:y}))",[x+40,y+30])
     page.wait_for_timeout(150)
     assert abs(shape()['x']-100-40/k)<0.3,('Moves before drag start were lost',shape())
     page.keyboard.press('Control+z'); page.wait_for_timeout(100)
@@ -328,7 +328,7 @@ with sync_playwright() as p:
     import_json(page,[{'id':'a','kind':'shape','shape':'rect','page':1,'x':20,'y':20,'w':30,'h':20,'z':1},
                       {'id':'b','kind':'shape','shape':'rect','page':1,'x':20,'y':100,'w':40,'h':20,'z':2}])
     page.locator('.el[data-id="b"]').click(); page.wait_for_timeout(100)
-    handle=page.locator('.moveable-control-box .moveable-e').first.bounding_box()
+    handle=page.locator('.gesture-frame:not([hidden]) [data-dir="e"]').first.bounding_box()
     k=page.locator('#page1').bounding_box()['width']/210
     hx,hy=handle['x']+handle['width']/2,handle['y']+handle['height']/2
     page.mouse.move(hx,hy); page.mouse.down(); page.mouse.move(hx-9*k,hy,steps=10); page.mouse.up()
@@ -338,6 +338,76 @@ with sync_playwright() as p:
     assert not page.errors,page.errors
     context.close()
     print('PASS '+engine+': snapping aligns to objects with a guide; off switch, Alt and grid work')
+
+    # 10. Own gesture layer: edge-band drag, Shift keeps ratio, Shift+marquee
+    #     adds to the selection, and touch input selects and drags.
+    two_shapes=[{'id':'a','kind':'shape','shape':'rect','page':1,'x':20,'y':20,'w':40,'h':20,'z':1},
+                {'id':'b','kind':'shape','shape':'rect','page':1,'x':120,'y':150,'w':30,'h':20,'z':2}]
+    def shapes_page(**options):
+        context=browser.new_context(**options)
+        page=open_editor(context)
+        page.evaluate("localStorage.setItem('dnd-card-editor-snap',JSON.stringify({enabled:false,gridMm:0}))")
+        page.reload(); page.wait_for_selector('.page')
+        import_json(page,two_shapes)
+        return context,page
+    context,page=shapes_page()
+    k=page.locator('#page1').bounding_box()['width']/210
+    item=lambda i:next(x for x in json.loads(stored(page)) if x['id']==i)
+    page.locator('.el[data-id="a"]').click(); page.wait_for_timeout(50)
+    band=page.locator('.gesture-frame:not([hidden]) .gesture-edge.top').bounding_box()
+    bx,by=band['x']+band['width']*0.25,band['y']+band['height']/2  # away from the n handle
+    page.mouse.move(bx,by); page.mouse.down(); page.mouse.move(bx+20*k,by+10*k,steps=8); page.mouse.up()
+    assert abs(item('a')['x']-40)<0.3 and abs(item('a')['y']-30)<0.3,('Edge band did not drag',item('a'))
+    se=page.locator('.gesture-frame:not([hidden]) [data-dir="se"]').bounding_box()
+    sx,sy=se['x']+se['width']/2,se['y']+se['height']/2
+    page.keyboard.down('Shift'); page.mouse.move(sx,sy); page.mouse.down()
+    page.mouse.move(sx+40*k,sy+2*k,steps=8); page.mouse.up(); page.keyboard.up('Shift')
+    a=item('a'); assert abs(a['w']/a['h']-2)<0.02 and a['w']>79,('Shift must keep the 2:1 ratio',a)
+    page.locator('#page1').click(position={'x':4,'y':4})
+    assert page.locator('.el.selected').count()==0
+    page.locator('.el[data-id="a"]').click(); page.wait_for_timeout(50)
+    p1=page.locator('#page1').bounding_box()
+    x0,y0,x1,y1=p1['x']+110*k,p1['y']+140*k,p1['x']+160*k,p1['y']+180*k
+    if engine=='firefox':
+        # Under Playwright, Firefox delivers no further input to the page after
+        # a Shift press on the blank sheet (recorded: pointerdown, mousedown,
+        # one pointermove, then nothing), while Shift on handles works. Drive
+        # the same gesture with Shift-flagged pointer events instead.
+        page.evaluate("""([x0,y0,x1,y1])=>{const o={bubbles:true,cancelable:true,button:0,buttons:1,pointerId:9,
+          isPrimary:true,pointerType:'mouse',shiftKey:true};const sheet=document.getElementById('page1');
+          sheet.dispatchEvent(new PointerEvent('pointerdown',{...o,clientX:x0,clientY:y0}));
+          for(let i=1;i<=6;i++)document.dispatchEvent(new PointerEvent('pointermove',{...o,clientX:x0+(x1-x0)*i/6,clientY:y0+(y1-y0)*i/6}));
+          document.dispatchEvent(new PointerEvent('pointerup',{...o,buttons:0,clientX:x1,clientY:y1}))}""",[x0,y0,x1,y1])
+    else:
+        page.keyboard.down('Shift')
+        page.mouse.move(x0,y0); page.mouse.down()
+        page.mouse.move(x1,y1,steps=6); page.mouse.up(); page.keyboard.up('Shift')
+    page.wait_for_timeout(100)
+    state=page.evaluate("""()=>({selected:[...document.querySelectorAll('.el.selected')].map(e=>e.dataset.id),
+      count:document.getElementById('selectionCount').textContent,
+      marqueeHidden:document.querySelector('.gesture-marquee').hidden})""")
+    assert state['selected']==['a','b'] and state['count']=='Выбрано: 2',('Shift+marquee must add b to a',state)
+    assert not page.errors,page.errors
+    context.close()
+    # Touch runs in its own context: Playwright's touch emulation in Firefox
+    # changes how mouse input is delivered, and only Chromium drives touch drags.
+    if engine=='chromium':
+      context,page=shapes_page(has_touch=True)
+      page.locator('.el[data-id="b"]').scroll_into_view_if_needed()
+      shape_b=page.locator('.el[data-id="b"]').bounding_box()   # touch uses viewport coordinates
+      page.touchscreen.tap(shape_b['x']+shape_b['width']/2,shape_b['y']+shape_b['height']/2)
+      page.wait_for_timeout(100)
+      assert page.locator('.el.selected').count()==1 and 'selected' in page.locator('.el[data-id="b"]').get_attribute('class'),'Tap must select'
+      cdp=context.new_cdp_session(page)
+      tx,ty=shape_b['x']+shape_b['width']/2,shape_b['y']+shape_b['height']/2
+      cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':tx,'y':ty}]})
+      for i in range(1,9): cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':tx-30*k*i/8,'y':ty-20*k*i/8}]})
+      cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
+      page.wait_for_timeout(150)
+      assert abs(item('b')['x']-90)<0.5 and abs(item('b')['y']-130)<0.5,('Touch drag failed',item('b'))
+      assert not page.errors,page.errors
+      context.close()
+    print('PASS '+engine+': edge-band drag, Shift ratio, Shift+marquee and touch on the gesture layer')
 
     browser.close()
 print('All 3.3.1 regression checks passed for '+engine)

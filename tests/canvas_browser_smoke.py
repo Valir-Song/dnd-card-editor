@@ -21,7 +21,7 @@ with sync_playwright() as p:
     page.goto(html.as_uri(),wait_until='load')
     page.wait_for_selector('.el.card .tiptap-content')
     assert not errors, errors
-    assert page.locator('.moveable-control-box').count()>0, 'Moveable not mounted'
+    assert page.locator('.gesture-layer').count()==2, 'Gesture layers not mounted'
     data=[
         dict(id='test-shape',page=1,z=1,kind='shape',shape='rect',x=20,y=35,w=22,h=14,bg='#aabbcc'),
         dict(id='test-image',page=1,z=2,kind='image',src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2220%22%20height%3D%2215%22/%3E',x=60,y=35,w=20,h=14),
@@ -49,7 +49,7 @@ with sync_playwright() as p:
         page.mouse.up()
     shape.click(position={'x':14,'y':14})
     assert shape.evaluate('e=>e.classList.contains("selected")')
-    assert page.locator('.moveable-control-box').count()>0
+    assert page.locator('.gesture-frame:not([hidden])').count()==1
     img.click(modifiers=['Shift'],position={'x':10,'y':10})
     assert shape.evaluate('e=>e.classList.contains("selected")')
     assert img.evaluate('e=>e.classList.contains("selected")')
@@ -71,7 +71,7 @@ with sync_playwright() as p:
     print('PASS '+browser_name+': Moveable group drag, geometry, one-step undo/redo')
     # Group resize must update both selected objects proportionally. Unlike
     # a saved group, this is a temporary editing selection on one A4 page.
-    group_handle=page.locator('.moveable-control-box [data-direction="se"]').last
+    group_handle=page.locator('.gesture-frame:not([hidden]) [data-dir="se"]').last
     assert group_handle.count()==1, 'Moveable group resize handle missing'
     before_group_shape=current('test-shape').copy()
     before_group_image=current('test-image').copy()
@@ -89,7 +89,7 @@ with sync_playwright() as p:
     assert img.evaluate('e=>!e.classList.contains("selected")')
     # Single resize from the bottom right handle: it must update physical mm.
     shape.click(position={'x':12,'y':10})
-    handles=page.locator('.moveable-control-box [data-direction="se"]')
+    handles=page.locator('.gesture-frame:not([hidden]) [data-dir="se"]')
     assert handles.count()>0, 'No Moveable southeast handle'
     handle=handles.last
     hx,hy=center(handle)
@@ -109,7 +109,7 @@ with sync_playwright() as p:
     print('PASS '+browser_name+': Selecto marquee selection on empty page')
     # On a printed sheet no editing affordance may remain visible.
     page.emulate_media(media='print')
-    assert page.locator('.moveable-control-box').first.evaluate('e=>getComputedStyle(e).display')=='none'
+    assert page.locator('.gesture-layer').first.evaluate('e=>getComputedStyle(e).display')=='none'
     page.emulate_media(media='screen')
 
     # Delete selected group as a single history action, then restore.
@@ -170,7 +170,7 @@ with sync_playwright() as p:
     reopened.on('pageerror',lambda e: reopened_errors.append(str(e)))
     reopened.goto(copied.as_uri(),wait_until='load')
     reopened.wait_for_selector('[data-id="test-shape"]')
-    assert reopened.locator('.moveable-control-box').count()>0
+    assert reopened.locator('.gesture-layer').count()==2
     assert 'ещё текст' in reopened.locator('[data-id="test-text"]').inner_text()
     assert not reopened_errors,reopened_errors
     print('PASS '+browser_name+': offline HTML export reopens with both libraries and saved content')

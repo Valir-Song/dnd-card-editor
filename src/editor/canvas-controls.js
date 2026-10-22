@@ -1,23 +1,88 @@
-// Canvas-level geometry and marquee selection. Rich text remains exclusively Tiptap-owned.
-// Coordinates are persisted in millimetres; Moveable only supplies pixel gesture deltas.
-import Moveable from 'moveable';
-import Selecto from 'selecto';
+// Canvas-level selection and geometry for page objects: one pointer-events
+// gesture layer (drag, 8-handle resize, marquee) that works in layout
+// millimetres. Rich text stays Tiptap-owned: a press on editable text is never
+// a gesture. Text frames inside cards are handled by inner-canvas.js.
 import { collectLines, snapAxis, snapMove } from './snapping.js';
+import { bbox, resizeBox, scaleBoxes, marqueeHits, rectFromPoints } from './geometry.js';
+
+const DIRECTIONS = {nw: [-1, -1], n: [0, -1], ne: [1, -1], w: [-1, 0], e: [1, 0], sw: [-1, 1], s: [0, 1], se: [1, 1]};
+const EDGES = ['top', 'right', 'bottom', 'left'];
+const CLICK_SLOP = 3; // px a press may wander and still count as a click
+const NATIVE = '.editable, [contenteditable], input, textarea, select, .level, .textbox-move';
 
 export function createCanvasControls({pages, getItems, onSelection, persist, mm, snapping}) {
   let ids = [];
   let primary = null;
   let gesture = null;
-  let moveable;
-  let inner=null;
-  const selectos = [];
-  const elements = () => ids.map(id => [...pages].flatMap(page =>
-    [...page.querySelectorAll('.el')]).find(node => node.dataset.id === id)).filter(Boolean);
+  let inner = null;
+  const nodeFor = id => pages.flatMap(page => [...page.querySelectorAll('.el')]).find(node => node.dataset.id === id);
+  const elements = () => ids.map(nodeFor).filter(Boolean);
   const mmPerPx = page => 210 / page.getBoundingClientRect().width;
   const itemFor = id => getItems().find(item => item.id === id);
   const clip = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
-  function setSelection(next, preferred = null, {keepInner=false} = {}) {
-    if(!keepInner)inner?.clear();
+  const toMm = (page, ev) => {
+    const r = page.getBoundingClientRect(), k = 210 / r.width;
+    return [(ev.clientX - r.left) * k, (ev.clientY - r.top) * k];
+  };
+  // Current geometry in mm; an auto-height text box is as tall as it renders.
+  function boxOf(item, node = nodeFor(item.id)) {
+    const h = item.kind === 'textbox' && item.autoHeight && node
+      ? node.getBoundingClientRect().height * mmPerPx(node.closest('.page')) : item.h;
+    return {x: item.x, y: item.y, w: item.w, h};
+  }
+
+  // ---- overlay: one layer per page, positioned over it inside the stage ----
+  const stage = pages[0].closest('.stage') || document.body;
+  const layers = pages.map(page => {
+    const layer = document.createElement('div');
+    layer.className = 'gesture-layer';
+    layer.dataset.page = page.dataset.page;
+    const frame = document.createElement('div');
+    frame.className = 'gesture-frame';
+    frame.hidden = true;
+    for (const edge of EDGES) {
+      const band = document.createElement('div');
+      band.className = 'gesture-edge ' + edge;
+      band.title = 'Перетащить';
+      band.addEventListener('pointerdown', ev => startMove(ev, page));
+      frame.append(band);
+    }
+    for (const [name, dir] of Object.entries(DIRECTIONS)) {
+      const handle = document.createElement('div');
+      handle.className = 'gesture-handle';
+      handle.dataset.dir = name;
+      handle.addEventListener('pointerdown', ev => startResize(ev, page, dir));
+      frame.append(handle);
+    }
+    const marquee = document.createElement('div');
+    marquee.className = 'gesture-marquee';
+    marquee.hidden = true;
+    layer.append(frame, marquee);
+    stage.append(layer);
+    return {page, layer, frame, marquee};
+  });
+  function placeLayers() {
+    for (const {page, layer} of layers) {
+      layer.style.left = page.offsetLeft + 'px';
+      layer.style.top = page.offsetTop + 'px';
+    }
+  }
+  function renderFrame() {
+    const targets = inner?.hasSelection() ? [] : ids.map(itemFor).filter(Boolean);
+    const page = targets.length ? (targets[0].page || 1) : null;
+    for (const {layer, frame} of layers) {
+      const show = page !== null && Number(layer.dataset.page) === page;
+      frame.hidden = !show;
+      if (!show) continue;
+      const b = bbox(targets.map(item => boxOf(item)));
+      Object.assign(frame.style, {left: mm(b.x), top: mm(b.y), width: mm(b.w), height: mm(b.h)});
+      frame.classList.toggle('group', targets.length > 1);
+    }
+  }
+
+  // ---- selection ----
+  function setSelection(next, preferred = null, {keepInner = false} = {}) {
+    if (!keepInner) inner?.clear();
     const unique = [...new Set(next)].filter(id => !!itemFor(id));
     const first = unique[0], page = first ? (itemFor(first).page || 1) : null;
     ids = unique.filter(id => (itemFor(id).page || 1) === page);
@@ -30,102 +95,80 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     for (const page of pages) for (const node of page.querySelectorAll('.el')) {
       node.classList.toggle('selected', chosen.has(node.dataset.id));
     }
-    const targets = inner?.hasSelection() ? [] : elements();
-    if (moveable) {
-      moveable.target = targets.length === 1 ? targets[0] : targets;
-      moveable.updateRect();
-    }
-    for (let i = 0; i < selectos.length; i++) {
-      selectos[i].setSelectedTargets(targets.filter(node => node.closest('.page') === pages[i]));
-    }
+    renderFrame();
     const status = document.getElementById('selectionCount');
     if (status) status.textContent = inner?.hasSelection()
-      ? (inner.count()>1?'Текстовых блоков: '+inner.count():'Выбран текстовый блок')
+      ? (inner.count() > 1 ? 'Текстовых блоков: ' + inner.count() : 'Выбран текстовый блок')
       : ids.length > 1 ? 'Выбрано: ' + ids.length : '';
   }
+
+  // ---- gestures ----
   function begin() {
-    const byId=new Map(elements().map(node => [node.dataset.id,node]));
-    const chosen = ids.map(id => ({id, item: itemFor(id), node: byId.get(id)}))
+    const chosen = ids.map(id => ({id, item: itemFor(id), node: nodeFor(id)}))
       .filter(record => record.item && record.node);
     if (!chosen.length) { gesture = null; return; }
     const page = chosen[0].node.closest('.page');
     const scale = mmPerPx(page);
     const settings = snapping?.get();
-    const pageNumber = chosen[0].item.page || 1;
+    const records = chosen.map(record => ({...record, ...boxOf(record.item, record.node)}));
     gesture = {
-      scale, page,
+      scale, page, records, frame: bbox(records),
       // Snap lines are fixed for the gesture: everything that is not moving.
-      lines: settings?.enabled ? collectLines(getItems(), pageNumber, new Set(chosen.map(r => r.id))) : null,
+      lines: settings?.enabled ? collectLines(getItems(), chosen[0].item.page || 1, new Set(chosen.map(r => r.id))) : null,
       grid: settings?.enabled ? settings.gridMm : 0,
-      threshold: 6 * scale, // 6 screen pixels, whatever the zoom
-      records: chosen.map(record => ({
-        ...record, x: record.item.x, y: record.item.y, w: record.item.w,
-        h: record.item.kind === 'textbox' && record.item.autoHeight
-          ? record.node.getBoundingClientRect().height * scale : record.item.h,
-        pixelW: record.node.getBoundingClientRect().width,
-        pixelH: record.node.getBoundingClientRect().height
-      }))
+      threshold: 6 * scale // 6 screen pixels, whatever the zoom
     };
+    document.body.classList.add('gesture-active');
   }
   function applyDrag(dist, free = false) {
     if (!gesture || !dist) return;
     const {records, scale} = gesture;
     let rawX = dist[0] * scale, rawY = dist[1] * scale, guides = {x: null, y: null};
-    if (gesture.lines && !free) {
-      const left = Math.min(...records.map(r => r.x)), top = Math.min(...records.map(r => r.y));
-      const box = {x: left, y: top,
-        w: Math.max(...records.map(r => r.x + r.w)) - left, h: Math.max(...records.map(r => r.y + r.h)) - top};
-      ({dx: rawX, dy: rawY, guides} = snapMove(box, rawX, rawY, gesture.lines, gesture));
-    }
+    if (gesture.lines && !free) ({dx: rawX, dy: rawY, guides} = snapMove(gesture.frame, rawX, rawY, gesture.lines, gesture));
     showGuides(guides);
     const dx = clip(rawX, Math.max(...records.map(r => -r.x)), Math.min(...records.map(r => 210 - r.x - r.w)));
     const dy = clip(rawY, Math.max(...records.map(r => -r.y)), Math.min(...records.map(r => 297 - r.y - r.h)));
-    for (const r of records) {
-      r.item.x = r.x + dx;
-      r.item.y = r.y + dy;
-      r.node.style.left = mm(r.item.x);
-      r.node.style.top = mm(r.item.y);
-    }
+    for (const r of records) place(r, {x: r.x + dx, y: r.y + dy});
+    renderFrame();
   }
-  function applyResize(e) {
+  function applyResize(dist, dir, {free = false, keepRatio = false} = {}) {
     if (!gesture) return;
-    const record = gesture.records.find(r => r.node === e.target);
-    if (!record) return;
-    const {scale} = gesture, direction = e.direction || [1, 1];
-    // e.dist is the change in pixel dimensions; unlike e.width it is safe
-    // when the underlying CSS width is expressed in mm instead of px.
-    let width = record.w + (e.dist?.[0] ?? (e.width - record.pixelW)) * scale;
-    let height = record.h + (e.dist?.[1] ?? (e.height - record.pixelH)) * scale;
-    const right = record.x + record.w, bottom = record.y + record.h;
-    // Snap only the edges being dragged, and only for a single object.
+    const {records, scale} = gesture;
+    let dx = dist[0] * scale, dy = dist[1] * scale;
+    const single = records.length === 1;
     const guides = {x: null, y: null};
-    if (gesture.lines && gesture.records.length === 1 && !e.inputEvent?.altKey) {
-      if (direction[0]) {
-        const edge = direction[0] > 0 ? record.x + width : right - width;
+    // Snap only the edges being dragged, and only for a single object.
+    if (single && gesture.lines && !free) {
+      const f = gesture.frame;
+      if (dir[0]) {
+        const edge = dir[0] > 0 ? f.x + f.w + dx : f.x + dx;
         const snap = snapAxis([edge], gesture.lines.x, gesture.threshold, gesture.grid);
-        width += direction[0] > 0 ? snap.offset : -snap.offset;
-        guides.x = snap.line;
+        dx += snap.offset; guides.x = snap.line;
       }
-      if (direction[1]) {
-        const edge = direction[1] > 0 ? record.y + height : bottom - height;
+      if (dir[1]) {
+        const edge = dir[1] > 0 ? f.y + f.h + dy : f.y + dy;
         const snap = snapAxis([edge], gesture.lines.y, gesture.threshold, gesture.grid);
-        height += direction[1] > 0 ? snap.offset : -snap.offset;
-        guides.y = snap.line;
+        dy += snap.offset; guides.y = snap.line;
       }
     }
     showGuides(guides);
-    const rawX = direction[0] < 0 ? right - width : record.x;
-    const rawY = direction[1] < 0 ? bottom - height : record.y;
-    const x = clip(rawX, 0, 210 - 12), y = clip(rawY, 0, 297 - 6);
-    const w = clip(width, 12, 210 - x);
-    const h = clip(height, 6, 297 - y);
-    if (record.item.kind === 'textbox' && record.item.autoHeight) {
-      record.item.autoHeight = false;
-      record.node.classList.remove('auto-height');
-      record.node.style.maxHeight = '';
-    }
-    Object.assign(record.item, {x, y, w, h});
-    Object.assign(record.node.style, {left:mm(x), top:mm(y), width:mm(w), height:mm(h)});
+    const min = single ? {w: 12, h: 6}
+      : {w: gesture.frame.w * 0.05, h: gesture.frame.h * 0.05}; // a group may shrink to 5 %
+    const to = resizeBox(gesture.frame, dir, dx, dy, {min, keepRatio});
+    const boxes = single ? [to] : scaleBoxes(records, gesture.frame, to);
+    records.forEach((r, i) => {
+      if (r.item.kind === 'textbox' && r.item.autoHeight) {
+        r.item.autoHeight = false;
+        r.node.classList.remove('auto-height');
+        r.node.style.maxHeight = '';
+      }
+      place(r, boxes[i]);
+    });
+    renderFrame();
+  }
+  function place(record, box) {
+    Object.assign(record.item, box);
+    for (const key of Object.keys(box)) record.node.style[{x: 'left', y: 'top', w: 'width', h: 'height'}[key]] = mm(box[key]);
   }
   // Thin guide lines on the page of the gesture; hidden in print.
   function showGuides({x, y}) {
@@ -138,153 +181,141 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     }
   }
   function endGesture() {
+    document.body.classList.remove('gesture-active');
     if (!gesture) return;
     showGuides({x: null, y: null});
     gesture = null;
     // One history checkpoint per drag or resize, regardless of the number of targets.
     persist();
-    // Recalculate handles from final millimetre geometry.
-    requestAnimationFrame(() => moveable.updateRect());
+    renderFrame();
   }
-  // Handles live inside the stage so they scroll with the pages on narrow screens.
-  const stage = pages[0].closest('.stage') || document.body;
-  moveable = new Moveable(stage, {
-    target: [], draggable: true, resizable: true, origin: false,
-    keepRatio: false, throttleDrag: 0, throttleResize: 0,
-    edge: true, edgeDraggable: true, snappable: false,
-    // A press on editable text (a selected text box or card) must focus the
-    // editor; without this Moveable's gesture preventDefault()s the click.
-    checkInput: true,
-    renderDirections: ['nw','n','ne','w','e','sw','s','se'],
-    className: 'dnd-canvas-moveable'
-  });
-  moveable.on('dragStart', begin)
-    .on('drag', e => applyDrag(e.beforeDist || e.dist, e.inputEvent?.altKey))
-    .on('dragEnd', endGesture)
-    .on('dragGroupStart', begin)
-    .on('dragGroup', e => applyDrag(e.events?.[0]?.beforeDist || e.events?.[0]?.dist, e.inputEvent?.altKey))
-    .on('dragGroupEnd', endGesture)
-    .on('resizeStart', e => {
-      begin();
-      const record = gesture?.records.find(r => r.node === e.target);
-      if(record) e.set([record.pixelW, record.pixelH]);
-    })
-    .on('resize', applyResize)
-    .on('resizeEnd', endGesture)
-    .on('resizeGroupStart', e => {
-      begin();
-      for(const ev of e.events || []){
-        const record = gesture?.records.find(r => r.node === ev.target);
-        if(record) ev.set([record.pixelW, record.pixelH]);
+  // Follow one pointer until it is released. Listeners attach synchronously in
+  // the pointerdown, so no movement is lost however fast the input is. For a
+  // mouse, mousemove/mouseup back up the pointer events: with Shift held,
+  // Firefox can swallow pointerup while it runs its own selection.
+  function follow(ev, {move, end}) {
+    const id = ev.pointerId, mouse = ev.pointerType === 'mouse';
+    const mine = e => e.pointerId === undefined ? mouse : e.pointerId === id;
+    const onMove = e => { if (mine(e)) move(e); };
+    const onEnd = e => {
+      if (!mine(e)) return;
+      for (const [type, fn] of listeners) window.removeEventListener(type, fn, true);
+      end(e, e.type === 'pointercancel');
+    };
+    const listeners = [['pointermove', onMove], ['pointerup', onEnd], ['pointercancel', onEnd]];
+    if (mouse) listeners.push(['mousemove', onMove], ['mouseup', onEnd]);
+    for (const [type, fn] of listeners) window.addEventListener(type, fn, true);
+  }
+  function track(ev, {onStart, onMove}) {
+    const start = [ev.clientX, ev.clientY];
+    let started = false, failed = false;
+    follow(ev, {
+      move: e => {
+        if (failed) return;
+        const dist = [e.clientX - start[0], e.clientY - start[1]];
+        if (!started) {
+          if (Math.hypot(...dist) < CLICK_SLOP) return;
+          started = onStart() !== false;
+          if (!started) { failed = true; return; }
+        }
+        onMove(dist, e);
+      },
+      end: () => { if (started) endGesture(); }
+    });
+  }
+  function startMove(ev, page) {
+    if (ev.button !== 0) return;
+    ev.preventDefault(); ev.stopPropagation();
+    track(ev, {onStart: () => { begin(); return !!gesture; }, onMove: (dist, e) => applyDrag(dist, e.altKey)});
+  }
+  function startResize(ev, page, dir) {
+    if (ev.button !== 0) return;
+    ev.preventDefault(); ev.stopPropagation();
+    track(ev, {
+      onStart: () => { begin(); return !!gesture; },
+      onMove: (dist, e) => applyResize(dist, dir, {free: e.altKey, keepRatio: e.shiftKey && gesture?.records.length === 1})
+    });
+  }
+  function startMarquee(ev, entry) {
+    // Text selection on the blank sheet is cancelled on mousedown (below), not
+    // here: cancelling pointerdown would also suppress the mouseup fallback.
+    if (document.activeElement?.closest?.('.page')) document.activeElement.blur();
+    // Capture so the release always comes back here, whatever the browser starts.
+    try { entry.page.setPointerCapture(ev.pointerId); } catch (error) { /* synthetic or already released */ }
+    const from = toMm(entry.page, ev), additive = ev.shiftKey, before = ids.slice();
+    const pageNumber = Number(entry.page.dataset.page);
+    let moved = false;
+    const box = e => rectFromPoints(from, toMm(entry.page, e));
+    follow(ev, {
+      move: e => {
+        if (!moved && Math.hypot(e.clientX - ev.clientX, e.clientY - ev.clientY) < CLICK_SLOP) return;
+        moved = true;
+        const r = box(e);
+        entry.marquee.hidden = false;
+        Object.assign(entry.marquee.style, {left: mm(r.x), top: mm(r.y), width: mm(r.w), height: mm(r.h)});
+      },
+      end: (e, cancelled) => {
+        entry.marquee.hidden = true;
+        if (cancelled) return; // interrupted: keep the selection as it was
+        if (!moved) { if (!additive) setSelection([]); return; }
+        const candidates = getItems().filter(item => (item.page || 1) === pageNumber).map(item => ({id: item.id, ...boxOf(item)}));
+        const hits = marqueeHits(box(e), candidates).map(b => b.id);
+        setSelection(additive ? [...before, ...hits] : hits);
       }
-    })
-    .on('resizeGroup', e => { for (const ev of e.events || []) applyResize(ev); })
-    .on('resizeGroupEnd', endGesture);
+    });
+  }
 
-  pages.forEach(page => {
-    const selecto = new Selecto({
-      container: document.body, dragContainer: page,
-      selectableTargets: ['#' + page.id + ' .el'],
-      selectByClick: false, selectFromInside: false,
-      continueSelect: false, hitRate: 12,
-      preventDefault: false, ratio: 0
-    });
-    selectos.push(selecto);
-    selecto.on('dragStart', e => {
-      const target = e.inputEvent?.target;
-      if (target?.closest?.('.el, .moveable-control-box, .text-grip, .text-resize')) e.stop();
-    });
-    selecto.on('selectEnd', e => {
-      if (e.isDragStartEnd) return;
-      const found = e.selected.filter(node => node.closest('.page') === page).map(node => node.dataset.id);
-      setSelection(found);
-    });
-    page.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      const element = e.target.closest?.('.el');
-      if (!element || element.closest('.page') !== page) {
-        if (e.target === page && !e.shiftKey) setSelection([]);
-        return;
-      }
-      const id = element.dataset.id;
-      const wrap = e.target.closest?.('.text-wrap');
-      if(wrap && inner){
-        if(e.shiftKey){
-          e.preventDefault();e.stopPropagation();
-          inner.toggleField(id,wrap.dataset.field);
-        } else inner.selectField(id,wrap.dataset.field);
-        return; // Tiptap receives normal clicks; no parent drag starts.
-      }
-      if(e.altKey)return; // Alt+drag within parent is nested Selecto marquee.
+  // Firefox starts its own (Shift-)selection on the compatibility mousedown,
+  // which pointerdown's preventDefault does not stop: cancel it on blank sheet.
+  layers.forEach(({page}) => page.addEventListener('mousedown', e => {
+    if (e.button === 0 && !e.target.closest?.('.el')) e.preventDefault();
+  }, true));
+  // Capture phase: decide before Tiptap's own pointerdown handlers run.
+  layers.forEach(entry => entry.page.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const page = entry.page;
+    const element = e.target.closest?.('.el');
+    if (!element || element.closest('.page') !== page) {
+      if (!e.target.closest?.('.el')) startMarquee(e, entry);
+      return;
+    }
+    const id = element.dataset.id;
+    const wrap = e.target.closest('.text-wrap');
+    if (wrap && inner) {
       if (e.shiftKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        setSelection(ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
-        return;
-      }
-      const retarget = inner?.hasSelection() || !ids.includes(id);
-      if (retarget) setSelection([id], id);
-      const nativeEditor = e.target.closest('.editable, [contenteditable], input, textarea, select, .text-grip, .text-resize, .level');
-      if (nativeEditor) return;
-      // The gesture begins on the same click that selects the object.
-      // Do not manually initiate a second drag if Moveable owns the border.
-      if (!e.target.closest('.moveable-control-box')) beginDrag(e, retarget);
-    });
-  });
+        e.preventDefault(); e.stopPropagation();
+        inner.toggleField(id, wrap.dataset.field);
+      } else inner.selectField(id, wrap.dataset.field);
+      return; // Tiptap receives normal clicks; no parent drag starts.
+    }
+    if (e.altKey) return; // Alt+drag within a card is the nested text-frame marquee.
+    if (e.shiftKey) {
+      e.preventDefault();
+      setSelection(ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
+      return;
+    }
+    if (inner?.hasSelection() || !ids.includes(id)) setSelection([id], id);
+    if (e.target.closest(NATIVE)) return; // editors, inputs, badge and grip keep their own behaviour
+    track(e, {onStart: () => { begin(); return !!gesture; }, onMove: (dist, ev) => applyDrag(dist, ev.altKey)});
+  }, true));
+
+  // The text box grip (⠿) moves its box even when the click starts on it.
   function startDrag(e, id) {
     if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const retarget = !ids.includes(id);
-    if (retarget) setSelection([id], id);
-    beginDrag(e, retarget);
-  }
-  // A press that also selects the object is dragged by the editor itself:
-  // Moveable renders a new target asynchronously and would miss the gesture
-  // (it moved ~1 mm, then threw). Listeners attach synchronously, so a fast
-  // flick or a busy machine cannot outrun them; selected objects use Moveable.
-  let handlesFrame = 0;
-  function beginDrag(e, retarget) {
-    if (!retarget) { moveable.dragStart(e); return; }
-    const startX = e.clientX, startY = e.clientY;
-    let started = false;
-    const move = ev => {
-      const dx = ev.clientX - startX, dy = ev.clientY - startY;
-      if (!started) {
-        if (Math.hypot(dx, dy) < 3) return; // still a click
-        begin();
-        started = !!gesture;
-        if (!started) return;
-      }
-      applyDrag([dx, dy], ev.altKey);
-      handlesFrame ||= requestAnimationFrame(() => { handlesFrame = 0; moveable.updateRect(); });
-    };
-    const up = () => {
-      window.removeEventListener('mousemove', move, true);
-      window.removeEventListener('mouseup', up, true);
-      if (started) endGesture();
-    };
-    window.addEventListener('mousemove', move, true);
-    window.addEventListener('mouseup', up, true);
+    e.preventDefault(); e.stopPropagation();
+    if (!ids.includes(id)) setSelection([id], id);
+    track(e, {onStart: () => { begin(); return !!gesture; }, onMove: (dist, ev) => applyDrag(dist, ev.altKey)});
   }
   function afterDraw() {
     for (const id of ids.slice()) if (!itemFor(id)) ids = ids.filter(value => value !== id);
     if (primary && !ids.includes(primary)) primary = null;
-    for (const [i, selecto] of selectos.entries()) {
-      selecto.selectableTargets = ['#' + pages[i].id + ' .el'];
-    }
+    placeLayers();
     sync();
   }
-  function attachInner(controller){inner=controller;sync()}
-  // Handles are positioned against the stage, so any layout shift that moves the pages (window
-  // resize, browser zoom, horizontal scrolling of a narrow stage) must re-measure them.
-  let pendingRect = 0;
-  const refreshRect = () => {
-    if (pendingRect || gesture) return;
-    pendingRect = requestAnimationFrame(() => { pendingRect = 0; moveable.updateRect(); });
-  };
-  window.addEventListener('resize', refreshRect);
-  stage.addEventListener('scroll', refreshRect, {passive: true});
+  function attachInner(controller) { inner = controller; sync(); }
+  // Pages are centred in the stage; a window resize or zoom moves them.
+  window.addEventListener('resize', () => { placeLayers(); renderFrame(); });
+  placeLayers();
   return {
     setSelection, afterDraw, startDrag, attachInner,
     getIds: () => ids.slice(),

@@ -156,3 +156,26 @@
 .snap-guide.x{top:0;bottom:0;width:1px;margin-left:-.5px}
 .snap-guide.y{left:0;right:0;height:1px;margin-top:-.5px}
 @media print{.snap-guide{display:none!important}}
+
+/* 3.5: own gesture layer (selection frame, 8 handles, marquee) over each page. */
+.gesture-layer{position:absolute;width:210mm;height:297mm;pointer-events:none;z-index:180}
+.gesture-frame{position:absolute;outline:1px solid #2678bb;pointer-events:none}
+.gesture-frame.group{outline-style:dashed}
+.gesture-frame[hidden],.gesture-marquee[hidden]{display:none}
+.gesture-handle{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;background:#2678bb;border:1px solid #fff;border-radius:2px;pointer-events:auto;touch-action:none;box-sizing:border-box}
+.gesture-handle[data-dir=nw]{left:0;top:0;cursor:nwse-resize}.gesture-handle[data-dir=n]{left:50%;top:0;cursor:ns-resize}
+.gesture-handle[data-dir=ne]{left:100%;top:0;cursor:nesw-resize}.gesture-handle[data-dir=w]{left:0;top:50%;cursor:ew-resize}
+.gesture-handle[data-dir=e]{left:100%;top:50%;cursor:ew-resize}.gesture-handle[data-dir=sw]{left:0;top:100%;cursor:nesw-resize}
+.gesture-handle[data-dir=s]{left:50%;top:100%;cursor:ns-resize}.gesture-handle[data-dir=se]{left:100%;top:100%;cursor:nwse-resize}
+/* Drag bands sit just OUTSIDE the frame so they never cover text inside it. */
+.gesture-edge{position:absolute;pointer-events:auto;touch-action:none;cursor:move}
+.gesture-edge.top{left:0;right:0;top:-7px;height:6px}.gesture-edge.bottom{left:0;right:0;bottom:-7px;height:6px}
+.gesture-edge.left{top:0;bottom:0;left:-7px;width:6px}.gesture-edge.right{top:0;bottom:0;right:-7px;width:6px}
+.gesture-marquee{position:absolute;background:#2678bb19;border:1px solid #2678bb;pointer-events:none}
+/* No accidental text selection while dragging; editors still select text. */
+/* The sheet itself is not text: Firefox would start a Shift-selection on it and
+   swallow the release of a marquee. Editors still select text. */
+.page,.page .el{user-select:none;-moz-user-select:none}.page .el .editable{user-select:text;-moz-user-select:text}
+.page .el.selected{touch-action:none}
+body.gesture-active,body.gesture-active *{user-select:none!important}
+@media print{.gesture-layer{display:none!important}}

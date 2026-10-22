@@ -26,6 +26,8 @@ test('committed standalone HTML is the current offline build',()=>{
 });
 test('every feature module is imported and v3 storage remains compatible',()=>{
   const js=read('src/editor.js');
-  for(const x of modules)assert.ok(js.includes('./editor/'+x));
+  const others=modules.map(x=>read('src/editor/'+x)).join('\n');
+  // Imported from editor.js directly or from another feature module.
+  for(const x of modules)assert.ok(js.includes('./editor/'+x)||others.includes("'./"+x+"'"),x+' is not imported');
   assert.ok(js.includes('dnd-card-editor-v3'));
 });

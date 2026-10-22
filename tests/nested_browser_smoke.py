@@ -147,7 +147,7 @@ with sync_playwright() as p:
   bbox=card.bounding_box()
   page.mouse.click(bbox['x']+bbox['width']-15,bbox['y']+bbox['height']-14)
   assert not title.evaluate('e=>e.classList.contains("inner-selected")')
-  assert page.locator('.moveable-control-box:not(.dnd-inner-moveable) [data-direction="se"]').count()>0
+  assert page.locator('.gesture-frame:not([hidden]) [data-dir="se"]').count()>0
   old_parent=item().copy()
   bbox=card.bounding_box()
   drag(bbox['x']+bbox['width']-30,bbox['y']+bbox['height']-30,28,14)
