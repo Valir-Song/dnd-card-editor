@@ -13,6 +13,8 @@ jobs:
           node-version: 22
       - run: npm ci --no-audit --no-fund
       - run: npm test
+      - name: Type check (TypeScript over the JS sources)
+        run: npm run typecheck
       - run: npm run build
       - run: npm run check:build
       - name: Committed standalone HTML matches this build

@@ -10,6 +10,7 @@ const EDGES = ['top', 'right', 'bottom', 'left'];
 const CLICK_SLOP = 3;
 const NO_LIMIT = {w: Infinity, h: Infinity};
 
+/** @param {import('../types/layout').Deps} deps */
 export function createInnerCanvas({pages, store, mm, selectParent}) {
   let parentId = null, fields = [], gesture = null;
   const unique = values => [...new Set(values)];

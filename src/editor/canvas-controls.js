@@ -10,6 +10,7 @@ const EDGES = ['top', 'right', 'bottom', 'left'];
 const CLICK_SLOP = 3; // px a press may wander and still count as a click
 const NATIVE = '.editable, [contenteditable], input, textarea, select, .level, .textbox-move';
 
+/** @param {import('../types/layout').Deps} deps */
 export function createCanvasControls({pages, store, onSelection, mm, snapping}) {
   let ids = [];
   let primary = null;
@@ -202,6 +203,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
       for (const [type, fn] of listeners) window.removeEventListener(type, fn, true);
       end(e, e.type === 'pointercancel');
     };
+    /** @type {[string, EventListener][]} */
     const listeners = [['pointermove', onMove], ['pointerup', onEnd], ['pointercancel', onEnd]];
     if (mouse) listeners.push(['mousemove', onMove], ['mouseup', onEnd]);
     for (const [type, fn] of listeners) window.addEventListener(type, fn, true);
@@ -239,7 +241,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   function startMarquee(ev, entry) {
     // Text selection on the blank sheet is cancelled on mousedown (below), not
     // here: cancelling pointerdown would also suppress the mouseup fallback.
-    if (document.activeElement?.closest?.('.page')) document.activeElement.blur();
+    if (document.activeElement?.closest?.('.page')) /** @type {HTMLElement} */ (document.activeElement).blur();
     // Capture so the release always comes back here, whatever the browser starts.
     try { entry.page.setPointerCapture(ev.pointerId); } catch (error) { /* synthetic or already released */ }
     const from = toMm(entry.page, ev), additive = ev.shiftKey, before = ids.slice();
