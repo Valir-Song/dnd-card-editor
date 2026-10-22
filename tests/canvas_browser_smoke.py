@@ -133,8 +133,8 @@ with sync_playwright() as p:
     title.press('End')
     page.keyboard.type(' + правка')
     assert 'правка' in title.inner_text()
-    # Compatibility: existing badge drag and in-card text-frame grips are not
-    # top-level Moveable objects and must remain independently draggable.
+    # Badge movement remains a card-local special case. Text-frame grips,
+    # however, have been replaced with nested Moveable handles.
     badge=page.locator('[data-id="test-card"] .level')
     card_before=current('test-card').copy()
     bx,by=center(badge)
@@ -142,16 +142,20 @@ with sync_playwright() as p:
     badge_after=current('test-card')
     assert badge_after.get('badgeCustomPosition'),('Badge gesture failed',badge_after,errors)
     assert badge_after['x']==card_before['x'] and badge_after['y']==card_before['y']
-    title.hover()
-    grip=page.locator('[data-id="test-card"] .text-wrap').first.locator('.text-grip')
-    grip.wait_for(state='visible')
-    fx,fy=center(grip)
+    title.click()
+    wrap=page.locator('[data-id="test-card"] .text-wrap[data-field="title"]')
+    assert wrap.evaluate('e=>e.classList.contains("inner-selected")')
+    assert page.locator('.dnd-inner-moveable [data-direction="se"]').count()>0
+    assert page.locator('[data-id="test-card"] .text-grip').count()==0
+    handle=page.locator('.dnd-inner-moveable [data-direction="se"]:visible').last
+    handle.wait_for(state='visible')
+    fx,fy=center(handle)
     drag(fx,fy,18,10)
     frame=current('test-card').get('textFrames',{}).get('title',{})
-    assert frame.get('x',0)>1 and frame.get('y',0)>1,('Text-frame grip failed',frame,errors)
+    assert frame.get('w',0)>8 and frame.get('h',0)>3,('Nested Moveable resize failed',frame,errors)
     assert current('test-card')['x']==card_before['x']
     assert not errors,errors
-    print('PASS '+browser_name+': Tiptap, legacy badge/text-frame grips and multi-delete undo')
+    print('PASS '+browser_name+': Tiptap, badge and nested Moveable resize plus multi-delete undo')
     page.locator('[data-tab="files"]').click()
     with page.expect_download() as outcome:
         page.locator('#export').click()

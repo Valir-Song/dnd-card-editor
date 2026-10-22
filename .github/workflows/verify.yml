@@ -35,6 +35,10 @@ jobs:
         run: EDITOR_BROWSER=chromium python tests/canvas_browser_smoke.py
       - name: Moveable + Selecto canvas browser test (Firefox)
         run: EDITOR_BROWSER=firefox python tests/canvas_browser_smoke.py
+      - name: Nested Moveable text frames (Chromium)
+        run: EDITOR_BROWSER=chromium python tests/nested_browser_smoke.py
+      - name: Nested Moveable text frames (Firefox)
+        run: EDITOR_BROWSER=firefox python tests/nested_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Chromium)
         run: EDITOR_BROWSER=chromium python tests/tiptap_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Firefox)
