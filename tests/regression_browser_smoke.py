@@ -38,7 +38,12 @@ def stored(page):
     return page.evaluate(f"()=>localStorage.getItem('{KEY}')")
 
 def handle_offset(page,element):
-    """Distance in px between the element's bottom-right corner and Moveable's SE handle."""
+    """Distance in px between the element's bottom-right corner and Moveable's SE handle.
+    Moveable draws handles on a later frame, so wait for a visible one and let two
+    animation frames pass before measuring (slow CI runners need it)."""
+    page.wait_for_function("""()=>[...document.querySelectorAll('.moveable-control-box .moveable-se')]
+      .some(n=>{const r=n.getBoundingClientRect();return r.width>0&&r.height>0})""",timeout=5000)
+    page.evaluate("()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
     return page.evaluate("""e=>{
       const r=e.getBoundingClientRect();
       const h=[...document.querySelectorAll('.moveable-control-box .moveable-se')]
@@ -231,6 +236,108 @@ with sync_playwright() as p:
     assert not newer_file.errors,newer_file.errors
     context.close()
     print('PASS '+engine+': newer of file and browser save opens; other one stays reachable; reset button')
+
+    # 8. Press on an UNSELECTED object and drag in one motion: the whole
+    #    distance must apply (3.3.x moved ~1 mm, then Moveable threw errors).
+    context=browser.new_context()
+    page=open_editor(context)
+    page.evaluate("localStorage.setItem('dnd-card-editor-snap',JSON.stringify({enabled:false,gridMm:0}))")
+    page.reload(); page.wait_for_selector('.el .tiptap-content')
+    card=page.locator('#page1 .el.card').nth(3)
+    card.scroll_into_view_if_needed()
+    grab=card.evaluate("""card=>{const r=card.getBoundingClientRect();
+      for(let y=r.bottom-6;y>r.top;y-=2)for(let x=r.left+6;x<r.right;x+=2){const t=document.elementFromPoint(x,y);
+        if(t&&t.closest('.el')===card&&!t.closest('.text-wrap,.level,.editable'))return [x,y]}}""")
+    assert grab,'No blank area to grab the card'
+    before=card.bounding_box()
+    page.mouse.move(*grab); page.mouse.down()
+    page.mouse.move(grab[0]+40,grab[1]+30,steps=10); page.mouse.up()
+    page.wait_for_timeout(100)
+    after=card.bounding_box()
+    assert abs(after['x']-before['x']-40)<1.5 and abs(after['y']-before['y']-30)<1.5,(before,after)
+    assert not page.errors,page.errors
+    context.close()
+    # Input that outruns the deferred drag start (fast flick or a busy machine)
+    # is replayed rather than lost; a plain click still moves nothing.
+    context=browser.new_context()
+    page=open_editor(context)
+    page.evaluate("localStorage.setItem('dnd-card-editor-snap',JSON.stringify({enabled:false,gridMm:0}))")
+    page.reload(); page.wait_for_selector('.page')
+    import_json(page,[{'id':'b','kind':'shape','shape':'rect','page':1,'x':100,'y':100,'w':30,'h':20,'z':1}])
+    k=page.locator('#page1').bounding_box()['width']/210
+    burst="""([up,dist])=>{const el=document.querySelector('.el[data-id="b"]');const r=el.getBoundingClientRect();
+      const x=r.left+r.width/2,y=r.top+r.height/2,o={bubbles:true,cancelable:true,button:0,buttons:1};
+      el.dispatchEvent(new MouseEvent('mousedown',{...o,clientX:x,clientY:y}));
+      if(dist)for(let i=1;i<=5;i++)document.dispatchEvent(new MouseEvent('mousemove',{...o,clientX:x+8*i,clientY:y+6*i}));
+      if(up)document.dispatchEvent(new MouseEvent('mouseup',{...o,buttons:0,clientX:x+(dist?40:0),clientY:y+(dist?30:0)}));
+      return [x,y]}"""
+    shape=lambda:next(i for i in json.loads(stored(page)) if i['id']=='b')
+    page.evaluate(burst,[True,True]); page.wait_for_timeout(150)
+    assert abs(shape()['x']-100-40/k)<0.3,('Flick within one task was lost',shape())
+    page.keyboard.press('Control+z'); page.wait_for_timeout(100)
+    page.locator('#page1').click(position={'x':4,'y':4})
+    x,y=page.evaluate(burst,[False,True]); page.wait_for_timeout(150)   # drag started after the moves
+    page.evaluate("([x,y])=>document.dispatchEvent(new MouseEvent('mouseup',{bubbles:true,button:0,buttons:0,clientX:x,clientY:y}))",[x+40,y+30])
+    page.wait_for_timeout(150)
+    assert abs(shape()['x']-100-40/k)<0.3,('Moves before drag start were lost',shape())
+    page.keyboard.press('Control+z'); page.wait_for_timeout(100)
+    page.locator('#page1').click(position={'x':4,'y':4})
+    page.evaluate(burst,[True,False]); page.wait_for_timeout(150)
+    assert shape()['x']==100,('A plain click moved the object',shape())
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': one-motion drag of an unselected object moves the full distance')
+
+    # 9. Snapping: a dragged object aligns with another object's edge, shows a
+    #    guide, can be switched off or bypassed with Alt, and follows the grid.
+    def snap_case(setup,modifier=None,dx_mm=0,dy_mm=0):
+        context=browser.new_context()
+        page=open_editor(context)
+        page.evaluate("s=>localStorage.setItem('dnd-card-editor-snap',JSON.stringify(s))",setup)
+        layout=[{'id':'a','kind':'shape','shape':'rect','page':1,'x':20,'y':20,'w':30,'h':20,'z':1},
+                {'id':'b','kind':'shape','shape':'rect','page':1,'x':100,'y':100,'w':30,'h':20,'z':2}]
+        page.reload(); page.wait_for_selector('.page')
+        import_json(page,layout)
+        node=page.locator('.el[data-id="b"]')
+        node.scroll_into_view_if_needed()
+        k=page.locator('#page1').bounding_box()['width']/210
+        box=node.bounding_box(); x0,y0=box['x']+box['width']/2,box['y']+box['height']/2
+        page.mouse.move(x0,y0); page.mouse.down()
+        if modifier: page.keyboard.down(modifier)
+        page.mouse.move(x0+dx_mm*k,y0+dy_mm*k,steps=12)
+        guide=page.locator('#page1 > .snap-guide.x').count()
+        page.mouse.up()
+        if modifier: page.keyboard.up(modifier)
+        page.wait_for_timeout(100)
+        b=next(x for x in json.loads(stored(page)) if x['id']=='b')
+        leftover=page.locator('.snap-guide').count()
+        assert not page.errors,page.errors
+        context.close()
+        return b,guide,leftover
+    b,guide,leftover=snap_case({'enabled':True,'gridMm':0},dx_mm=-79,dy_mm=-30)   # lands 1 mm right of a
+    assert abs(b['x']-20)<1e-6 and guide==1 and leftover==0,(b,guide,leftover)
+    b,_,_=snap_case({'enabled':False,'gridMm':0},dx_mm=-79,dy_mm=-30)
+    assert abs(b['x']-21)<0.3,b
+    b,_,_=snap_case({'enabled':True,'gridMm':0},modifier='Alt',dx_mm=-79,dy_mm=-30)
+    assert abs(b['x']-21)<0.3,('Alt must bypass snapping',b)
+    b,_,_=snap_case({'enabled':True,'gridMm':5},dx_mm=-17.3,dy_mm=13.6)            # far from other lines
+    assert abs(b['x']%5)<1e-6 and abs(b['y']%5)<1e-6,('Grid not applied',b)
+    # Resizing snaps the dragged edge only.
+    context=browser.new_context()
+    page=open_editor(context)
+    import_json(page,[{'id':'a','kind':'shape','shape':'rect','page':1,'x':20,'y':20,'w':30,'h':20,'z':1},
+                      {'id':'b','kind':'shape','shape':'rect','page':1,'x':20,'y':100,'w':40,'h':20,'z':2}])
+    page.locator('.el[data-id="b"]').click(); page.wait_for_timeout(100)
+    handle=page.locator('.moveable-control-box .moveable-e').first.bounding_box()
+    k=page.locator('#page1').bounding_box()['width']/210
+    hx,hy=handle['x']+handle['width']/2,handle['y']+handle['height']/2
+    page.mouse.move(hx,hy); page.mouse.down(); page.mouse.move(hx-9*k,hy,steps=10); page.mouse.up()
+    page.wait_for_timeout(100)
+    b=next(x for x in json.loads(stored(page)) if x['id']=='b')
+    assert abs(b['x']-20)<1e-6 and abs(b['x']+b['w']-50)<1e-6,('Resized edge did not snap',b)
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': snapping aligns to objects with a guide; off switch, Alt and grid work')
 
     browser.close()
 print('All 3.3.1 regression checks passed for '+engine)

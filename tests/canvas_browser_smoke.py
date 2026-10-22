@@ -1,7 +1,8 @@
 """Regression suite for Moveable + Selecto against the actual standalone HTML.
 Run independently for Chromium and Firefox via EDITOR_BROWSER.
 """
-import json, os, tempfile, shutil
+import json
+import re, os, tempfile, shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -160,7 +161,8 @@ with sync_playwright() as p:
     with page.expect_download() as outcome:
         page.locator('#export').click()
     artifact=outcome.value
-    assert '3_3_' in artifact.suggested_filename
+    version=json.loads((Path(__file__).resolve().parents[1]/'package.json').read_text(encoding='utf-8'))['version']
+    assert artifact.suggested_filename=='DND_Card_Editor_'+re.sub(r'[^0-9a-z]+','_',version,flags=re.I)+'.html',artifact.suggested_filename
     copied=Path(tempfile.mkdtemp(prefix='dnd-33-'))/'exported.html'
     shutil.copy2(Path(artifact.path()),copied)
     reopened=context.new_page()

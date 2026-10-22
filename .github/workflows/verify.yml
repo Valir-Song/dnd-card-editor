@@ -30,18 +30,18 @@ jobs:
           pip install -r tests/requirements.txt
           python -m playwright install --with-deps chromium firefox
       - name: 3.3.1 regression browser test (Chromium)
-        run: EDITOR_BROWSER=chromium python tests/regression_browser_smoke.py
+        run: EDITOR_BROWSER=chromium python tests/ci_run.py regression_browser_smoke.py
       - name: 3.3.1 regression browser test (Firefox)
-        run: EDITOR_BROWSER=firefox python tests/regression_browser_smoke.py
+        run: EDITOR_BROWSER=firefox python tests/ci_run.py regression_browser_smoke.py
       - name: Moveable + Selecto canvas browser test (Chromium)
-        run: EDITOR_BROWSER=chromium python tests/canvas_browser_smoke.py
+        run: EDITOR_BROWSER=chromium python tests/ci_run.py canvas_browser_smoke.py
       - name: Moveable + Selecto canvas browser test (Firefox)
-        run: EDITOR_BROWSER=firefox python tests/canvas_browser_smoke.py
+        run: EDITOR_BROWSER=firefox python tests/ci_run.py canvas_browser_smoke.py
       - name: Nested Moveable text frames (Chromium)
-        run: EDITOR_BROWSER=chromium python tests/nested_browser_smoke.py
+        run: EDITOR_BROWSER=chromium python tests/ci_run.py nested_browser_smoke.py
       - name: Nested Moveable text frames (Firefox)
-        run: EDITOR_BROWSER=firefox python tests/nested_browser_smoke.py
+        run: EDITOR_BROWSER=firefox python tests/ci_run.py nested_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Chromium)
-        run: EDITOR_BROWSER=chromium python tests/tiptap_browser_smoke.py
+        run: EDITOR_BROWSER=chromium python tests/ci_run.py tiptap_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Firefox)
-        run: EDITOR_BROWSER=firefox python tests/tiptap_browser_smoke.py
+        run: EDITOR_BROWSER=firefox python tests/ci_run.py tiptap_browser_smoke.py

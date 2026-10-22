@@ -13,6 +13,7 @@ import { setupTextBoxes } from './editor/text-boxes.js';
 import { normalizeLayout } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
 import { chooseStartupLayout, formatStamp } from './editor/freshness.js';
+import { createSnapSettings } from './editor/snapping.js';
 
 // State and DOM rendering remain together to minimize v3 regressions.
 const key='dnd-card-editor-v3',recoveryKey=key+'-recovery',metaKey=key+'-meta',previousKey=key+'-previous';let items;
@@ -156,7 +157,8 @@ const rich=createRichText({
 const {startBadgeDrag}=createInnerInteractions({select,persist,mm});
 const {syncBgTools}=setupCardBackground({current,persist,draw,getItems});
 const {syncImageTools}=setupImageTools({current,persist});
-const canvas=createCanvasControls({pages,getItems,persist,mm,onSelection:(ids,primary)=>{
+const snapping=createSnapSettings();
+const canvas=createCanvasControls({pages,getItems,persist,mm,snapping,onSelection:(ids,primary)=>{
   selected=primary;
   if(ids.length){const c=getItems().find(item=>item.id===ids[0]);activePage=c?.page||1;}
   const c=current();
@@ -168,6 +170,13 @@ innerCanvas=createInnerCanvas({
   selectParent:id=>canvas.setSelection([id],id,{keepInner:true})
 });
 canvas.attachInner(innerCanvas);
+{
+  const toggle=document.getElementById('snapToggle'),grid=document.getElementById('snapGrid');
+  const show=()=>{const s=snapping.get();toggle.checked=s.enabled;grid.value=String(s.gridMm);grid.disabled=!s.enabled};
+  toggle.onchange=()=>snapping.set({enabled:toggle.checked});
+  grid.onchange=()=>snapping.set({gridMm:Number(grid.value)});
+  snapping.onChange(show);show();
+}
 
 const pendingEditors=[];
 function setField(node,item,f){

@@ -2,8 +2,9 @@
 // Coordinates are persisted in millimetres; Moveable only supplies pixel gesture deltas.
 import Moveable from 'moveable';
 import Selecto from 'selecto';
+import { collectLines, snapAxis, snapMove } from './snapping.js';
 
-export function createCanvasControls({pages, getItems, onSelection, persist, mm}) {
+export function createCanvasControls({pages, getItems, onSelection, persist, mm, snapping}) {
   let ids = [];
   let primary = null;
   let gesture = null;
@@ -49,8 +50,14 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     if (!chosen.length) { gesture = null; return; }
     const page = chosen[0].node.closest('.page');
     const scale = mmPerPx(page);
+    const settings = snapping?.get();
+    const pageNumber = chosen[0].item.page || 1;
     gesture = {
-      scale,
+      scale, page,
+      // Snap lines are fixed for the gesture: everything that is not moving.
+      lines: settings?.enabled ? collectLines(getItems(), pageNumber, new Set(chosen.map(r => r.id))) : null,
+      grid: settings?.enabled ? settings.gridMm : 0,
+      threshold: 6 * scale, // 6 screen pixels, whatever the zoom
       records: chosen.map(record => ({
         ...record, x: record.item.x, y: record.item.y, w: record.item.w,
         h: record.item.kind === 'textbox' && record.item.autoHeight
@@ -60,11 +67,19 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
       }))
     };
   }
-  function applyDrag(dist) {
+  function applyDrag(dist, free = false) {
     if (!gesture || !dist) return;
     const {records, scale} = gesture;
-    const dx = clip(dist[0] * scale, Math.max(...records.map(r => -r.x)), Math.min(...records.map(r => 210 - r.x - r.w)));
-    const dy = clip(dist[1] * scale, Math.max(...records.map(r => -r.y)), Math.min(...records.map(r => 297 - r.y - r.h)));
+    let rawX = dist[0] * scale, rawY = dist[1] * scale, guides = {x: null, y: null};
+    if (gesture.lines && !free) {
+      const left = Math.min(...records.map(r => r.x)), top = Math.min(...records.map(r => r.y));
+      const box = {x: left, y: top,
+        w: Math.max(...records.map(r => r.x + r.w)) - left, h: Math.max(...records.map(r => r.y + r.h)) - top};
+      ({dx: rawX, dy: rawY, guides} = snapMove(box, rawX, rawY, gesture.lines, gesture));
+    }
+    showGuides(guides);
+    const dx = clip(rawX, Math.max(...records.map(r => -r.x)), Math.min(...records.map(r => 210 - r.x - r.w)));
+    const dy = clip(rawY, Math.max(...records.map(r => -r.y)), Math.min(...records.map(r => 297 - r.y - r.h)));
     for (const r of records) {
       r.item.x = r.x + dx;
       r.item.y = r.y + dy;
@@ -79,9 +94,26 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     const {scale} = gesture, direction = e.direction || [1, 1];
     // e.dist is the change in pixel dimensions; unlike e.width it is safe
     // when the underlying CSS width is expressed in mm instead of px.
-    const width = record.w + (e.dist?.[0] ?? (e.width - record.pixelW)) * scale;
-    const height = record.h + (e.dist?.[1] ?? (e.height - record.pixelH)) * scale;
+    let width = record.w + (e.dist?.[0] ?? (e.width - record.pixelW)) * scale;
+    let height = record.h + (e.dist?.[1] ?? (e.height - record.pixelH)) * scale;
     const right = record.x + record.w, bottom = record.y + record.h;
+    // Snap only the edges being dragged, and only for a single object.
+    const guides = {x: null, y: null};
+    if (gesture.lines && gesture.records.length === 1 && !e.inputEvent?.altKey) {
+      if (direction[0]) {
+        const edge = direction[0] > 0 ? record.x + width : right - width;
+        const snap = snapAxis([edge], gesture.lines.x, gesture.threshold, gesture.grid);
+        width += direction[0] > 0 ? snap.offset : -snap.offset;
+        guides.x = snap.line;
+      }
+      if (direction[1]) {
+        const edge = direction[1] > 0 ? record.y + height : bottom - height;
+        const snap = snapAxis([edge], gesture.lines.y, gesture.threshold, gesture.grid);
+        height += direction[1] > 0 ? snap.offset : -snap.offset;
+        guides.y = snap.line;
+      }
+    }
+    showGuides(guides);
     const rawX = direction[0] < 0 ? right - width : record.x;
     const rawY = direction[1] < 0 ? bottom - height : record.y;
     const x = clip(rawX, 0, 210 - 12), y = clip(rawY, 0, 297 - 6);
@@ -95,8 +127,19 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     Object.assign(record.item, {x, y, w, h});
     Object.assign(record.node.style, {left:mm(x), top:mm(y), width:mm(w), height:mm(h)});
   }
+  // Thin guide lines on the page of the gesture; hidden in print.
+  function showGuides({x, y}) {
+    const page = gesture?.page;
+    for (const p of pages) for (const [axis, value] of [['x', x], ['y', y]]) {
+      let line = p.querySelector(':scope > .snap-guide.' + axis);
+      if (p !== page || value === null) { line?.remove(); continue; }
+      if (!line) { line = document.createElement('div'); line.className = 'snap-guide ' + axis; p.append(line); }
+      line.style[axis === 'x' ? 'left' : 'top'] = mm(value);
+    }
+  }
   function endGesture() {
     if (!gesture) return;
+    showGuides({x: null, y: null});
     gesture = null;
     // One history checkpoint per drag or resize, regardless of the number of targets.
     persist();
@@ -109,14 +152,17 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     target: [], draggable: true, resizable: true, origin: false,
     keepRatio: false, throttleDrag: 0, throttleResize: 0,
     edge: true, edgeDraggable: true, snappable: false,
+    // A press on editable text (a selected text box or card) must focus the
+    // editor; without this Moveable's gesture preventDefault()s the click.
+    checkInput: true,
     renderDirections: ['nw','n','ne','w','e','sw','s','se'],
     className: 'dnd-canvas-moveable'
   });
   moveable.on('dragStart', begin)
-    .on('drag', e => applyDrag(e.beforeDist || e.dist))
+    .on('drag', e => applyDrag(e.beforeDist || e.dist, e.inputEvent?.altKey))
     .on('dragEnd', endGesture)
     .on('dragGroupStart', begin)
-    .on('dragGroup', e => applyDrag(e.events?.[0]?.beforeDist || e.events?.[0]?.dist))
+    .on('dragGroup', e => applyDrag(e.events?.[0]?.beforeDist || e.events?.[0]?.dist, e.inputEvent?.altKey))
     .on('dragGroupEnd', endGesture)
     .on('resizeStart', e => {
       begin();
@@ -176,20 +222,50 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
         setSelection(ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
         return;
       }
-      if (inner?.hasSelection() || !ids.includes(id)) setSelection([id], id);
+      const retarget = inner?.hasSelection() || !ids.includes(id);
+      if (retarget) setSelection([id], id);
       const nativeEditor = e.target.closest('.editable, [contenteditable], input, textarea, select, .text-grip, .text-resize, .level');
       if (nativeEditor) return;
       // The gesture begins on the same click that selects the object.
       // Do not manually initiate a second drag if Moveable owns the border.
-      if (!e.target.closest('.moveable-control-box')) moveable.dragStart(e);
+      if (!e.target.closest('.moveable-control-box')) beginDrag(e, retarget);
     });
   });
   function startDrag(e, id) {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    if (!ids.includes(id)) setSelection([id], id);
-    moveable.dragStart(e);
+    const retarget = !ids.includes(id);
+    if (retarget) setSelection([id], id);
+    beginDrag(e, retarget);
+  }
+  // A press that also selects the object is dragged by the editor itself:
+  // Moveable renders a new target asynchronously and would miss the gesture
+  // (it moved ~1 mm, then threw). Listeners attach synchronously, so a fast
+  // flick or a busy machine cannot outrun them; selected objects use Moveable.
+  let handlesFrame = 0;
+  function beginDrag(e, retarget) {
+    if (!retarget) { moveable.dragStart(e); return; }
+    const startX = e.clientX, startY = e.clientY;
+    let started = false;
+    const move = ev => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (!started) {
+        if (Math.hypot(dx, dy) < 3) return; // still a click
+        begin();
+        started = !!gesture;
+        if (!started) return;
+      }
+      applyDrag([dx, dy], ev.altKey);
+      handlesFrame ||= requestAnimationFrame(() => { handlesFrame = 0; moveable.updateRect(); });
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', up, true);
+      if (started) endGesture();
+    };
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
   }
   function afterDraw() {
     for (const id of ids.slice()) if (!itemFor(id)) ids = ids.filter(value => value !== id);
