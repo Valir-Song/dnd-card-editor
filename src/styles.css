@@ -18,12 +18,9 @@
 .card .bars,.card .bar{display:none!important}
 .text-wrap{position:relative;min-width:8mm;max-width:none;box-sizing:border-box}
 .text-wrap>.editable{min-height:1em}
-.text-grip,.text-resize{display:none;position:absolute;z-index:90;font:14px Arial,sans-serif;background:#2678bb;color:white;border:1px solid white;border-radius:3px;user-select:none;touch-action:none}
-.text-grip{right:1px;top:-10px;width:16px;height:16px;text-align:center;line-height:14px;cursor:move}
-.text-resize{right:-3px;bottom:-3px;width:10px;height:10px;cursor:nwse-resize}
-.el.selected .text-wrap:hover>.text-grip,.el.selected .text-wrap:focus-within>.text-grip,.el.selected .text-wrap:hover>.text-resize,.el.selected .text-wrap:focus-within>.text-resize{display:block}
+.text-wrap.inner-selected{outline:1px dotted #2678bb;outline-offset:1px}
 .text-wrap:hover{outline:1px dashed #72a4cf}
-@media print{.text-grip,.text-resize{display:none!important}.text-wrap:hover{outline:none}}
+@media print{.text-wrap.inner-selected,.text-wrap:hover{outline:none!important}}
 
 /* 3.1: disabled history buttons */
 .toolbar button:disabled{opacity:.42;cursor:not-allowed}
@@ -107,7 +104,7 @@
 .moveable-control-box{z-index:180!important}
 .moveable-control-box .moveable-control{background:#2678bb;border:1px solid #fff}
 .selecto-selection{z-index:179!important;background:#2678bb19!important;border:1px solid #2678bb!important}
-.el.selected{outline:1px dashed #2678bb;outline-offset:1px}
+@media screen{.el.selected{outline:1px dashed #2678bb;outline-offset:1px}}
 #selectionCount{font:12px Arial,sans-serif;color:#ded6ec}
 @media print{.moveable-control-box,.selecto-selection,#selectionCount{display:none!important}}
 
@@ -119,3 +116,32 @@
 
 /* A Moveable border line sometimes overlays a corner handle. Reserve hit tests for the handles. */
 .moveable-control-box .moveable-line{pointer-events:none!important}
+
+/* 3.3 nested Moveable. Text remains editable; only the border/handles move it.
+   The parent card has no active Moveable frame while a nested field is selected. */
+.dnd-inner-moveable{z-index:190!important}
+.dnd-inner-moveable .moveable-line{pointer-events:none!important}
+.dnd-inner-moveable .moveable-edgeDraggable{
+  pointer-events:auto!important;
+  cursor:move!important;
+  stroke-width:1;
+}
+.dnd-inner-moveable .moveable-control{pointer-events:auto!important;background:#8758b5!important}
+.dnd-inner-moveable .moveable-area{pointer-events:none!important}
+@media print{.dnd-inner-moveable{display:none!important}}
+
+/* 3.3.1: persistent warnings (storage full, damaged save) under the toolbar. */
+.notices:empty{display:none}
+.notices{display:flex;flex-direction:column;gap:1px;background:#29253a}
+.notice{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 12px;background:#fff1d6;color:#4a3410;border-left:4px solid #c7832a;font:13px/1.4 Arial,sans-serif}
+.notice span{flex:1 1 320px}
+.notice button{background:white;border:1px solid #d6b47c;border-radius:6px;padding:5px 9px;color:#4a3410;cursor:pointer;font:inherit}
+.notice button:hover{border-color:#a8742a}
+.notice .notice-close{border:0;background:transparent;font-size:18px;line-height:1;padding:2px 6px}
+@media print{.notices{display:none!important}}
+
+/* 3.3.1: Moveable handles are positioned inside the (scrollable) stage. */
+.stage{position:relative}
+
+/* 3.3.1: editing outlines never reach paper or PDF, whatever is selected or focused. */
+@media print{.el.selected,.el .editable:focus,.el .editable:focus-within,.text-wrap:hover{outline:none!important}}

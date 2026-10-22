@@ -16,6 +16,14 @@ test('all UI bindings refer to existing toolbar controls',()=>{
   const refs=[...js.matchAll(/getElementById\(['"]([^'"]+)['"]\)/g)].map(x=>x[1]);
   assert.deepEqual([...new Set(refs)].filter(x=>!html.includes('id="'+x+'"')),[]);
 });
+test('committed standalone HTML is the current offline build',()=>{
+  const version=JSON.parse(read('package.json')).version;
+  assert.ok(html.includes('content="'+version+'" name="editor-version"'),'index.html editor-version must match package.json');
+  const standalone=read('DND_Card_Editor_standalone.html');
+  assert.ok(standalone.includes('content="'+version+'" name="editor-version"'),'Run `npm run standalone` after changing the version');
+  assert.ok(!standalone.includes('__STARTER_DATA__'));
+  assert.ok(!/<script[^>]+\bsrc=/.test(standalone));
+});
 test('every feature module is imported and v3 storage remains compatible',()=>{
   const js=read('src/editor.js');
   for(const x of modules)assert.ok(js.includes('./editor/'+x));

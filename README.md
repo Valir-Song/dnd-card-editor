@@ -1,158 +1,114 @@
-# D&D Card Editor 3.0 — проект Vite
+# D&D Card Editor
 
-Перенос редактора Ричарда 2.4. Макет и тексты оставлены; две встроенные картинки и изображения фона удалены по согласованию. Основная логика редактора сохранена в `src/editor.js` без функционального переписывания, чтобы минимизировать риск поломок. Это **первый этап миграции**, а не полный рефакторинг.
+Офлайн-редактор листов-шпаргалок A4 для персонажа D&D 5e (бард Ричард Сэдсонг):
+карточки заклинаний и способностей, заметки, ресурсы, фигуры, картинки и
+свободные текстовые поля на двух страницах. Весь редактор — один HTML-файл:
+без сервера, без установки и без интернета.
 
-## Использование без установки
-Открой `DND_Card_Editor_3_0_standalone.html` рядом с этим README, если он был передан вместе с проектом. Или отдельно скачанный HTML в Firefox. Интернет не нужен.
+Текущая версия: **3.3.1 beta** (ветка `main`). Стабильная 3.2.0 без Moveable/Selecto —
+коммит `d2493ae` в истории `main`; версия 3.1 до Tiptap — ветка `archive/stable-3.1-before-tiptap`.
 
-## Для разработки на Windows
-1. Установи Node.js LTS (вместе с npm).
-2. В терминале открытой папки проекта выполни `npm install`.
-3. `npm run dev`, затем открой адрес, выведенный Vite (обычно http://127.0.0.1:5173).
-4. `npm run build` создаёт автономный файл в `dist/index.html` благодаря vite-plugin-singlefile.
+## Как пользоваться
+1. Открой `DND_Card_Editor_standalone.html` в Firefox или Chrome.
+2. Редактируй: клик по объекту — выделить, клик по тексту — печатать.
+3. Сохраняй работу кнопкой **Файл → Скачать HTML**: получится новый самодостаточный
+   редактор с твоим макетом и картинками внутри. Это основной способ хранения.
 
-## Структура
-- `index.html` — разметка редактора.
-- `src/styles.css` — оформление.
-- `src/starter-layout.json` — исходный макет и карточки, без растровых картинок.
-- `src/editor.js` — оригинальная логика интерактивности.
-- `src/main.js` — точка входа.
-- `vite.config.js` — настройка сборки одного HTML.
-- `tests/smoke.md` — ручной контрольный список.
+Автосохранение в браузер (localStorage, ключ `dnd-card-editor-v3`) — только для удобства:
+у браузера есть лимит около 5 МБ, крупные картинки его быстро исчерпывают. Если места
+не хватает, под панелью появится предупреждение с кнопками «Скачать HTML/JSON».
+Сохранённый в браузере макет имеет приоритет над шаблоном, встроенным в файл.
 
-## Важно про данные
-Новая версия использует отдельный ключ localStorage `dnd-card-editor-v3` и не заменяет сохранения версии 2.4. Для надёжного сохранения пользуйся «Скачать HTML» или экспортом JSON. Перед изменениями храни копию рабочего HTML. Если в браузере уже есть сохранённый макет v3, он имеет приоритет над начальным шаблоном.
+## Возможности
+- **Карточки:** добавить, дублировать, удалить. Название, мета-строка, описание и значок
+  уровня (♪ — предмет).
+- **Текстовые рамки внутри карточки** (второй Moveable): клик по тексту выделяет его рамку;
+  тяни за контур — сдвинуть, за ручки — изменить размер. Shift+клик или Alt+рамка по пустому
+  месту карточки выделяют несколько её текстов; клик по пустому месту карточки возвращает к ней.
+  Смещения хранятся в `textFrames` относительно карточки и сохраняются при её перемещении.
+  Удаление при выделенном тексте карточку не удаляет. Значок уровня сдвигается отдельно.
+- **Холст (Moveable + Selecto):** перетаскивание и изменение размера за 8 ручек;
+  выделение нескольких объектов рамкой по пустому листу или Shift+клик (в пределах
+  одной страницы); группа двигается и масштабируется как одно действие; удаление группы.
+- **Текст (Tiptap):** единая панель для всех полей — Ж/К/Ч/S, шрифт, размер 6–96 pt,
+  цвет, выравнивание, списки, очистка оформления. Курсор без выделения применяет
+  стиль ко всему полю. Текстовое поле: заливка, рамка, высота по тексту.
+- **Оформление:** цвет фона; фон-картинка карточки (заполнение, прозрачность, масштаб,
+  сдвиг, затемнение); для картинок — прозрачность, яркость, контраст, поворот.
+- **Фигуры и изображения:** прямоугольник, круг, линия; картинка из файла или Ctrl+V.
+- **Слои:** на передний/задний план, выше/ниже (в пределах страницы).
+- **Файл:** сохранить в браузере, скачать HTML, экспорт и импорт JSON, печать/PDF (A4, без
+  панелей и рамок выделения).
+- **История:** Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z (работает и в русской раскладке), до 60 шагов,
+  до перезагрузки страницы. Одно перетаскивание или серия нажатий — один шаг.
 
-## Ограничения
-В этой среде npm registry может быть недоступен. Поэтому автономный HTML сформирован непосредственно из тех же исходников, без утверждения, что `npm run build` реально был исполнен. Настоящую сборку Vite следует проверить на машине с npm-доступом.
+### Защита данных (3.3.1)
+- Импорт JSON сначала проверяется (тип объекта, страница 1–2, числовые координаты) и
+  отрисовывается; при ошибке текущий макет и сохранение в браузере не меняются, а
+  сообщение называет проблемный объект.
+- Если сохранённый в браузере макет повреждён, редактор открывает встроенный шаблон и
+  предлагает скачать копию повреждённых данных (копия также лежит в
+  `dnd-card-editor-v3-recovery`).
+- «Сохранить» честно сообщает, если сохранить в браузер не удалось.
 
-## Version 3.0.1 — modular editor and verification
-
-The 3.0.1 source is in `src/editor.js` and feature modules under `src/editor/`:
-pointer movement, card backgrounds, image tools, layers, text formatting, object creation, and import/export.
-The original v3 layout format and browser storage key are unchanged.
-
-### Develop and build
-
-```sh
-npm install
-npm run dev
-npm test
-npm run build
-npm run check:build
-```
-
-Open `dist/index.html` to run the offline Vite build. For automated browser interaction checks, install Python Playwright and Chromium, then run `python tests/browser_smoke.py`. These smoke tests assemble the same modules into a browser-test document; the Vite output is separately validated by `npm run check:build`.
-
-GitHub Actions runs all checks for pull requests. Its **DND-Card-Editor-3.0.1** artifact contains the built single-file HTML.
-
-Version 3.0 remains available on the `main` branch until the 3.0.1 PR is reviewed and merged.
-
-
-## Version 3.1 — Undo/Redo
-
-The editor now has **Отменить** and **Повторить** buttons and keyboard shortcuts:
-
-- **Ctrl+Z** (or **Cmd+Z** on macOS): undo the last editor action.
-- **Ctrl+Y** / **Ctrl+Shift+Z** (or **Cmd+Shift+Z**): redo.
-
-Undo history includes text edits, formatting, card movement and resizing, text-frame movement and resizing, creation and deletion of objects, layer changes, background/image settings and JSON import.
-
-Pointer gestures create one history step when released; adjacent keystrokes and slider changes are grouped. Performing a new edit after undo clears the available redo branch.
-
-History is **in memory only**: it resets when you reload or close the page. Existing saved layouts and the `dnd-card-editor-v3` storage key remain compatible with version 3.0.1. The history has a 60-step / ~48 MiB cap; large embedded images may reduce available steps.
-
-To verify: `npm test`, `python tests/browser_smoke.py`, `npm run build`, `npm run check:build`.
- 
-
-## Experimental 3.2 Tiptap — unified text foundation (branch `feature/3.2-tiptap-core`)
-
-This is a **draft** replacing the previous homegrown `contenteditable` formatters. It is
-based on the last validated 3.2 tabbed-toolbar/text-box snapshot **fac50cad**
-and is not merged into `main`.
-
-- One Tiptap 3 / ProseMirror implementation powers every editable field:
-  cards (title, metadata and details), header/subtitle, notes/resources,
-  section labels, and free-positioned text boxes.
-- One toolbar in the Text tab controls selection formatting: bold, italic,
-  underline, strike, family, precise 6–96 pt font size, color, alignment,
-  numbered/bulleted lists and clear formatting.
-- Clicking with a caret but without an active text selection applies styling
-  to the whole focused text field, not merely to future typing. For a portion
-  of the text, select the exact word(s) before using the toolbar.
-- A textbox still has *object* settings for background, border, auto-height and
-  position. These are not separate text-format engines.
-- Text content and formatting are stored as portable HTML in the existing
-  `titleHtml`/`subtitleHtml`/`metaHtml`/`detailHtml`/`textHtml` properties.
-  Old `<font>` markup is converted to Tiptap-compatible spans when loaded.
-  Positions, card sizes, layer ordering and localStorage key remain compatible.
-- Undo/Redo continues to use the existing **whole-document** snapshot history
-  (including text and object changes). Tiptap's own per-editor UndoRedo is
-  intentionally disabled to prevent competing histories.
-- `npm run build` bundles Tiptap and all dependencies directly into
-  `dist/index.html`. No CDN or server is needed to open the exported HTML.
-  The *HTML export* is created from pristine application markup plus the current
-  JSON layout, rather than copying active ProseMirror editor DOM.
-- Original small card boxes may clip or overflow if you choose a very large
-  font; this is a **layout constraint**, not a rich-text engine problem.
-
-### Reproducible checks
+## Разработка
+Нужен Node.js 22 LTS (с npm) и, для браузерных тестов, Python 3.12.
 
 ```sh
-npm install
-npm test
-npm run build
-npm run check:build
+npm ci                     # зависимости строго по package-lock.json
+npm run dev                # http://127.0.0.1:5173
+npm test                   # Node-тесты: история, проверка макета, исходники
+npm run build              # dist/index.html — один офлайн-файл
+npm run check:build        # проверка, что сборка самодостаточна
+npm run standalone         # сборка + обновление DND_Card_Editor_standalone.html
+
+pip install -r tests/requirements.txt
 python -m playwright install chromium firefox
-npm run test:e2e
-npm run test:e2e:firefox
+npm run test:e2e           # все браузерные тесты в Chromium (Windows тоже)
+npm run test:e2e:firefox   # то же в Firefox
 ```
 
-CI runs the end-to-end suite against the **real compiled HTML** in both
-Chromium and Firefox, including live font growth, old JSON import, global
-Undo/Redo, new text boxes and offline round-trip export.
+После изменения версии в `package.json` и `index.html` выполни `npm run standalone`:
+`npm test` проверяет, что закоммиченный standalone-файл соответствует текущей версии.
 
-Tiptap is MIT licensed. Source: https://github.com/ueberdosis/tiptap.
+GitHub Actions на каждый PR запускает Node-тесты, сборку и все браузерные наборы в
+Chromium и Firefox; собранный HTML доступен как артефакт запуска.
 
+### Структура
+| Путь | Назначение |
+|---|---|
+| `index.html` | разметка панели и страниц; `__STARTER_DATA__` заменяется стартовым макетом при сборке |
+| `src/starter-layout.json` | стартовый макет (28 объектов) |
+| `src/editor.js` | состояние, загрузка/сохранение, отрисовка объектов |
+| `src/editor/canvas-controls.js` | Moveable/Selecto: выделение, перемещение, размеры |
+| `src/editor/inner-canvas.js` | второй Moveable/Selecto: текстовые рамки внутри карточки |
+| `src/editor/interactions.js` | перетаскивание значка уровня |
+| `src/editor/rich-text.js` | Tiptap для всех текстовых полей и общая панель текста |
+| `src/editor/history.js` | отмена/повтор на снимках всего документа |
+| `src/editor/layout.js` | проверка и нормализация макета |
+| `src/editor/files.js` | сохранение, экспорт HTML/JSON, импорт, печать, удаление |
+| `src/editor/notice.js` | предупреждения под панелью |
+| `src/editor/*.js` (прочие) | фон карточки, картинки, слои, фигуры, текстовые поля, вкладки |
+| `tests/*.test.mjs` | Node-тесты |
+| `tests/*_browser_smoke.py` | Playwright-тесты по собранному `dist/index.html` |
+| `tests/smoke.md` | ручной контрольный список перед релизом |
 
-## Version 3.2.0 — stable (2026-10-21)
+### Формат макета
+JSON-массив объектов. Общие поля: `id`, `kind` (`header`, `note`, `resources`, `section`,
+`card`, `shape`, `image`, `textbox`), `page` (1–2), `x`, `y`, `w`, `h` в миллиметрах, `z`.
+Текст хранится в `title/subtitle/meta/detail/text` и оформленный — в `…Html`; смещения
+текстовых рамок карточки — в `textFrames[поле] = {x, y, w, h}`. Старый `<font>` из версий до
+3.2 при загрузке превращается в стили Tiptap.
 
-3.2 is now the supported mainline editor, using Tiptap for every text field.
-The former 3.1 mainline is preserved at `archive/stable-3.1-before-tiptap`.
-The 3.2 single-file build is `dist/index.html`; the editor's **Download HTML**
-command exports `DND_Card_Editor_3_2_Stable.html`.
+## История версий
+- **3.3.1 beta** — текстовые рамки внутри карточек на отдельном Moveable (вместо ручек ⠿);
+  защита от повреждённого импорта и сохранения, предупреждение о переполнении хранилища,
+  чистый экспорт HTML, печать без рамок выделения, ручки следуют за объектом при изменении окна
+  и прокрутке; lock-файл, регрессионные тесты, кроссплатформенный запуск тестов.
+- **3.3.0 beta** — Moveable + Selecto: ручки, групповое выделение и действия.
+- **3.2.0** — Tiptap как единый текстовый движок, панель с вкладками, свободные текстовые поля.
+- **3.1** — отмена и повтор.
+- **3.0.1** — модули, тесты, CI.
+- **3.0** — перенос редактора 2.4 на Vite с однофайловой сборкой.
 
-Automated verification runs Node source tests, Vite single-file build checks,
-and Playwright end-to-end tests on the compiled offline HTML in both Chromium
-and Firefox. These tests do not replace testing with real D&D layouts in the
-user's own browser. Before changing or importing a large layout, export a JSON
-backup and keep a copy of the standalone HTML.
-
-
-## 3.3 beta — Moveable + Selecto (isolated experiment)
-
-The `feature/3.3-moveable-selecto` branch is experimental and must not be
-merged into stable main without user acceptance. The editor remains a portable
-single-file HTML document with Tiptap bundled offline.
-
-* **Moveable 0.53.0 (MIT)** manages the position and dimensions of top-level
-  cards, headers, images, shapes, notes and text boxes. The layout still stores
-  positions and sizes in millimetres. One gesture equals one undo checkpoint.
-* **Selecto 1.26.3 (MIT)** selects multiple top-level elements with a marquee
-  started on an empty area of one A4 page. Shift+click toggles elements on the
-  same page, and Moveable drags or resizes groups. Selection never spans pages.
-* Tiptap owns text interaction; clicking inside editable text never starts a
-  canvas drag. Existing inline text-frame grips and spell level badge drags
-  remain independently operable for compatibility with pre-3.3 JSON layouts.
-* When more than one object is selected, object-specific formatting controls
-  intentionally have no active target; bulk deletion is supported.
-* Exported HTML bundles both libraries and existing template data. Moveable
-  handles and marquee indicators are excluded from print.
-
-### Quality gates
-
-`npm test`, `npm run build`, `npm run check:build`, and Playwright tests in
-Chromium and Firefox. E2E suites: `tests/tiptap_browser_smoke.py` and
-`tests/canvas_browser_smoke.py`. Before testing, back up the current layout
-through the JSON button; the branch retains the pre-3.3 local storage key for
-backwards compatibility.
+Tiptap, Moveable и Selecto распространяются по лицензии MIT.

@@ -1,6 +1,7 @@
 import { createHistory } from './editor/history.js';
 import { createInnerInteractions } from './editor/interactions.js';
 import { createCanvasControls } from './editor/canvas-controls.js';
+import { createInnerCanvas } from './editor/inner-canvas.js';
 import { setupCardBackground } from './editor/card-background.js';
 import { setupImageTools } from './editor/image-tools.js';
 import { setupLayers } from './editor/layers.js';
@@ -9,13 +10,24 @@ import { setupObjects } from './editor/objects.js';
 import { setupFiles } from './editor/files.js';
 import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
+import { normalizeLayout } from './editor/layout.js';
+import { createNotices } from './editor/notice.js';
 
 // State and DOM rendering remain together to minimize v3 regressions.
-const key='dnd-card-editor-v3';let items;
-const embedded=JSON.parse(document.getElementById('initial').textContent);
-try{const s=localStorage.getItem(key);items=s?JSON.parse(s):embedded}catch(e){items=embedded}
+const key='dnd-card-editor-v3',recoveryKey=key+'-recovery';let items;
+const notices=createNotices(document.getElementById('notices'));
+const embedded=normalizeLayout(JSON.parse(document.getElementById('initial').textContent)).items||[];
+// A damaged save must never lock the user out: fall back to the embedded layout
+// and keep the raw data so it can be downloaded and repaired.
+let stored=null,damagedSave=null;
+try{stored=localStorage.getItem(key)}catch(e){console.warn('Browser storage is unavailable',e)}
+if(stored){
+  let result;
+  try{result=normalizeLayout(JSON.parse(stored))}catch(e){result={items:null,errors:['Данные не являются корректным JSON.']}}
+  if(result.items)items=result.items;else damagedSave={raw:stored,errors:result.errors};
+}
+items ||= structuredClone(embedded);
 let selected=null, activePage=1;
-items.forEach((v,i)=>{if(!Number.isFinite(v.z))v.z=i+1});
 
 // Convert the old top-right default on saved cards; preserve manual positions.
 let migratedBadges=false;
@@ -24,11 +36,33 @@ for(const item of items){
     delete item.badgeX;delete item.badgeY;migratedBadges=true;
   }
 }
-if(migratedBadges){try{localStorage.setItem(key,JSON.stringify(items))}catch(e){console.warn('Could not save badge migration',e)}}
+if(migratedBadges&&!damagedSave){try{localStorage.setItem(key,JSON.stringify(items))}catch(e){console.warn('Could not save badge migration',e)}}
 
 const pages=[document.getElementById('page1'),document.getElementById('page2')];
 const mm=v=>v+'mm',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function saveToStorage(){try{localStorage.setItem(key,JSON.stringify(items))}catch(e){console.warn('Storage limit exceeded: export HTML to save',e)}}
+function saveToStorage(){
+  try{localStorage.setItem(key,JSON.stringify(items));notices.hide('storage');return true}
+  catch(e){
+    console.warn('Storage limit exceeded: export HTML to save',e);
+    notices.show('storage','Макет не помещается в хранилище браузера (обычно из-за крупных картинок), поэтому последние изменения не сохранены: после перезагрузки откроется предыдущая версия. Скачайте HTML или JSON, чтобы не потерять работу.',[
+      {label:'Скачать HTML',onClick:()=>document.getElementById('export').click()},
+      {label:'Скачать JSON',onClick:()=>document.getElementById('json').click()}
+    ]);
+    return false;
+  }
+}
+function reportDamagedSave(){
+  if(!damagedSave)return;
+  try{localStorage.setItem(recoveryKey,damagedSave.raw)}catch(e){console.warn('Could not keep a copy of the damaged layout',e)}
+  console.warn('Damaged saved layout replaced by the template',damagedSave.errors);
+  notices.show('damaged','Сохранённый в браузере макет повреждён и не открывается, поэтому загружен исходный шаблон. Скачайте копию повреждённых данных, прежде чем вносить изменения: при следующем сохранении она будет заменена.',[
+    {label:'Скачать повреждённый JSON',onClick:()=>{
+      const url=URL.createObjectURL(new Blob([damagedSave.raw],{type:'application/json'}));
+      const a=document.createElement('a');a.href=url;a.download='Ричард_макет_повреждённый.json';a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+    }}
+  ]);
+}
 const history=createHistory({read:()=>items,restore:restored=>{
   const focusedRich=rich.active();
   const wasEditing=!!document.activeElement?.classList?.contains('tiptap-content');
@@ -43,7 +77,7 @@ const history=createHistory({read:()=>items,restore:restored=>{
   document.getElementById('undo').disabled=!undo;
   document.getElementById('redo').disabled=!redo;
 }});
-function persist(options){history.commit(options);saveToStorage()}
+function persist(options){history.commit(options);return saveToStorage()}
 function navigateHistory(direction){
   // Edits are already saved on every input event; no pending DOM changes.
   return direction==='undo'?history.undo():history.redo();
@@ -64,10 +98,19 @@ window.addEventListener('keydown',event=>{
 },true);
 const getItems=()=>items,setItems=value=>{items=value};
 const getSelected=()=>selected,clearSelection=()=>{selected=null;canvas.clear()};
-const getSelectionIds=()=>canvas.getIds();
+// Deleting an embedded text frame must never remove its parent card.
+const getSelectionIds=()=>innerCanvas?.hasSelection()?[]:canvas.getIds();
 let syncTextBoxTools=()=>{};
-const rich=createRichText({current,select,persist});
-const {startBadgeDrag,startTextMove,startTextResize}=createInnerInteractions({select,persist,mm});
+let innerCanvas=null;
+const rich=createRichText({
+  current,select,persist,
+  selectText:(element,field)=>{
+    const item=getItems().find(v=>v.id===element?.dataset.id);
+    if(item?.kind==='textbox')select(element);
+    else if(item)innerCanvas?.selectField(item.id,field);
+  }
+});
+const {startBadgeDrag}=createInnerInteractions({select,persist,mm});
 const {syncBgTools}=setupCardBackground({current,persist,draw,getItems});
 const {syncImageTools}=setupImageTools({current,persist});
 const canvas=createCanvasControls({pages,getItems,persist,mm,onSelection:(ids,primary)=>{
@@ -77,6 +120,11 @@ const canvas=createCanvasControls({pages,getItems,persist,mm,onSelection:(ids,pr
   if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;
   syncImageTools();syncBgTools();syncTextBoxTools();
 }});
+innerCanvas=createInnerCanvas({
+  pages,getItems,persist,mm,
+  selectParent:id=>canvas.setSelection([id],id,{keepInner:true})
+});
+canvas.attachInner(innerCanvas);
 
 const pendingEditors=[];
 function setField(node,item,f){
@@ -101,14 +149,21 @@ function draw(){rich.destroy();pendingEditors.length=0;pages.forEach(p=>p.replac
   grip.textContent='⠿';grip.title='Перетащить текстовую рамку';
   grip.addEventListener('mousedown',ev=>canvas.startDrag(ev,item.id));
   e.append(grip);
-}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);const grip=document.createElement('span');grip.className='text-grip';grip.title='Перетащить текстовый блок';grip.textContent='⠿';grip.addEventListener('pointerdown',ev=>startTextMove(ev,item,e,f,wrap));wrap.append(grip);const rh=document.createElement('span');rh.className='text-resize';rh.title='Изменить ширину и высоту текста';rh.addEventListener('pointerdown',ev=>startTextResize(ev,item,e,f,wrap));wrap.append(rh);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{item.level=badge.textContent;persist({group:'badge:'+item.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,item,e,badge));e.append(badge)}pages[(item.page||1)-1].append(e)}pages.forEach((p,i)=>{const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)});if(selected){const s=document.querySelector('.el[data-id="'+selected+'"]');if(s)s.classList.add('selected')}for(const entry of pendingEditors)rich.mount(entry.node,entry.item,entry.field);canvas.afterDraw();syncTextBoxTools()}
+}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{item.level=badge.textContent;persist({group:'badge:'+item.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,item,e,badge));e.append(badge)}pages[(item.page||1)-1].append(e)}pages.forEach((p,i)=>{const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)});if(selected){const s=document.querySelector('.el[data-id="'+selected+'"]');if(s)s.classList.add('selected')}for(const entry of pendingEditors)rich.mount(entry.node,entry.item,entry.field);canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools()}
 function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}function addObject(o){const obj={...o,z:Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0))+1,id:'e'+Date.now()+Math.floor(Math.random()*10000),page:activePage};items.push(obj);persist();draw();select(document.querySelector('[data-id="'+obj.id+'"]'))}
-function addCard(copy){const src=copy||{kind:'card',x:12,y:120,w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Измени описание двойным щелчком.',level:'1',roles:'support',bg:'#ffffff'};addObject({...structuredClone(src),x:Math.min(115,src.x+5),y:Math.min(270,src.y+5)})}
+function addCard(copy){const src=copy||{kind:'card',x:12,y:120,w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Кликни, чтобы изменить описание.',level:'1',roles:'support',bg:'#ffffff'};addObject({...structuredClone(src),x:Math.min(115,src.x+5),y:Math.min(270,src.y+5)})}
 setupObjects({addCard,addObject,current,getItems,setItems,getSelected,getSelectionIds,clearSelection,persist,draw,syncImageTools,syncBgTools});
 ({syncTextBoxTools}=setupTextBoxes({addObject,current,persist,draw}));
 setupLayers({current,getItems,getSelected,persist,draw,select});
 setupFiles({getItems,setItems,getSelected,getSelectionIds,clearSelection,persist,draw,syncImageTools,syncBgTools});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
-draw();
+try{draw()}catch(error){
+  // Valid-looking data can still fail to render; recover the same way.
+  if(!stored||damagedSave)throw error;
+  damagedSave={raw:stored,errors:[error.message]};
+  items=structuredClone(embedded);selected=null;
+  history.reset();draw();
+}
 setupToolbarTabs();
+reportDamagedSave();

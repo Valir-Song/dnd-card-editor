@@ -11,10 +11,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm test
       - run: npm run build
       - run: npm run check:build
+      - name: Committed standalone HTML matches this build
+        run: cmp dist/index.html DND_Card_Editor_standalone.html || { echo "::error::Run npm run standalone and commit DND_Card_Editor_standalone.html"; exit 1; }
       - name: Save standalone HTML
         uses: actions/upload-artifact@v4
         with:
@@ -25,12 +27,20 @@ jobs:
         with:
           python-version: '3.12'
       - run: |
-          pip install playwright
+          pip install -r tests/requirements.txt
           python -m playwright install --with-deps chromium firefox
+      - name: 3.3.1 regression browser test (Chromium)
+        run: EDITOR_BROWSER=chromium python tests/regression_browser_smoke.py
+      - name: 3.3.1 regression browser test (Firefox)
+        run: EDITOR_BROWSER=firefox python tests/regression_browser_smoke.py
       - name: Moveable + Selecto canvas browser test (Chromium)
         run: EDITOR_BROWSER=chromium python tests/canvas_browser_smoke.py
       - name: Moveable + Selecto canvas browser test (Firefox)
         run: EDITOR_BROWSER=firefox python tests/canvas_browser_smoke.py
+      - name: Nested Moveable text frames (Chromium)
+        run: EDITOR_BROWSER=chromium python tests/nested_browser_smoke.py
+      - name: Nested Moveable text frames (Firefox)
+        run: EDITOR_BROWSER=firefox python tests/nested_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Chromium)
         run: EDITOR_BROWSER=chromium python tests/tiptap_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Firefox)
