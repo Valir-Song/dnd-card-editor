@@ -15,7 +15,7 @@ document.getElementById('export').onclick=()=>{persist();const doc=cleanExport(p
 // The pristine source already contains original toolbar nodes.
 for(const id of ['cardBgTools','imageTools']){const node=doc.querySelector('#'+id);if(node)node.style.display='none'}
 for(const id of ['undo','redo']){const node=doc.querySelector('#'+id);if(node)node.disabled=true}
-doc.querySelector('#initial').textContent=JSON.stringify(getItems()).replace(/</g,'\\u003c');doc.querySelectorAll('.page').forEach(p=>p.replaceChildren());const version=(doc.querySelector('meta[name="editor-version"]')?.content||'3').replace(/[^0-9a-z]+/gi,'_');download('DND_Card_Editor_'+version+'.html','<!doctype html>\n'+doc.outerHTML,'text/html;charset=utf-8')};
+const initial=doc.querySelector('#initial');initial.textContent=JSON.stringify(getItems()).replace(/</g,'\\u003c');initial.dataset.savedAt=new Date().toISOString();doc.querySelectorAll('.page').forEach(p=>p.replaceChildren());const version=(doc.querySelector('meta[name="editor-version"]')?.content||'3').replace(/[^0-9a-z]+/gi,'_');download('DND_Card_Editor_'+version+'.html','<!doctype html>\n'+doc.outerHTML,'text/html;charset=utf-8')};
 document.getElementById('json').onclick=()=>download('Ричард_макет_2.json',JSON.stringify(getItems(),null,2),'application/json');
 // Validate and render an imported layout before it replaces the current one or
 // reaches localStorage; a bad file must leave the editor exactly as it was.
