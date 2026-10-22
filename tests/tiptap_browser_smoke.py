@@ -7,6 +7,7 @@ import shutil
 import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+from browser_env import launch
 
 html_path=Path(__file__).resolve().parents[1]/'dist'/'index.html'
 assert html_path.exists(), 'Build the standalone HTML before running this test'
@@ -15,8 +16,7 @@ assert 'https://cdn.' not in html and '<script src=' not in html, 'Standalone mu
 engine=os.environ.get('EDITOR_BROWSER','chromium')
 assert engine in ('chromium','firefox')
 with sync_playwright() as p:
-    launcher=getattr(p,engine)
-    browser=launcher.launch(headless=True,args=['--no-sandbox'] if engine=='chromium' else [])
+    browser=launch(p)
     context=browser.new_context(accept_downloads=True)
     page=context.new_page()
     errors=[]
