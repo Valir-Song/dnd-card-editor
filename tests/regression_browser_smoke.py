@@ -341,12 +341,16 @@ with sync_playwright() as p:
 
     # 10. Own gesture layer: edge-band drag, Shift keeps ratio, Shift+marquee
     #     adds to the selection, and touch input selects and drags.
-    context=browser.new_context(has_touch=True)
-    page=open_editor(context)
-    page.evaluate("localStorage.setItem('dnd-card-editor-snap',JSON.stringify({enabled:false,gridMm:0}))")
-    page.reload(); page.wait_for_selector('.page')
-    import_json(page,[{'id':'a','kind':'shape','shape':'rect','page':1,'x':20,'y':20,'w':40,'h':20,'z':1},
-                      {'id':'b','kind':'shape','shape':'rect','page':1,'x':120,'y':150,'w':30,'h':20,'z':2}])
+    two_shapes=[{'id':'a','kind':'shape','shape':'rect','page':1,'x':20,'y':20,'w':40,'h':20,'z':1},
+                {'id':'b','kind':'shape','shape':'rect','page':1,'x':120,'y':150,'w':30,'h':20,'z':2}]
+    def shapes_page(**options):
+        context=browser.new_context(**options)
+        page=open_editor(context)
+        page.evaluate("localStorage.setItem('dnd-card-editor-snap',JSON.stringify({enabled:false,gridMm:0}))")
+        page.reload(); page.wait_for_selector('.page')
+        import_json(page,two_shapes)
+        return context,page
+    context,page=shapes_page()
     k=page.locator('#page1').bounding_box()['width']/210
     item=lambda i:next(x for x in json.loads(stored(page)) if x['id']==i)
     page.locator('.el[data-id="a"]').click(); page.wait_for_timeout(50)
@@ -367,22 +371,26 @@ with sync_playwright() as p:
     page.mouse.move(p1['x']+110*k,p1['y']+140*k); page.mouse.down()
     page.mouse.move(p1['x']+160*k,p1['y']+180*k,steps=6); page.mouse.up(); page.keyboard.up('Shift')
     assert page.locator('.el.selected').count()==2 and page.locator('#selectionCount').inner_text()=='Выбрано: 2'
-    page.locator('#page1').click(position={'x':4,'y':4})
-    page.locator('.el[data-id="b"]').scroll_into_view_if_needed()
-    shape_b=page.locator('.el[data-id="b"]').bounding_box()   # touch uses viewport coordinates
-    page.touchscreen.tap(shape_b['x']+shape_b['width']/2,shape_b['y']+shape_b['height']/2)
-    page.wait_for_timeout(100)
-    assert page.locator('.el.selected').count()==1 and 'selected' in page.locator('.el[data-id="b"]').get_attribute('class'),'Tap must select'
-    if engine=='chromium':  # touch drags through CDP; Firefox has no equivalent here
-        cdp=context.new_cdp_session(page)
-        tx,ty=shape_b['x']+shape_b['width']/2,shape_b['y']+shape_b['height']/2
-        cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':tx,'y':ty}]})
-        for i in range(1,9): cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':tx-30*k*i/8,'y':ty-20*k*i/8}]})
-        cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
-        page.wait_for_timeout(150)
-        assert abs(item('b')['x']-90)<0.5 and abs(item('b')['y']-130)<0.5,('Touch drag failed',item('b'))
     assert not page.errors,page.errors
     context.close()
+    # Touch runs in its own context: Playwright's touch emulation in Firefox
+    # changes how mouse input is delivered, and only Chromium drives touch drags.
+    if engine=='chromium':
+      context,page=shapes_page(has_touch=True)
+      page.locator('.el[data-id="b"]').scroll_into_view_if_needed()
+      shape_b=page.locator('.el[data-id="b"]').bounding_box()   # touch uses viewport coordinates
+      page.touchscreen.tap(shape_b['x']+shape_b['width']/2,shape_b['y']+shape_b['height']/2)
+      page.wait_for_timeout(100)
+      assert page.locator('.el.selected').count()==1 and 'selected' in page.locator('.el[data-id="b"]').get_attribute('class'),'Tap must select'
+      cdp=context.new_cdp_session(page)
+      tx,ty=shape_b['x']+shape_b['width']/2,shape_b['y']+shape_b['height']/2
+      cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':tx,'y':ty}]})
+      for i in range(1,9): cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':tx-30*k*i/8,'y':ty-20*k*i/8}]})
+      cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
+      page.wait_for_timeout(150)
+      assert abs(item('b')['x']-90)<0.5 and abs(item('b')['y']-130)<0.5,('Touch drag failed',item('b'))
+      assert not page.errors,page.errors
+      context.close()
     print('PASS '+engine+': edge-band drag, Shift ratio, Shift+marquee and touch on the gesture layer')
 
     browser.close()
