@@ -173,7 +173,9 @@
 .gesture-edge.left{top:0;bottom:0;left:-7px;width:6px}.gesture-edge.right{top:0;bottom:0;right:-7px;width:6px}
 .gesture-marquee{position:absolute;background:#2678bb19;border:1px solid #2678bb;pointer-events:none}
 /* No accidental text selection while dragging; editors still select text. */
-.page .el{user-select:none}.page .el .editable{user-select:text}
+/* The sheet itself is not text: Firefox would start a Shift-selection on it and
+   swallow the release of a marquee. Editors still select text. */
+.page,.page .el{user-select:none;-moz-user-select:none}.page .el .editable{user-select:text;-moz-user-select:text}
 .page .el.selected{touch-action:none}
 body.gesture-active,body.gesture-active *{user-select:none!important}
 @media print{.gesture-layer{display:none!important}}
