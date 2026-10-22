@@ -85,6 +85,9 @@ npm run test:e2e:firefox   # то же в Firefox
 CPU_THROTTLE=4 npm run test:e2e   # Chromium с 4-кратно замедленным процессором (ловит гонки)
 ```
 
+В облачных сессиях Claude Code скрипт `.claude/hooks/session-start.sh` при старте сам ставит зависимости
+и прогоняет Node-тесты и проверку типов (на своём компьютере он ничего не делает).
+
 После изменения версии в `package.json` и `index.html` выполни `npm run standalone`:
 `npm test` проверяет, что закоммиченный standalone-файл соответствует текущей версии.
 
