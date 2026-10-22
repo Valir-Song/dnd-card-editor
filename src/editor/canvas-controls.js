@@ -189,31 +189,39 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     persist();
     renderFrame();
   }
-  // Follow one pointer until release. Listeners attach synchronously in the
-  // pointerdown, so no movement can be lost however fast the input is.
+  // Follow one pointer until it is released. Listeners attach synchronously in
+  // the pointerdown, so no movement is lost however fast the input is. For a
+  // mouse, mousemove/mouseup back up the pointer events: with Shift held,
+  // Firefox can swallow pointerup while it runs its own selection.
+  function follow(ev, {move, end}) {
+    const id = ev.pointerId, mouse = ev.pointerType === 'mouse';
+    const mine = e => e.pointerId === undefined ? mouse : e.pointerId === id;
+    const onMove = e => { if (mine(e)) move(e); };
+    const onEnd = e => {
+      if (!mine(e)) return;
+      for (const [type, fn] of listeners) window.removeEventListener(type, fn, true);
+      end(e, e.type === 'pointercancel');
+    };
+    const listeners = [['pointermove', onMove], ['pointerup', onEnd], ['pointercancel', onEnd]];
+    if (mouse) listeners.push(['mousemove', onMove], ['mouseup', onEnd]);
+    for (const [type, fn] of listeners) window.addEventListener(type, fn, true);
+  }
   function track(ev, {onStart, onMove}) {
-    const id = ev.pointerId, start = [ev.clientX, ev.clientY];
-    let started = false;
-    const move = e => {
-      if (e.pointerId !== id) return;
-      const dist = [e.clientX - start[0], e.clientY - start[1]];
-      if (!started) {
-        if (Math.hypot(...dist) < CLICK_SLOP) return;
-        started = onStart() !== false;
-        if (!started) return finish();
-      }
-      onMove(dist, e);
-    };
-    const finish = e => {
-      if (e && e.pointerId !== id) return;
-      window.removeEventListener('pointermove', move, true);
-      window.removeEventListener('pointerup', finish, true);
-      window.removeEventListener('pointercancel', finish, true);
-      if (started) endGesture();
-    };
-    window.addEventListener('pointermove', move, true);
-    window.addEventListener('pointerup', finish, true);
-    window.addEventListener('pointercancel', finish, true);
+    const start = [ev.clientX, ev.clientY];
+    let started = false, failed = false;
+    follow(ev, {
+      move: e => {
+        if (failed) return;
+        const dist = [e.clientX - start[0], e.clientY - start[1]];
+        if (!started) {
+          if (Math.hypot(...dist) < CLICK_SLOP) return;
+          started = onStart() !== false;
+          if (!started) { failed = true; return; }
+        }
+        onMove(dist, e);
+      },
+      end: () => { if (started) endGesture(); }
+    });
   }
   function startMove(ev, page) {
     if (ev.button !== 0) return;
@@ -229,9 +237,8 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     });
   }
   function startMarquee(ev, entry) {
-    // Nothing on a blank sheet is text to select; with Shift held, Firefox would
-    // otherwise start extending a text selection and cancel the pointer.
-    ev.preventDefault();
+    // Text selection on the blank sheet is cancelled on mousedown (below), not
+    // here: cancelling pointerdown would also suppress the mouseup fallback.
     if (document.activeElement?.closest?.('.page')) document.activeElement.blur();
     // Capture so the release always comes back here, whatever the browser starts.
     try { entry.page.setPointerCapture(ev.pointerId); } catch (error) { /* synthetic or already released */ }
@@ -239,29 +246,23 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     const pageNumber = Number(entry.page.dataset.page);
     let moved = false;
     const box = e => rectFromPoints(from, toMm(entry.page, e));
-    const move = e => {
-      if (e.pointerId !== ev.pointerId) return;
-      if (!moved && Math.hypot(e.clientX - ev.clientX, e.clientY - ev.clientY) < CLICK_SLOP) return;
-      moved = true;
-      const r = box(e);
-      entry.marquee.hidden = false;
-      Object.assign(entry.marquee.style, {left: mm(r.x), top: mm(r.y), width: mm(r.w), height: mm(r.h)});
-    };
-    const up = e => {
-      if (e.pointerId !== ev.pointerId) return;
-      window.removeEventListener('pointermove', move, true);
-      window.removeEventListener('pointerup', up, true);
-      window.removeEventListener('pointercancel', up, true);
-      entry.marquee.hidden = true;
-      if (e.type === 'pointercancel') return; // interrupted: keep the selection as it was
-      if (!moved) { if (!additive) setSelection([]); return; }
-      const candidates = getItems().filter(item => (item.page || 1) === pageNumber).map(item => ({id: item.id, ...boxOf(item)}));
-      const hits = marqueeHits(box(e), candidates).map(b => b.id);
-      setSelection(additive ? [...before, ...hits] : hits);
-    };
-    window.addEventListener('pointermove', move, true);
-    window.addEventListener('pointerup', up, true);
-    window.addEventListener('pointercancel', up, true);
+    follow(ev, {
+      move: e => {
+        if (!moved && Math.hypot(e.clientX - ev.clientX, e.clientY - ev.clientY) < CLICK_SLOP) return;
+        moved = true;
+        const r = box(e);
+        entry.marquee.hidden = false;
+        Object.assign(entry.marquee.style, {left: mm(r.x), top: mm(r.y), width: mm(r.w), height: mm(r.h)});
+      },
+      end: (e, cancelled) => {
+        entry.marquee.hidden = true;
+        if (cancelled) return; // interrupted: keep the selection as it was
+        if (!moved) { if (!additive) setSelection([]); return; }
+        const candidates = getItems().filter(item => (item.page || 1) === pageNumber).map(item => ({id: item.id, ...boxOf(item)}));
+        const hits = marqueeHits(box(e), candidates).map(b => b.id);
+        setSelection(additive ? [...before, ...hits] : hits);
+      }
+    });
   }
 
   // Firefox starts its own (Shift-)selection on the compatibility mousedown,
