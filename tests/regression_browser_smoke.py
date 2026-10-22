@@ -41,8 +41,8 @@ def handle_offset(page,element):
     """Distance in px between the element's bottom-right corner and Moveable's SE handle."""
     return page.evaluate("""e=>{
       const r=e.getBoundingClientRect();
-      const box=[...document.querySelectorAll('.moveable-control-box')].find(b=>b.querySelector('.moveable-se'));
-      const h=box.querySelector('.moveable-se').getBoundingClientRect();
+      const h=[...document.querySelectorAll('.moveable-control-box .moveable-se')]
+        .map(n=>n.getBoundingClientRect()).find(r=>r.width>0&&r.height>0);
       return Math.hypot(h.x+h.width/2-r.right,h.y+h.height/2-r.bottom)
     }""",element.element_handle())
 
@@ -110,9 +110,12 @@ with sync_playwright() as p:
     url=html_path.as_uri()
     folder=Path(tempfile.mkdtemp(prefix='dnd-export-'))
     sizes=[]
+    boxes=None  # one control box per Moveable instance; must not grow per generation
     for generation in range(3):
         page=open_editor(context,url)
-        assert page.locator('.moveable-control-box').count()==1
+        count=page.locator('.moveable-control-box').count()
+        boxes=boxes if boxes is not None else count
+        assert count==boxes,('Control boxes accumulate after re-export',generation,count,boxes)
         page.locator('[data-tab="files"]').click()
         with page.expect_download() as downloaded:
             page.locator('#export').click()
