@@ -127,3 +127,32 @@ and Playwright end-to-end tests on the compiled offline HTML in both Chromium
 and Firefox. These tests do not replace testing with real D&D layouts in the
 user's own browser. Before changing or importing a large layout, export a JSON
 backup and keep a copy of the standalone HTML.
+
+
+## 3.3 beta — Moveable + Selecto (isolated experiment)
+
+The `feature/3.3-moveable-selecto` branch is experimental and must not be
+merged into stable main without user acceptance. The editor remains a portable
+single-file HTML document with Tiptap bundled offline.
+
+* **Moveable 0.53.0 (MIT)** manages the position and dimensions of top-level
+  cards, headers, images, shapes, notes and text boxes. The layout still stores
+  positions and sizes in millimetres. One gesture equals one undo checkpoint.
+* **Selecto 1.26.3 (MIT)** selects multiple top-level elements with a marquee
+  started on an empty area of one A4 page. Shift+click toggles elements on the
+  same page, and Moveable drags or resizes groups. Selection never spans pages.
+* Tiptap owns text interaction; clicking inside editable text never starts a
+  canvas drag. Existing inline text-frame grips and spell level badge drags
+  remain independently operable for compatibility with pre-3.3 JSON layouts.
+* When more than one object is selected, object-specific formatting controls
+  intentionally have no active target; bulk deletion is supported.
+* Exported HTML bundles both libraries and existing template data. Moveable
+  handles and marquee indicators are excluded from print.
+
+### Quality gates
+
+`npm test`, `npm run build`, `npm run check:build`, and Playwright tests in
+Chromium and Firefox. E2E suites: `tests/tiptap_browser_smoke.py` and
+`tests/canvas_browser_smoke.py`. Before testing, back up the current layout
+through the JSON button; the branch retains the pre-3.3 local storage key for
+backwards compatibility.

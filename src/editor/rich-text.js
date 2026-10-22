@@ -123,7 +123,16 @@ export function createRichText({current,select,persist}){
       }
     });
     mounted.set(fieldKey,{editor,item,field,node});
-    node.addEventListener('pointerdown',e=>e.stopPropagation());
+    // On a canvas redraw the previous editor is destroyed. The next pointer
+    // interaction must nominate the replacement editor even if browser focus
+    // events are suppressed by overlay controls or a previously focused field.
+    node.addEventListener('pointerdown',e=>{
+      e.stopPropagation();
+      activeKey=fieldKey;
+      const state=editor.state.selection;
+      selection={key:fieldKey,from:state.from,to:state.to};
+      sync();
+    });
     // Editing a Tiptap textbox begins with a click; object movement remains on
     // the separate handle. Both boxed and card text use exactly this editor.
     return editor;

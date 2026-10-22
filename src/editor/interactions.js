@@ -1,9 +1,68 @@
-// Pointer-driven movement and resizing.
-export function createInteractions({ select, persist, mm }) {
-function startDrag(ev,item,e,badge,b){if(ev.button!==0)return;ev.preventDefault();ev.stopPropagation();select(e);const px=210/e.closest('.page').getBoundingClientRect().width;const sy=ev.clientY,sx=ev.clientX,ox=badge?(item.badgeX??(item.w-8)):item.x,oy=badge?(item.badgeY??(item.h-8)):item.y;const move=a=>{let dx=(a.clientX-sx)*px,dy=(a.clientY-sy)*px;if(badge){item.badgeCustomPosition=true;item.badgeX=Math.max(0,Math.min(item.w-8,ox+dx));item.badgeY=Math.max(0,Math.min(item.h-8,oy+dy));b.style.left=mm(item.badgeX);b.style.top=mm(item.badgeY);b.style.right='auto';b.style.bottom='auto'}else{item.x=Math.max(0,Math.min(210-item.w,ox+dx));item.y=Math.max(0,Math.min(297-item.h,oy+dy));e.style.left=mm(item.x);e.style.top=mm(item.y)}};const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);persist()};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)}
-function frame(item,f){item.textFrames ||= {};item.textFrames[f] ||= {};return item.textFrames[f]}
-function startTextMove(ev,item,e,f,wrap){if(ev.button!==0)return;ev.preventDefault();ev.stopPropagation();select(e);const p=frame(item,f),sx=ev.clientX,sy=ev.clientY,scale=210/e.closest('.page').getBoundingClientRect().width,ox=p.x||0,oy=p.y||0;const move=a=>{p.x=ox+(a.clientX-sx)*scale;p.y=oy+(a.clientY-sy)*scale;wrap.style.transform=`translate(${p.x}mm, ${p.y}mm)`};const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);persist()};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)}
-function startTextResize(ev,item,e,f,wrap){if(ev.button!==0)return;ev.preventDefault();ev.stopPropagation();select(e);const p=frame(item,f),scale=210/e.closest('.page').getBoundingClientRect().width,sx=ev.clientX,sy=ev.clientY,w=p.w||wrap.getBoundingClientRect().width*scale,h=p.h||wrap.getBoundingClientRect().height*scale;const move=a=>{p.w=Math.max(8,w+(a.clientX-sx)*scale);p.h=Math.max(3,h+(a.clientY-sy)*scale);wrap.style.width=mm(p.w);wrap.style.height=mm(p.h)};const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);persist()};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)}
-function startResize(ev,item,e){ev.preventDefault();ev.stopPropagation();select(e);const scale=210/e.closest('.page').getBoundingClientRect().width,sx=ev.clientX,sy=ev.clientY,w=item.w,h=(item.kind==='textbox'&&item.autoHeight)?e.getBoundingClientRect().height*scale:item.h;if(item.kind==='textbox'&&item.autoHeight){item.autoHeight=false;e.classList.remove('auto-height');e.style.maxHeight='';item.h=h}const move=a=>{item.w=Math.max(12,Math.min(210-item.x,w+(a.clientX-sx)*scale));item.h=Math.max(6,Math.min(297-item.y,h+(a.clientY-sy)*scale));e.style.width=mm(item.w);e.style.height=mm(item.h)};const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);persist()};window.addEventListener('pointermove',move);window.addEventListener('pointerup',up)}
-return { startDrag, startTextMove, startTextResize, startResize };
+// Small embedded controls retained for compatibility with existing layouts.
+// Page-level objects are now moved/resized only by canvas-controls.js (Moveable).
+// Embedded text frames and level badges are properties of their parent card,
+// not independent top-level canvas objects.
+export function createInnerInteractions({select,persist,mm}) {
+  function attachGesture(event, move) {
+    const finish=()=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',finish);
+      persist();
+    };
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',finish);
+  }
+  function startBadgeDrag(event,item,element,badge) {
+    if(event.button!==0)return;
+    event.preventDefault();event.stopPropagation();
+    select(element);
+    const scale=210/element.closest('.page').getBoundingClientRect().width;
+    const sx=event.clientX, sy=event.clientY;
+    const ox=item.badgeX??(item.w-8), oy=item.badgeY??(item.h-8);
+    attachGesture(event,e=>{
+      item.badgeCustomPosition=true;
+      item.badgeX=Math.max(0,Math.min(item.w-8,ox+(e.clientX-sx)*scale));
+      item.badgeY=Math.max(0,Math.min(item.h-8,oy+(e.clientY-sy)*scale));
+      badge.style.left=mm(item.badgeX);
+      badge.style.top=mm(item.badgeY);
+      badge.style.right='auto';
+      badge.style.bottom='auto';
+    });
+  }
+  function frame(item,field){
+    item.textFrames ||= {};
+    item.textFrames[field] ||= {};
+    return item.textFrames[field];
+  }
+  function startTextMove(event,item,element,field,wrap){
+    if(event.button!==0)return;
+    event.preventDefault();event.stopPropagation();
+    select(element);
+    const position=frame(item,field);
+    const sx=event.clientX,sy=event.clientY;
+    const scale=210/element.closest('.page').getBoundingClientRect().width;
+    const ox=position.x||0,oy=position.y||0;
+    attachGesture(event,e=>{
+      position.x=ox+(e.clientX-sx)*scale;
+      position.y=oy+(e.clientY-sy)*scale;
+      wrap.style.transform='translate('+position.x+'mm, '+position.y+'mm)';
+    });
+  }
+  function startTextResize(event,item,element,field,wrap){
+    if(event.button!==0)return;
+    event.preventDefault();event.stopPropagation();
+    select(element);
+    const position=frame(item,field);
+    const scale=210/element.closest('.page').getBoundingClientRect().width;
+    const sx=event.clientX, sy=event.clientY;
+    const w=position.w||wrap.getBoundingClientRect().width*scale;
+    const h=position.h||wrap.getBoundingClientRect().height*scale;
+    attachGesture(event,e=>{
+      position.w=Math.max(8,w+(e.clientX-sx)*scale);
+      position.h=Math.max(3,h+(e.clientY-sy)*scale);
+      wrap.style.width=mm(position.w);
+      wrap.style.height=mm(position.h);
+    });
+  }
+  return {startBadgeDrag,startTextMove,startTextResize};
 }
