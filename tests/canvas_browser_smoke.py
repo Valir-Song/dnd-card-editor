@@ -5,6 +5,7 @@ import json
 import re, os, tempfile, shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+from browser_env import launch
 
 root=Path(__file__).resolve().parents[1]
 html=root/'dist'/'index.html'
@@ -13,7 +14,7 @@ text=html.read_text(encoding='utf-8')
 assert '<script src=' not in text, 'Build must bundle JavaScript'
 browser_name=os.environ.get('EDITOR_BROWSER','chromium')
 with sync_playwright() as p:
-    browser=getattr(p,browser_name).launch(headless=True,args=['--no-sandbox'] if browser_name=='chromium' else [])
+    browser=launch(p)
     context=browser.new_context(accept_downloads=True)
     page=context.new_page()
     errors=[]

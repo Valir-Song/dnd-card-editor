@@ -29,9 +29,9 @@ jobs:
       - run: |
           pip install -r tests/requirements.txt
           python -m playwright install --with-deps chromium firefox
-      - name: 3.3.1 regression browser test (Chromium)
+      - name: Regression browser test (Chromium)
         run: EDITOR_BROWSER=chromium python tests/ci_run.py regression_browser_smoke.py
-      - name: 3.3.1 regression browser test (Firefox)
+      - name: Regression browser test (Firefox)
         run: EDITOR_BROWSER=firefox python tests/ci_run.py regression_browser_smoke.py
       - name: Canvas gestures browser test (Chromium)
         run: EDITOR_BROWSER=chromium python tests/ci_run.py canvas_browser_smoke.py
@@ -45,3 +45,9 @@ jobs:
         run: EDITOR_BROWSER=chromium python tests/ci_run.py tiptap_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Firefox)
         run: EDITOR_BROWSER=firefox python tests/ci_run.py tiptap_browser_smoke.py
+      # Same suites on a 4x slower CPU: timing races show up here first.
+      - name: All browser suites, 4x CPU throttling (Chromium)
+        run: |
+          for suite in regression canvas nested tiptap; do
+            CPU_THROTTLE=4 EDITOR_BROWSER=chromium python tests/ci_run.py ${suite}_browser_smoke.py || exit 1
+          done

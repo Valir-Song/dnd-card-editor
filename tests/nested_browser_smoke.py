@@ -4,6 +4,7 @@ Card text frames stay inside their parent item and keep Tiptap editable.
 import json,os,shutil,tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+from browser_env import launch
 
 root=Path(__file__).resolve().parents[1]
 html=root/'dist'/'index.html'
@@ -21,7 +22,7 @@ data=[
   dict(id='page-two',kind='shape',shape='rect',page=2,z=1,x=25,y=45,w=35,h=25,bg='#123456')
 ]
 with sync_playwright() as p:
-  browser=getattr(p,engine).launch(headless=True,args=['--no-sandbox'] if engine=='chromium' else [])
+  browser=launch(p)
   context=browser.new_context(accept_downloads=True)
   page=context.new_page()
   errors=[]

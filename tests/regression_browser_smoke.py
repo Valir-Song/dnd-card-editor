@@ -1,4 +1,4 @@
-"""Regression tests for 3.3.1 fixes, run against the ACTUAL Vite-built standalone HTML:
+"""Regression tests against the ACTUAL Vite-built standalone HTML:
 bad JSON import, damaged localStorage, storage quota, export hygiene, print outlines
 and gesture-handle alignment after the page moves.
 """
@@ -9,6 +9,7 @@ import shutil
 import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+from browser_env import launch
 
 root=Path(__file__).resolve().parents[1]
 html_path=root/'dist'/'index.html'
@@ -52,7 +53,7 @@ def handle_offset(page,element):
     }""",element.element_handle())
 
 with sync_playwright() as p:
-    browser=getattr(p,engine).launch(headless=True,args=['--no-sandbox'] if engine=='chromium' else [])
+    browser=launch(p)
 
     # 1. An undrawable import is rejected before it replaces the layout or reaches storage.
     context=browser.new_context()
@@ -115,7 +116,7 @@ with sync_playwright() as p:
     url=html_path.as_uri()
     folder=Path(tempfile.mkdtemp(prefix='dnd-export-'))
     sizes=[]
-    boxes=None  # one control box per Moveable instance; must not grow per generation
+    boxes=None  # one gesture layer per page; must not grow per generation
     for generation in range(3):
         page=open_editor(context,url)
         count=page.locator('.gesture-layer').count()
@@ -165,7 +166,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(100)
     assert page.locator('.stage').evaluate('s=>s.scrollLeft')>0,'Stage should scroll horizontally on narrow screens'
     assert handle_offset(page,card)<2,'Handles stale after stage scroll'
-    # The nested text-frame Moveable must follow the same scroll.
+    # The text-frame handles must follow the same scroll.
     title=card.locator('.text-wrap[data-field="title"]')
     title.locator('.tiptap-content').click()
     assert handle_offset(page,title)<2
@@ -238,7 +239,7 @@ with sync_playwright() as p:
     print('PASS '+engine+': newer of file and browser save opens; other one stays reachable; reset button')
 
     # 8. Press on an UNSELECTED object and drag in one motion: the whole
-    #    distance must apply (3.3.x moved ~1 mm, then Moveable threw errors).
+    #    distance must apply (3.3.x with Moveable moved ~1 mm, then threw errors).
     context=browser.new_context()
     page=open_editor(context)
     page.evaluate("localStorage.setItem('dnd-card-editor-snap',JSON.stringify({enabled:false,gridMm:0}))")
@@ -410,4 +411,4 @@ with sync_playwright() as p:
     print('PASS '+engine+': edge-band drag, Shift ratio, Shift+marquee and touch on the gesture layer')
 
     browser.close()
-print('All 3.3.1 regression checks passed for '+engine)
+print('All regression checks passed for '+engine)
