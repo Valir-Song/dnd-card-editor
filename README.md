@@ -156,3 +156,34 @@ Chromium and Firefox. E2E suites: `tests/tiptap_browser_smoke.py` and
 `tests/canvas_browser_smoke.py`. Before testing, back up the current layout
 through the JSON button; the branch retains the pre-3.3 local storage key for
 backwards compatibility.
+
+## 3.3 nested text geometry experiment
+
+`feature/3.3-nested-text-moveable` builds on `feature/3.3-moveable-selecto`.
+The stable 3.2 main branch remains unchanged.
+
+Text fields belonging to a card, header, note or section are now selected
+individually and manipulated by a **second, dedicated Moveable** instance.
+The surrounding card uses the original Moveable instance. All title/meta/detail
+position adjustments live in the pre-existing
+`item.textFrames[field] = {x,y,w,h}` data, in **millimetres relative to the
+parent's ordinary layout position**. Moving the parent preserves these child
+offsets; exporting/importing JSON and offline HTML preserves them.
+
+- Click a text field to edit in Tiptap and show its nested Moveable outline.
+- Grab its outer Moveable border to move the frame, or use corner/edge handles
+  to resize the frame. Glyphs stay editable instead of being draggable.
+- Shift+click other fields **of the same card** to select or deselect them.
+- Alt+drag from a blank area inside a card draws a Selecto rectangle to pick
+  several of that card's text fields. Different parent cards never group.
+- Click the blank interior of the card to leave inner selection and return to
+  the parent Moveable controls.
+- Deleting a selected child **does not delete the entire parent card**.
+  Built-in title/meta/detail fields are not removable objects.
+- Undo/Redo treats each group drag/resize as one gesture.
+- The old in-card blue text grips have been removed. The spell-level badge
+  still has its separate, working drag behaviour.
+
+CI includes nested child geometry tests in Chromium and Firefox in addition to
+the previous full editor smoke checks. Do **not** promote to stable main until
+user acceptance testing.

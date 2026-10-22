@@ -18,12 +18,9 @@
 .card .bars,.card .bar{display:none!important}
 .text-wrap{position:relative;min-width:8mm;max-width:none;box-sizing:border-box}
 .text-wrap>.editable{min-height:1em}
-.text-grip,.text-resize{display:none;position:absolute;z-index:90;font:14px Arial,sans-serif;background:#2678bb;color:white;border:1px solid white;border-radius:3px;user-select:none;touch-action:none}
-.text-grip{right:1px;top:-10px;width:16px;height:16px;text-align:center;line-height:14px;cursor:move}
-.text-resize{right:-3px;bottom:-3px;width:10px;height:10px;cursor:nwse-resize}
-.el.selected .text-wrap:hover>.text-grip,.el.selected .text-wrap:focus-within>.text-grip,.el.selected .text-wrap:hover>.text-resize,.el.selected .text-wrap:focus-within>.text-resize{display:block}
+.text-wrap.inner-selected{outline:1px dotted #2678bb;outline-offset:1px}
 .text-wrap:hover{outline:1px dashed #72a4cf}
-@media print{.text-grip,.text-resize{display:none!important}.text-wrap:hover{outline:none}}
+@media print{.text-wrap.inner-selected,.text-wrap:hover{outline:none!important}}
 
 /* 3.1: disabled history buttons */
 .toolbar button:disabled{opacity:.42;cursor:not-allowed}
@@ -119,3 +116,16 @@
 
 /* A Moveable border line sometimes overlays a corner handle. Reserve hit tests for the handles. */
 .moveable-control-box .moveable-line{pointer-events:none!important}
+
+/* 3.3 nested Moveable. Text remains editable; only the border/handles move it.
+   The parent card has no active Moveable frame while a nested field is selected. */
+.dnd-inner-moveable{z-index:190!important}
+.dnd-inner-moveable .moveable-line{pointer-events:none!important}
+.dnd-inner-moveable .moveable-edgeDraggable{
+  pointer-events:auto!important;
+  cursor:move!important;
+  stroke-width:1;
+}
+.dnd-inner-moveable .moveable-control{pointer-events:auto!important;background:#8758b5!important}
+.dnd-inner-moveable .moveable-area{pointer-events:none!important}
+@media print{.dnd-inner-moveable{display:none!important}}

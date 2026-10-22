@@ -8,13 +8,15 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
   let primary = null;
   let gesture = null;
   let moveable;
+  let inner=null;
   const selectos = [];
   const elements = () => ids.map(id => [...pages].flatMap(page =>
     [...page.querySelectorAll('.el')]).find(node => node.dataset.id === id)).filter(Boolean);
   const mmPerPx = page => 210 / page.getBoundingClientRect().width;
   const itemFor = id => getItems().find(item => item.id === id);
   const clip = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
-  function setSelection(next, preferred = null) {
+  function setSelection(next, preferred = null, {keepInner=false} = {}) {
+    if(!keepInner)inner?.clear();
     const unique = [...new Set(next)].filter(id => !!itemFor(id));
     const first = unique[0], page = first ? (itemFor(first).page || 1) : null;
     ids = unique.filter(id => (itemFor(id).page || 1) === page);
@@ -27,7 +29,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     for (const page of pages) for (const node of page.querySelectorAll('.el')) {
       node.classList.toggle('selected', chosen.has(node.dataset.id));
     }
-    const targets = elements();
+    const targets = inner?.hasSelection() ? [] : elements();
     if (moveable) {
       moveable.target = targets.length === 1 ? targets[0] : targets;
       moveable.updateRect();
@@ -36,7 +38,9 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
       selectos[i].setSelectedTargets(targets.filter(node => node.closest('.page') === pages[i]));
     }
     const status = document.getElementById('selectionCount');
-    if (status) status.textContent = ids.length > 1 ? 'Выбрано: ' + ids.length : '';
+    if (status) status.textContent = inner?.hasSelection()
+      ? (inner.count()>1?'Текстовых блоков: '+inner.count():'Выбран текстовый блок')
+      : ids.length > 1 ? 'Выбрано: ' + ids.length : '';
   }
   function begin() {
     const byId=new Map(elements().map(node => [node.dataset.id,node]));
@@ -155,13 +159,22 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
         return;
       }
       const id = element.dataset.id;
+      const wrap = e.target.closest?.('.text-wrap');
+      if(wrap && inner){
+        if(e.shiftKey){
+          e.preventDefault();e.stopPropagation();
+          inner.toggleField(id,wrap.dataset.field);
+        } else inner.selectField(id,wrap.dataset.field);
+        return; // Tiptap receives normal clicks; no parent drag starts.
+      }
+      if(e.altKey)return; // Alt+drag within parent is nested Selecto marquee.
       if (e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
         setSelection(ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
         return;
       }
-      if (!ids.includes(id)) setSelection([id], id);
+      if (inner?.hasSelection() || !ids.includes(id)) setSelection([id], id);
       const nativeEditor = e.target.closest('.editable, [contenteditable], input, textarea, select, .text-grip, .text-resize, .level');
       if (nativeEditor) return;
       // The gesture begins on the same click that selects the object.
@@ -184,8 +197,9 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     }
     sync();
   }
+  function attachInner(controller){inner=controller;sync()}
   return {
-    setSelection, afterDraw, startDrag,
+    setSelection, afterDraw, startDrag, attachInner,
     getIds: () => ids.slice(),
     getPrimary: () => primary,
     clear: () => setSelection([])
