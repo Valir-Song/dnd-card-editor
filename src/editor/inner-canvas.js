@@ -28,6 +28,21 @@ export function createInnerCanvas({pages,getItems,persist,mm,selectParent}) {
     className:'dnd-inner-moveable'
   });
   const selectos=[];
+  // Text is live DOM: formatting a word can change its line height and the
+  // natural size of its .text-wrap without a draw(). A stale Moveable edge
+  // would then cross the glyphs and intercept clicks intended for Tiptap.
+  // Observe only the currently selected frame(s); recompute the overlay on
+  // the next animation frame, after browser layout has settled.
+  let pendingRect=false;
+  const scheduleRect=()=>{
+    if(pendingRect)return;
+    pendingRect=true;
+    requestAnimationFrame(()=>{
+      pendingRect=false;
+      if(selected())moveable.updateRect();
+    });
+  };
+  const textSizeObserver=new ResizeObserver(scheduleRect);
   function sync() {
     const chosen=new Set(fields);
     for(const page of pages)for(const wrap of page.querySelectorAll('.text-wrap')){
@@ -35,8 +50,11 @@ export function createInnerCanvas({pages,getItems,persist,mm,selectParent}) {
       wrap.classList.toggle('inner-selected',owner===parentId&&chosen.has(wrap.dataset.field));
     }
     const targets=currentTargets();
+    textSizeObserver.disconnect();
+    targets.forEach(node=>textSizeObserver.observe(node));
     moveable.target=targets.length===1?targets[0]:targets;
     moveable.updateRect();
+    scheduleRect();
     const status=document.getElementById('selectionCount');
     if(selected()&&status)status.textContent=fields.length>1?'Текстовых блоков: '+fields.length:'Выбран текстовый блок';
     selectos.forEach((selecto,i)=>selecto.setSelectedTargets(targets.filter(node=>node.closest('.page')===pages[i])));
