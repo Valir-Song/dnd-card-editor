@@ -130,5 +130,8 @@
 .notice .notice-close{border:0;background:transparent;font-size:18px;line-height:1;padding:2px 6px}
 @media print{.notices{display:none!important}}
 
+/* 3.3.1: Moveable handles are positioned inside the (scrollable) stage. */
+.stage{position:relative}
+
 /* 3.3.1: editing outlines never reach paper or PDF, whatever is selected or focused. */
 @media print{.el.selected,.el .editable:focus,.el .editable:focus-within,.text-wrap:hover{outline:none!important}}

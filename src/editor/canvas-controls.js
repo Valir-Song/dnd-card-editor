@@ -99,7 +99,9 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     // Recalculate handles from final millimetre geometry.
     requestAnimationFrame(() => moveable.updateRect());
   }
-  moveable = new Moveable(document.body, {
+  // Handles live inside the stage so they scroll with the pages on narrow screens.
+  const stage = pages[0].closest('.stage') || document.body;
+  moveable = new Moveable(stage, {
     target: [], draggable: true, resizable: true, origin: false,
     keepRatio: false, throttleDrag: 0, throttleResize: 0,
     edge: true, edgeDraggable: true, snappable: false,
@@ -184,6 +186,15 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
     }
     sync();
   }
+  // Handles live in <body>, so any layout shift that moves the pages (window
+  // resize, browser zoom, horizontal scrolling of a narrow stage) must re-measure them.
+  let pendingRect = 0;
+  const refreshRect = () => {
+    if (pendingRect || gesture) return;
+    pendingRect = requestAnimationFrame(() => { pendingRect = 0; moveable.updateRect(); });
+  };
+  window.addEventListener('resize', refreshRect);
+  stage.addEventListener('scroll', refreshRect, {passive: true});
   return {
     setSelection, afterDraw, startDrag,
     getIds: () => ids.slice(),
