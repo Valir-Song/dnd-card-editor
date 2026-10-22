@@ -10,7 +10,7 @@ const EDGES = ['top', 'right', 'bottom', 'left'];
 const CLICK_SLOP = 3; // px a press may wander and still count as a click
 const NATIVE = '.editable, [contenteditable], input, textarea, select, .level, .textbox-move';
 
-export function createCanvasControls({pages, getItems, onSelection, persist, mm, snapping}) {
+export function createCanvasControls({pages, store, onSelection, mm, snapping}) {
   let ids = [];
   let primary = null;
   let gesture = null;
@@ -18,7 +18,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
   const nodeFor = id => pages.flatMap(page => [...page.querySelectorAll('.el')]).find(node => node.dataset.id === id);
   const elements = () => ids.map(nodeFor).filter(Boolean);
   const mmPerPx = page => 210 / page.getBoundingClientRect().width;
-  const itemFor = id => getItems().find(item => item.id === id);
+  const itemFor = id => store.find(id);
   const clip = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
   const toMm = (page, ev) => {
     const r = page.getBoundingClientRect(), k = 210 / r.width;
@@ -114,7 +114,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     gesture = {
       scale, page, records, frame: bbox(records),
       // Snap lines are fixed for the gesture: everything that is not moving.
-      lines: settings?.enabled ? collectLines(getItems(), chosen[0].item.page || 1, new Set(chosen.map(r => r.id))) : null,
+      lines: settings?.enabled ? collectLines(store.items, chosen[0].item.page || 1, new Set(chosen.map(r => r.id))) : null,
       grid: settings?.enabled ? settings.gridMm : 0,
       threshold: 6 * scale // 6 screen pixels, whatever the zoom
     };
@@ -186,7 +186,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     showGuides({x: null, y: null});
     gesture = null;
     // One history checkpoint per drag or resize, regardless of the number of targets.
-    persist();
+    store.commit();
     renderFrame();
   }
   // Follow one pointer until it is released. Listeners attach synchronously in
@@ -258,7 +258,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
         entry.marquee.hidden = true;
         if (cancelled) return; // interrupted: keep the selection as it was
         if (!moved) { if (!additive) setSelection([]); return; }
-        const candidates = getItems().filter(item => (item.page || 1) === pageNumber).map(item => ({id: item.id, ...boxOf(item)}));
+        const candidates = store.items.filter(item => (item.page || 1) === pageNumber).map(item => ({id: item.id, ...boxOf(item)}));
         const hits = marqueeHits(box(e), candidates).map(b => b.id);
         setSelection(additive ? [...before, ...hits] : hits);
       }

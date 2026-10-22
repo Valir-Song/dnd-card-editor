@@ -14,6 +14,7 @@ import { normalizeLayout } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
 import { chooseStartupLayout, formatStamp } from './editor/freshness.js';
 import { createSnapSettings } from './editor/snapping.js';
+import { createStore } from './editor/store.js';
 
 // State and DOM rendering remain together to minimize v3 regressions.
 const key='dnd-card-editor-v3',recoveryKey=key+'-recovery',metaKey=key+'-meta',previousKey=key+'-previous';let items;
@@ -75,8 +76,7 @@ function downloadJSON(name,data){
 }
 // Replace the whole layout as one undoable step (Ctrl+Z brings the old one back).
 function switchLayout(next){
-  items=structuredClone(next);clearSelection();
-  draw();syncImageTools();syncBgTools();persist();
+  clearSelection();store.change(()=>structuredClone(next));syncImageTools();syncBgTools();
   notices.hide('freshness');
 }
 function reportFreshness(){
@@ -113,15 +113,16 @@ const history=createHistory({read:()=>items,restore:restored=>{
   const focusedRange=focusedRich?{from:focusedRich.editor.state.selection.from,to:focusedRich.editor.state.selection.to}:null;
   const focusedId=wasEditing?focusedRich?.item.id:null;
   const focusedField=wasEditing?focusedRich?.field:null;
-  items=restored;
+  store.replace(restored);
   if(selected&&!items.some(item=>item.id===selected))selected=null;
-  draw();syncImageTools();syncBgTools();saveToStorage();
+  store.render();syncImageTools();syncBgTools();saveToStorage();
   if(focusedId&&focusedField)rich.focusField(focusedId,focusedField,focusedRange);
 },onChange:({undo,redo})=>{
   document.getElementById('undo').disabled=!undo;
   document.getElementById('redo').disabled=!redo;
 }});
-function persist(options){history.commit(options);return saveToStorage()}
+// Every layout edit goes through the store: redraw, undo step, save — see store.js.
+const store=createStore({get:()=>items,set:value=>{items=value},history,save:saveToStorage,render:draw,mark:item=>markRendered(item)});
 function navigateHistory(direction){
   // Edits are already saved on every input event; no pending DOM changes.
   return direction==='undo'?history.undo():history.redo();
@@ -140,33 +141,32 @@ window.addEventListener('keydown',event=>{
   event.stopImmediatePropagation();
   navigateHistory(action);
 },true);
-const getItems=()=>items,setItems=value=>{items=value};
 const getSelected=()=>selected,clearSelection=()=>{selected=null;canvas.clear()};
 // Deleting an embedded text frame must never remove its parent card.
 const getSelectionIds=()=>innerCanvas?.hasSelection()?[]:canvas.getIds();
 let syncTextBoxTools=()=>{};
 let innerCanvas=null;
 const rich=createRichText({
-  current,select,persist,onEdited:item=>markRendered(item),
+  current,select,store,
   selectText:(element,field)=>{
-    const item=getItems().find(v=>v.id===element?.dataset.id);
+    const item=store.find(element?.dataset.id);
     if(item?.kind==='textbox')select(element);
     else if(item)innerCanvas?.selectField(item.id,field);
   }
 });
-const {startBadgeDrag}=createInnerInteractions({select,persist,mm});
-const {syncBgTools}=setupCardBackground({current,persist,draw,getItems});
-const {syncImageTools}=setupImageTools({current,persist,markRendered:item=>markRendered(item)});
+const {startBadgeDrag}=createInnerInteractions({select,store,mm});
+const {syncBgTools}=setupCardBackground({current,store});
+const {syncImageTools}=setupImageTools({current,store});
 const snapping=createSnapSettings();
-const canvas=createCanvasControls({pages,getItems,persist,mm,snapping,onSelection:(ids,primary)=>{
+const canvas=createCanvasControls({pages,store,mm,snapping,onSelection:(ids,primary)=>{
   selected=primary;
-  if(ids.length){const c=getItems().find(item=>item.id===ids[0]);activePage=c?.page||1;}
+  if(ids.length){const c=store.find(ids[0]);activePage=c?.page||1;}
   const c=current();
   if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;
   syncImageTools();syncBgTools();syncTextBoxTools();
 }});
 innerCanvas=createInnerCanvas({
-  pages,getItems,persist,mm,
+  pages,store,mm,
   selectParent:id=>canvas.setSelection([id],id,{keepInner:true})
 });
 canvas.attachInner(innerCanvas);
@@ -210,7 +210,7 @@ function buildElement(item){const e=document.createElement('div');e.className='e
   grip.textContent='⠿';grip.title='Перетащить текстовую рамку';
   grip.addEventListener('pointerdown',ev=>canvas.startDrag(ev,item.id));
   e.append(grip);
-}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{const it=itemById(item.id);if(!it)return;it.level=badge.textContent;markRendered(it);persist({group:'badge:'+it.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,itemById(item.id),e,badge));e.append(badge)}return e}
+}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{const it=itemById(item.id);if(!it)return;it.level=badge.textContent;store.shown(it,{group:'badge:'+it.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,itemById(item.id),e,badge));e.append(badge)}return e}
 function patchGeometry(e,item){
   e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);
   if(item.kind==='textbox'){e.style.height=item.autoHeight?'auto':mm(item.h);e.style.maxHeight=item.autoHeight?mm(297-item.y):''}
@@ -247,12 +247,12 @@ function draw(){
 // Throw away every element and editor (recovery paths, before replacing all data).
 function resetRender(){rich.destroy();for(const r of rendered.values())r.node.remove();rendered.clear()}
 function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
-function current(){return items.find(x=>x.id===selected)}function addObject(o){const obj={...o,z:Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0))+1,id:'e'+Date.now()+Math.floor(Math.random()*10000),page:activePage};items.push(obj);persist();draw();select(document.querySelector('[data-id="'+obj.id+'"]'))}
+function current(){return items.find(x=>x.id===selected)}function addObject(o){const obj={...o,z:Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0))+1,id:'e'+Date.now()+Math.floor(Math.random()*10000),page:activePage};store.change(items=>{items.push(obj)});select(document.querySelector('[data-id="'+obj.id+'"]'))}
 function addCard(copy){const src=copy||{kind:'card',x:12,y:120,w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Кликни, чтобы изменить описание.',level:'1',roles:'support',bg:'#ffffff'};addObject({...structuredClone(src),x:Math.min(115,src.x+5),y:Math.min(270,src.y+5)})}
-setupObjects({addCard,addObject,current,getItems,setItems,getSelected,getSelectionIds,clearSelection,persist,draw,syncImageTools,syncBgTools,markRendered:item=>markRendered(item)});
-({syncTextBoxTools}=setupTextBoxes({addObject,current,persist,draw}));
-setupLayers({current,getItems,getSelected,persist,draw,select});
-setupFiles({getItems,setItems,getSelected,getSelectionIds,clearSelection,persist,draw,syncImageTools,syncBgTools});
+setupObjects({addCard,addObject,current,getSelectionIds,clearSelection,store,syncImageTools,syncBgTools});
+({syncTextBoxTools}=setupTextBoxes({addObject,current,store}));
+setupLayers({current,store,getSelected,select});
+setupFiles({store,getSelectionIds,clearSelection,syncImageTools,syncBgTools});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 try{draw()}catch(error){
   // Valid-looking data can still fail to render; recover the same way.
