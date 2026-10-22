@@ -367,9 +367,21 @@ with sync_playwright() as p:
     assert page.locator('.el.selected').count()==0
     page.locator('.el[data-id="a"]').click(); page.wait_for_timeout(50)
     p1=page.locator('#page1').bounding_box()
-    page.keyboard.down('Shift')
-    page.mouse.move(p1['x']+110*k,p1['y']+140*k); page.mouse.down()
-    page.mouse.move(p1['x']+160*k,p1['y']+180*k,steps=6); page.mouse.up(); page.keyboard.up('Shift')
+    x0,y0,x1,y1=p1['x']+110*k,p1['y']+140*k,p1['x']+160*k,p1['y']+180*k
+    if engine=='firefox':
+        # Under Playwright, Firefox delivers no further input to the page after
+        # a Shift press on the blank sheet (recorded: pointerdown, mousedown,
+        # one pointermove, then nothing), while Shift on handles works. Drive
+        # the same gesture with Shift-flagged pointer events instead.
+        page.evaluate("""([x0,y0,x1,y1])=>{const o={bubbles:true,cancelable:true,button:0,buttons:1,pointerId:9,
+          isPrimary:true,pointerType:'mouse',shiftKey:true};const sheet=document.getElementById('page1');
+          sheet.dispatchEvent(new PointerEvent('pointerdown',{...o,clientX:x0,clientY:y0}));
+          for(let i=1;i<=6;i++)document.dispatchEvent(new PointerEvent('pointermove',{...o,clientX:x0+(x1-x0)*i/6,clientY:y0+(y1-y0)*i/6}));
+          document.dispatchEvent(new PointerEvent('pointerup',{...o,buttons:0,clientX:x1,clientY:y1}))}""",[x0,y0,x1,y1])
+    else:
+        page.keyboard.down('Shift')
+        page.mouse.move(x0,y0); page.mouse.down()
+        page.mouse.move(x1,y1,steps=6); page.mouse.up(); page.keyboard.up('Shift')
     page.wait_for_timeout(100)
     state=page.evaluate("""()=>({selected:[...document.querySelectorAll('.el.selected')].map(e=>e.dataset.id),
       count:document.getElementById('selectionCount').textContent,
