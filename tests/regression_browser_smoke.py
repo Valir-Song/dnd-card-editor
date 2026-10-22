@@ -4,6 +4,7 @@ and gesture-handle alignment after the page moves.
 """
 import os
 import re
+import base64
 import json
 import shutil
 import tempfile
@@ -460,6 +461,68 @@ with sync_playwright() as p:
     assert not page.errors,page.errors
     context.close()
     print('PASS '+engine+': incremental rendering keeps untouched elements; undo restores screen state')
+
+    # 12. Pictures: uploads are shrunk, transparency survives, the «Сжать картинки»
+    #     button shrinks pictures already in the layout as one undo step, and undo
+    #     keeps all its steps however large the pictures are (each is stored once).
+    context=browser.new_context()
+    page=open_editor(context)
+    card=lambda i:{'id':'c'+str(i),'kind':'card','page':1,'x':10,'y':10+30*i,'w':90,'h':25,'z':i,'title':'К'+str(i),'meta':'м','detail':'д'}
+    import_json(page,[card(1),card(2)])
+    def picture(w,h,alpha=False):
+        """A noisy PNG (large, like a photo); the left half transparent if asked."""
+        return page.evaluate("""([w,h,alpha])=>{const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),d=x.createImageData(w,h);
+          for(let i=0;i<d.data.length;i+=4){const p=i/4,X=p%w,Y=p/w|0;const n=Math.random()*40;d.data[i]=X*215/w+n;d.data[i+1]=Y*215/h+n;d.data[i+2]=(X*Y)%216+n;d.data[i+3]=alpha&&X<w/2?0:255}
+          x.putImageData(d,0,0);return c.toDataURL('image/png')}""",[w,h,alpha])
+    png=lambda url:{'name':'photo.png','mimeType':'image/png','buffer':base64.b64decode(url.split(',')[1])}
+    info=lambda sel:page.locator(sel).evaluate("""img=>new Promise(r=>{const probe=new Image();probe.onload=()=>{const c=document.createElement('canvas');c.width=probe.naturalWidth;c.height=probe.naturalHeight;
+      const x=c.getContext('2d');x.drawImage(probe,0,0);r({src:img.src.slice(0,16),length:img.src.length,w:probe.naturalWidth,h:probe.naturalHeight,leftAlpha:x.getImageData(5,5,1,1).data[3]})};probe.src=img.src})""")
+    big=picture(2400,1800)
+    page.locator('[data-tab="figures"]').click()
+    page.set_input_files('#upload',png(big))
+    page.wait_for_selector('.el.image-el img')
+    got=info('.el.image-el img')
+    assert got['src'].startswith('data:image/jpeg') and max(got['w'],got['h'])==1600 and got['length']<len(big)/4,(got,len(big))
+    clear=picture(800,600,alpha=True)
+    page.set_input_files('#upload',png(clear))
+    page.wait_for_function("document.querySelectorAll('.el.image-el img').length===2")
+    got=info('.el.image-el >> nth=1 >> img')
+    assert got['leftAlpha']<16 and got['w']==800,('Transparency was lost',got)
+    page.locator('.el[data-id="c1"]').click(position={'x':4,'y':4})
+    page.locator('[data-tab="appearance"]').click()
+    page.set_input_files('#bgUpload',png(big))
+    page.wait_for_selector('.el[data-id="c1"] img.card-bg-image')
+    got=info('.el[data-id="c1"] img.card-bg-image')
+    assert got['src'].startswith('data:image/jpeg') and max(got['w'],got['h'])==1600,got
+    context.close()
+
+    context=browser.new_context()
+    page=open_editor(context)
+    import_json(page,[{**card(1),'bgImage':big}])
+    page.locator('[data-tab="files"]').click(); page.locator('#compressImages').click()
+    page.wait_for_function("!document.getElementById('compressImages').disabled")
+    page.wait_for_timeout(200)
+    assert page.dialogs and 'было' in page.dialogs[-1],page.dialogs
+    got=info('.el[data-id="c1"] img.card-bg-image')
+    assert got['src'].startswith('data:image/jpeg') and got['length']<len(big)/4,got
+    page.locator('#undo').click()
+    assert page.locator('.el[data-id="c1"] img.card-bg-image').evaluate('i=>i.src')==big,'Ctrl+Z did not bring the original picture back'
+    context.close()
+
+    context=browser.new_context()
+    page=open_editor(context)
+    heavy=lambda n:'data:image/png;base64,'+chr(65+n)*3_000_000  # three 6 MB strings: two copies already fill the old budget
+    import_json(page,[{**card(i),'bgImage':heavy(i)} for i in (1,2,3)])
+    page.locator('.el[data-id="c1"]').click(position={'x':4,'y':4})
+    page.locator('[data-tab="layers"]').click()
+    for i in range(12): page.locator('#front' if i%2 else '#back').click()
+    steps=0
+    while page.locator('#undo').is_enabled() and steps<40:
+        page.locator('#undo').click(); steps+=1
+    assert steps>=12,('Large pictures still cut undo short',steps)
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': pictures are shrunk on upload and on request; undo keeps its steps with large pictures')
 
     browser.close()
 print('All regression checks passed for '+engine)

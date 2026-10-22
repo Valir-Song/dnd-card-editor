@@ -1,5 +1,6 @@
 // Persistence, import/export, and delete shortcuts.
 import { target } from './dom.js';
+import { compressImage } from './images.js';
 import { normalizeLayout } from './layout.js';
 /** @param {import('../types/layout').Deps} deps */
 export function setupFiles({ store, getSelectionIds, clearSelection, syncImageTools, syncBgTools }) {
@@ -32,5 +33,20 @@ document.getElementById('import').onchange=async e=>{const f=target(e).files[0];
   syncImageTools();syncBgTools()
 }catch(err){alert('Импорт отменён, текущий макет не изменён.\n\n'+err.message)}finally{target(e).value=''}};
 document.getElementById('print').onclick=()=>window.print();
+// Shrink pictures that entered the layout before upload compression existed.
+const compressButton=document.getElementById('compressImages');
+compressButton.onclick=async()=>{
+  const fields=['src','bgImage'],shrunk=new Map();
+  const pictures=new Set(store.items.flatMap(item=>fields.map(f=>item[f]).filter(v=>typeof v==='string'&&v.startsWith('data:image/'))));
+  if(!pictures.size){alert('В макете нет загруженных картинок.');return}
+  const label=compressButton.textContent;compressButton.disabled=true;compressButton.textContent='Сжимаю…';
+  try{for(const src of pictures)shrunk.set(src,await compressImage(src).catch(()=>src))}
+  finally{compressButton.disabled=false;compressButton.textContent=label}
+  const mb=n=>(n*0.75/1048576).toFixed(1).replace('.',',')+' МБ'; // base64 → bytes
+  const before=[...pictures].reduce((s,p)=>s+p.length,0),after=[...shrunk.values()].reduce((s,p)=>s+p.length,0);
+  if(after>=before){alert('Картинки уже сжаты: '+mb(before)+'.');return}
+  store.change(items=>{for(const item of items)for(const f of fields)if(shrunk.has(item[f]))item[f]=shrunk.get(item[f])});
+  alert('Картинки сжаты: было '+mb(before)+', стало '+mb(after)+'. Ctrl+Z вернёт прежние.');
+};
 document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&getSelectionIds().length&&!target(e).isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(target(e).tagName)){const deleted=new Set(getSelectionIds());clearSelection();store.change(items=>items.filter(x=>!deleted.has(x.id)));syncImageTools();syncBgTools()}});
 }
