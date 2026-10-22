@@ -15,7 +15,7 @@ const fonts=['Georgia','Arial','Times New Roman','Verdana','Courier New'];
 const safeText=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const pxToPoints=px=>Math.round(parseFloat(px)*0.75*10)/10;
 
-export function createRichText({current,select,persist,selectText=select}){
+export function createRichText({current,select,persist,selectText=select,onEdited=()=>{}}){
   const mounted=new Map();
   let activeKey=null,selection=null,silent=false;
   const controls={
@@ -41,6 +41,16 @@ export function createRichText({current,select,persist,selectText=select}){
   function destroy(){
     for(const mountedEditor of mounted.values())mountedEditor.editor.destroy();
     mounted.clear();clearState();
+  }
+  // Editors of one object only, for redrawing that object alone.
+  function unmount(id){
+    for(const [fieldKey,record] of mounted)if(record.item.id===id){
+      record.editor.destroy();mounted.delete(fieldKey);
+      if(activeKey===fieldKey)clearState();
+    }
+  }
+  function rebind(id,item){
+    for(const record of mounted.values())if(record.item.id===id)record.item=item;
   }
   function makeHTML(item,field){
     let html=item[field+'Html'];
@@ -82,6 +92,9 @@ export function createRichText({current,select,persist,selectText=select}){
   }
   function mount(node,item,field){
     const id=item.id,fieldKey=key(id,field);
+    // Handlers read record.item, so an undo that swaps in an equal object can
+    // rebind the editor instead of rebuilding it (see rebind below).
+    const record={editor:null,item,field,node};
     const editor=new Editor({
       element:node,
       extensions,
@@ -108,6 +121,7 @@ export function createRichText({current,select,persist,selectText=select}){
       },
       onUpdate:({editor:instance})=>{
         if(silent)return;
+        const item=record.item;
         item[field+'Html']=instance.getHTML();
         item[field]=instance.getText({blockSeparator:'\n'});
         if(item.kind==='textbox'&&item.autoHeight){
@@ -118,11 +132,13 @@ export function createRichText({current,select,persist,selectText=select}){
             item.h=Math.max(8,Math.min(297-item.y,box.getBoundingClientRect().height*factor));
           }
         }
+        onEdited(item);
         persist({group:'text:'+id+':'+field,windowMs:650});
         sync();
       }
     });
-    mounted.set(fieldKey,{editor,item,field,node});
+    record.editor=editor;
+    mounted.set(fieldKey,record);
     // On a canvas redraw the previous editor is destroyed. The next pointer
     // interaction must nominate the replacement editor even if browser focus
     // events are suppressed by overlay controls or a previously focused field.
@@ -185,6 +201,7 @@ export function createRichText({current,select,persist,selectText=select}){
     // one final state and preserve the text engine's own selected range.
     a.item[a.field+'Html']=ed.getHTML();
     a.item[a.field]=ed.getText({blockSeparator:'\n'});
+    onEdited(a.item);
     persist({group:'format:'+a.item.id+':'+a.field+':'+(styleKey||command),windowMs:450});
     selection={key:activeKey,from:ed.state.selection.from,to:ed.state.selection.to};
     sync();
@@ -236,5 +253,5 @@ export function createRichText({current,select,persist,selectText=select}){
     run('fontSize','fontSize',numeric);
   });
   document.getElementById('clearFormatting')?.addEventListener('click',()=>run('clear','clear'));
-  return {mount,destroy,focusField,sync,active,clearState};
+  return {mount,destroy,unmount,rebind,focusField,sync,active,clearState};
 }

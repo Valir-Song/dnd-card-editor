@@ -147,7 +147,7 @@ const getSelectionIds=()=>innerCanvas?.hasSelection()?[]:canvas.getIds();
 let syncTextBoxTools=()=>{};
 let innerCanvas=null;
 const rich=createRichText({
-  current,select,persist,
+  current,select,persist,onEdited:item=>markRendered(item),
   selectText:(element,field)=>{
     const item=getItems().find(v=>v.id===element?.dataset.id);
     if(item?.kind==='textbox')select(element);
@@ -156,7 +156,7 @@ const rich=createRichText({
 });
 const {startBadgeDrag}=createInnerInteractions({select,persist,mm});
 const {syncBgTools}=setupCardBackground({current,persist,draw,getItems});
-const {syncImageTools}=setupImageTools({current,persist});
+const {syncImageTools}=setupImageTools({current,persist,markRendered:item=>markRendered(item)});
 const snapping=createSnapSettings();
 const canvas=createCanvasControls({pages,getItems,persist,mm,snapping,onSelection:(ids,primary)=>{
   selected=primary;
@@ -184,7 +184,16 @@ function setField(node,item,f){
   node.dataset.field=f;
   pendingEditors.push({node,item,field:f});
 }
-function draw(){rich.destroy();pendingEditors.length=0;pages.forEach(p=>p.replaceChildren());for(const item of items){const e=document.createElement('div');e.className='el '+(item.kind==='image'?'image-el':item.kind==='shape'?'shape '+(item.shape||'rect'):item.kind);e.dataset.id=item.id;e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);e.style.height=mm(item.h);if(item.bg&&item.kind!=='textbox')e.style.backgroundColor=item.bg;if(item.kind==='card'&&item.bgImage){const bi=document.createElement('img');bi.className='card-bg-image';bi.src=item.bgImage;bi.draggable=false;bi.style.objectFit=item.bgFit||'cover';bi.style.opacity=(item.bgOpacity??100)/100;bi.style.transform=`translate(${item.bgX||0}%,${item.bgY||0}%) scale(${(item.bgZoom??100)/100})`;e.append(bi);const shade=document.createElement('div');shade.className='card-bg-shade';shade.style.opacity=(item.bgShade||0)/100;e.append(shade)}if(item.kind==='card'){/* Цветовые полосы отключены */}if(item.kind==='shape'){e.style.backgroundColor=item.bg||'#d8c5ed';if(item.shape==='line')e.style.height='2px'}if(item.kind==='image'){const im=document.createElement('img');im.src=item.src;im.draggable=false;im.style.objectFit=item.fit||'contain';im.style.filter=`brightness(${item.brightness??100}%) contrast(${item.contrast??100}%)`;im.style.transform=`rotate(${item.rotation||0}deg)`;e.style.opacity=(item.opacity??100)/100;e.append(im)}if(item.kind==='textbox'){
+// ---- rendering: one element per object, rebuilt only when that object changed ----
+const rendered=new Map(); // id -> {node, snap}
+const itemById=id=>items.find(x=>x.id===id);
+// Geometry that gestures already applied to the node: patch styles, never rebuild.
+const GEOMETRY=['x','y','w','h','z','textFrames','badgeX','badgeY','badgeCustomPosition'];
+const snapOf=item=>JSON.stringify(item);
+const withoutGeometry=item=>JSON.stringify(item,(k,v)=>GEOMETRY.includes(k)?undefined:v);
+// Text edited in Tiptap (or the badge) is already on screen: just record it.
+function markRendered(item){const r=rendered.get(item.id);if(r)r.snap=snapOf(item)}
+function buildElement(item){const e=document.createElement('div');e.className='el '+(item.kind==='image'?'image-el':item.kind==='shape'?'shape '+(item.shape||'rect'):item.kind);e.dataset.id=item.id;e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);e.style.height=mm(item.h);if(item.bg&&item.kind!=='textbox')e.style.backgroundColor=item.bg;if(item.kind==='card'&&item.bgImage){const bi=document.createElement('img');bi.className='card-bg-image';bi.src=item.bgImage;bi.draggable=false;bi.style.objectFit=item.bgFit||'cover';bi.style.opacity=(item.bgOpacity??100)/100;bi.style.transform=`translate(${item.bgX||0}%,${item.bgY||0}%) scale(${(item.bgZoom??100)/100})`;e.append(bi);const shade=document.createElement('div');shade.className='card-bg-shade';shade.style.opacity=(item.bgShade||0)/100;e.append(shade)}if(item.kind==='card'){/* Цветовые полосы отключены */}if(item.kind==='shape'){e.style.backgroundColor=item.bg||'#d8c5ed';if(item.shape==='line')e.style.height='2px'}if(item.kind==='image'){const im=document.createElement('img');im.src=item.src;im.draggable=false;im.style.objectFit=item.fit||'contain';im.style.filter=`brightness(${item.brightness??100}%) contrast(${item.contrast??100}%)`;im.style.transform=`rotate(${item.rotation||0}deg)`;e.style.opacity=(item.opacity??100)/100;e.append(im)}if(item.kind==='textbox'){
   e.classList.toggle('auto-height',!!item.autoHeight);
   e.style.height=item.autoHeight?'auto':mm(item.h);
   e.style.maxHeight=item.autoHeight?mm(297-item.y):'';
@@ -201,11 +210,46 @@ function draw(){rich.destroy();pendingEditors.length=0;pages.forEach(p=>p.replac
   grip.textContent='⠿';grip.title='Перетащить текстовую рамку';
   grip.addEventListener('pointerdown',ev=>canvas.startDrag(ev,item.id));
   e.append(grip);
-}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{item.level=badge.textContent;persist({group:'badge:'+item.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,item,e,badge));e.append(badge)}pages[(item.page||1)-1].append(e)}pages.forEach((p,i)=>{const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)});if(selected){const s=document.querySelector('.el[data-id="'+selected+'"]');if(s)s.classList.add('selected')}for(const entry of pendingEditors)rich.mount(entry.node,entry.item,entry.field);canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools()}
+}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h)wrap.style.height=mm(pos.h);const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{const it=itemById(item.id);if(!it)return;it.level=badge.textContent;markRendered(it);persist({group:'badge:'+it.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,itemById(item.id),e,badge));e.append(badge)}return e}
+function patchGeometry(e,item){
+  e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);
+  if(item.kind==='textbox'){e.style.height=item.autoHeight?'auto':mm(item.h);e.style.maxHeight=item.autoHeight?mm(297-item.y):''}
+  else if(!(item.kind==='shape'&&item.shape==='line'))e.style.height=mm(item.h);
+  for(const wrap of e.querySelectorAll(':scope > .text-wrap')){
+    const pos=(item.textFrames||{})[wrap.dataset.field]||{};
+    wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;wrap.style.width=pos.w?mm(pos.w):'';wrap.style.height=pos.h?mm(pos.h):'';
+  }
+  const badge=e.querySelector(':scope > .level');
+  if(badge){badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':''}
+}
+function draw(){
+  pendingEditors.length=0;
+  const seen=new Set(),last=new Map(); // page -> previous node, to keep DOM order = data order
+  for(const item of items){
+    seen.add(item.id);
+    const page=pages[(item.page||1)-1],snap=snapOf(item),r=rendered.get(item.id);
+    // Gestures move nodes directly, so geometry is re-applied even when unchanged.
+    if(r&&r.snap===snap){rich.rebind(item.id,item);patchGeometry(r.node,item)}
+    else if(r&&withoutGeometry(item)===withoutGeometry(JSON.parse(r.snap))){rich.rebind(item.id,item);patchGeometry(r.node,item);r.snap=snap}
+    else{
+      if(r){rich.unmount(item.id);r.node.remove()}
+      rendered.set(item.id,{node:buildElement(item),snap});
+    }
+    const node=rendered.get(item.id).node,prev=last.get(page);
+    const wanted=prev?prev.nextSibling:page.firstChild;
+    if(node!==wanted)page.insertBefore(node,wanted);
+    last.set(page,node);
+  }
+  for(const [id,r] of rendered)if(!seen.has(id)){rich.unmount(id);r.node.remove();rendered.delete(id)}
+  pages.forEach((p,i)=>{if(!p.querySelector(':scope > .page-number')){const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)}});
+  for(const entry of pendingEditors)rich.mount(entry.node,entry.item,entry.field);
+  canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools()}
+// Throw away every element and editor (recovery paths, before replacing all data).
+function resetRender(){rich.destroy();for(const r of rendered.values())r.node.remove();rendered.clear()}
 function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}function addObject(o){const obj={...o,z:Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0))+1,id:'e'+Date.now()+Math.floor(Math.random()*10000),page:activePage};items.push(obj);persist();draw();select(document.querySelector('[data-id="'+obj.id+'"]'))}
 function addCard(copy){const src=copy||{kind:'card',x:12,y:120,w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Кликни, чтобы изменить описание.',level:'1',roles:'support',bg:'#ffffff'};addObject({...structuredClone(src),x:Math.min(115,src.x+5),y:Math.min(270,src.y+5)})}
-setupObjects({addCard,addObject,current,getItems,setItems,getSelected,getSelectionIds,clearSelection,persist,draw,syncImageTools,syncBgTools});
+setupObjects({addCard,addObject,current,getItems,setItems,getSelected,getSelectionIds,clearSelection,persist,draw,syncImageTools,syncBgTools,markRendered:item=>markRendered(item)});
 ({syncTextBoxTools}=setupTextBoxes({addObject,current,persist,draw}));
 setupLayers({current,getItems,getSelected,persist,draw,select});
 setupFiles({getItems,setItems,getSelected,getSelectionIds,clearSelection,persist,draw,syncImageTools,syncBgTools});
@@ -215,7 +259,7 @@ try{draw()}catch(error){
   if(!stored||damagedSave)throw error;
   damagedSave={raw:stored,errors:[error.message]};
   items=structuredClone(embedded);selected=null;
-  history.reset();draw();
+  history.reset();resetRender();draw();
 }
 setupToolbarTabs();
 reportDamagedSave();

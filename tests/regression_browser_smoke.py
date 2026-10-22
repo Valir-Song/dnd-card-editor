@@ -410,5 +410,56 @@ with sync_playwright() as p:
       context.close()
     print('PASS '+engine+': edge-band drag, Shift ratio, Shift+marquee and touch on the gesture layer')
 
+    # 11. Incremental rendering: changing one object keeps every other element
+    #     (and its Tiptap editor) alive, and undo after direct style edits or
+    #     gestures restores what is on screen, not only the data.
+    context=browser.new_context()
+    page=open_editor(context)
+    page.evaluate("localStorage.setItem('dnd-card-editor-snap',JSON.stringify({enabled:false,gridMm:0}))")
+    page.reload(); page.wait_for_selector('.page')
+    import_json(page,[
+      {'id':'c1','kind':'card','page':1,'x':10,'y':10,'w':90,'h':25,'z':1,'title':'Первая','meta':'м','detail':'д','titleHtml':'<p>Первая</p>'},
+      {'id':'c2','kind':'card','page':1,'x':110,'y':10,'w':90,'h':25,'z':2,'title':'Вторая','meta':'м','detail':'д','titleHtml':'<p>Вторая</p>'},
+      {'id':'im','kind':'image','page':1,'x':10,'y':60,'w':30,'h':30,'z':3,'src':'data:image/gif;base64,R0lGODlhAQABAAAAACw=','opacity':100}])
+    tag="els=>els.forEach(e=>e.__keep=1)"
+    page.locator('.el').evaluate_all(tag)
+    page.locator('.tiptap-content').evaluate_all(tag)
+    title=page.locator('.el[data-id="c1"] .title .tiptap-content')
+    title.click(); page.keyboard.press('End'); page.keyboard.type(' +')
+    # Add an object (a full draw()) while c1 is being edited.
+    page.locator('[data-tab="figures"]').click(); page.locator('#rect').click()   # adds an object: draw()
+    kept=page.evaluate("""()=>({els:[...document.querySelectorAll('.el')].filter(e=>e.__keep).map(e=>e.dataset.id),
+      editors:[...document.querySelectorAll('.tiptap-content')].filter(e=>e.__keep).length,
+      shapes:document.querySelectorAll('.el.shape').length})""")
+    assert sorted(kept['els'])==['c1','c2','im'] and kept['editors']==6 and kept['shapes']==1,('Untouched elements were rebuilt',kept)
+    assert 'Первая +' in title.inner_text()
+    # Image sliders restyle the node directly; undo must restore the node too.
+    page.locator('.el[data-id="im"]').click(); page.locator('[data-tab="appearance"]').click()
+    page.locator('#opacity').fill('30'); page.locator('#opacity').dispatch_event('input')
+    page.wait_for_timeout(1300)  # end the slider's undo group
+    op=lambda:float(page.locator('.el[data-id="im"]').evaluate('e=>getComputedStyle(e).opacity'))
+    assert abs(op()-0.3)<0.01
+    page.keyboard.press('Escape'); page.locator('#undo').click()
+    assert abs(op()-1)<0.01,('Undo left the slider style on screen',op())
+    # Undo after a drag restores the on-screen position.
+    card=page.locator('.el[data-id="c2"]')
+    style=lambda:card.evaluate('e=>[e.style.left,e.style.top]')
+    assert style()==['110mm','10mm'],style()
+    grab=card.evaluate("""c=>{const r=c.getBoundingClientRect();for(let y=r.bottom-4;y>r.top;y-=2)for(let x=r.left+4;x<r.right;x+=2){const t=document.elementFromPoint(x,y);if(t&&t.closest('.el')===c&&!t.closest('.text-wrap,.level,.editable'))return [x,y]}}""")
+    page.mouse.move(*grab); page.mouse.down(); page.mouse.move(grab[0]+30,grab[1]+40,steps=6); page.mouse.up()
+    assert style()!=['110mm','10mm'],'Drag did not move the card'
+    page.locator('#undo').click()
+    # Compare the node's own position (the page may have scrolled during the drag).
+    assert style()==['110mm','10mm'],('Undo left the dragged card in place',style())
+    # Undo of typing restores the editor text from the data.
+    for _ in range(10):
+        if not page.locator('#undo').is_enabled(): break
+        page.locator('#undo').click()
+        if 'Первая +' not in title.inner_text(): break
+    assert title.inner_text().strip()=='Первая',title.inner_text()
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': incremental rendering keeps untouched elements; undo restores screen state')
+
     browser.close()
 print('All regression checks passed for '+engine)
