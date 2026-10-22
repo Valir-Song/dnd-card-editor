@@ -370,7 +370,11 @@ with sync_playwright() as p:
     page.keyboard.down('Shift')
     page.mouse.move(p1['x']+110*k,p1['y']+140*k); page.mouse.down()
     page.mouse.move(p1['x']+160*k,p1['y']+180*k,steps=6); page.mouse.up(); page.keyboard.up('Shift')
-    assert page.locator('.el.selected').count()==2 and page.locator('#selectionCount').inner_text()=='Выбрано: 2'
+    page.wait_for_timeout(100)
+    state=page.evaluate("""()=>({selected:[...document.querySelectorAll('.el.selected')].map(e=>e.dataset.id),
+      count:document.getElementById('selectionCount').textContent,
+      marqueeHidden:document.querySelector('.gesture-marquee').hidden})""")
+    assert state['selected']==['a','b'] and state['count']=='Выбрано: 2',('Shift+marquee must add b to a',state)
     assert not page.errors,page.errors
     context.close()
     # Touch runs in its own context: Playwright's touch emulation in Firefox
