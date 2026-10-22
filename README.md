@@ -124,6 +124,8 @@ GitHub Actions на каждый PR запускает Node-тесты, пров
 | `tests/*.test.mjs` | Node-тесты |
 | `tests/*_browser_smoke.py` | Playwright-тесты по собранному `dist/index.html` |
 | `tests/smoke.md` | ручной контрольный список перед релизом |
+| `docs/ROADMAP.md` | дорожная карта: сделанное, план по важности, направления развития |
+| `CLAUDE.md` | памятка для Claude: устройство, команды, договорённости, уроки прошлых ошибок |
 
 ### Формат макета
 JSON-массив объектов. Общие поля: `id`, `kind` (`header`, `note`, `resources`, `section`,
