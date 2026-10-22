@@ -176,20 +176,33 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm}
         setSelection(ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
         return;
       }
-      if (inner?.hasSelection() || !ids.includes(id)) setSelection([id], id);
+      const retarget = inner?.hasSelection() || !ids.includes(id);
+      if (retarget) setSelection([id], id);
       const nativeEditor = e.target.closest('.editable, [contenteditable], input, textarea, select, .text-grip, .text-resize, .level');
       if (nativeEditor) return;
       // The gesture begins on the same click that selects the object.
       // Do not manually initiate a second drag if Moveable owns the border.
-      if (!e.target.closest('.moveable-control-box')) moveable.dragStart(e);
+      if (!e.target.closest('.moveable-control-box')) beginDrag(e, retarget);
     });
   });
   function startDrag(e, id) {
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    if (!ids.includes(id)) setSelection([id], id);
-    moveable.dragStart(e);
+    const retarget = !ids.includes(id);
+    if (retarget) setSelection([id], id);
+    beginDrag(e, retarget);
+  }
+  // Moveable renders a new target asynchronously; starting the drag in the same
+  // tick binds it to the old state and the gesture dies after the first move.
+  // Its documented pattern is to start the drag once the new target rendered.
+  // A plain click releases the button before the timer fires: then no drag starts.
+  let pressed = false;
+  window.addEventListener('mouseup', () => { pressed = false; }, true);
+  function beginDrag(e, retarget) {
+    if (!retarget) { moveable.dragStart(e); return; }
+    pressed = true;
+    setTimeout(() => { if (pressed) moveable.dragStart(e); });
   }
   function afterDraw() {
     for (const id of ids.slice()) if (!itemFor(id)) ids = ids.filter(value => value !== id);

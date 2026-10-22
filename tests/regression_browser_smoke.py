@@ -232,5 +232,27 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': newer of file and browser save opens; other one stays reachable; reset button')
 
+    # 8. Press on an UNSELECTED object and drag in one motion: the whole
+    #    distance must apply (3.3.x moved ~1 mm, then Moveable threw errors).
+    context=browser.new_context()
+    page=open_editor(context)
+    page.evaluate("localStorage.setItem('dnd-card-editor-snap',JSON.stringify({enabled:false,gridMm:0}))")
+    page.reload(); page.wait_for_selector('.el .tiptap-content')
+    card=page.locator('#page1 .el.card').nth(3)
+    card.scroll_into_view_if_needed()
+    grab=card.evaluate("""card=>{const r=card.getBoundingClientRect();
+      for(let y=r.bottom-6;y>r.top;y-=2)for(let x=r.left+6;x<r.right;x+=2){const t=document.elementFromPoint(x,y);
+        if(t&&t.closest('.el')===card&&!t.closest('.text-wrap,.level,.editable'))return [x,y]}}""")
+    assert grab,'No blank area to grab the card'
+    before=card.bounding_box()
+    page.mouse.move(*grab); page.mouse.down()
+    page.mouse.move(grab[0]+40,grab[1]+30,steps=10); page.mouse.up()
+    page.wait_for_timeout(100)
+    after=card.bounding_box()
+    assert abs(after['x']-before['x']-40)<1.5 and abs(after['y']-before['y']-30)<1.5,(before,after)
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': one-motion drag of an unselected object moves the full distance')
+
     browser.close()
 print('All 3.3.1 regression checks passed for '+engine)
