@@ -152,6 +152,9 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     target: [], draggable: true, resizable: true, origin: false,
     keepRatio: false, throttleDrag: 0, throttleResize: 0,
     edge: true, edgeDraggable: true, snappable: false,
+    // A press on editable text (a selected text box or card) must focus the
+    // editor; without this Moveable's gesture preventDefault()s the click.
+    checkInput: true,
     renderDirections: ['nw','n','ne','w','e','sw','s','se'],
     className: 'dnd-canvas-moveable'
   });

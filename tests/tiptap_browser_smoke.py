@@ -31,10 +31,19 @@ with sync_playwright() as p:
         assert page.locator(selector).count()>0, selector
     print('PASS '+engine+': all existing card, heading and note fields use Tiptap')
 
+    def focus_editor(locator):
+        # Clicking selects the parent object first; on a slow runner the editor
+        # can receive focus a moment later, so wait before sending keys.
+        locator.click()
+        for _ in range(50):  # the locator re-resolves, so redraws do not matter
+            if locator.evaluate('e=>e.contains(document.activeElement)'):
+                return
+            page.wait_for_timeout(100)
+        raise AssertionError('Editor did not receive focus after click')
     # Act on a real text selection; do not call editor commands from the test.
     page.locator('[data-tab="text"]').click()
     title=page.locator('.el.card .title .tiptap-content').first
-    title.click()
+    focus_editor(title)
     title.press('Home')
     title.press('Control+Shift+ArrowRight')
     selected=page.evaluate('getSelection().toString()')
@@ -65,7 +74,7 @@ with sync_playwright() as p:
     print('PASS '+engine+': selection, live font-size spinner and direct 23pt entry')
 
     # Re-select the existing formatted word: toolbar must read its actual mark.
-    title.click()
+    focus_editor(title)
     title.press('Home')
     title.press('Control+Shift+ArrowRight')
     assert float(size.input_value())>=22.5, ('Displayed size not restored',size.input_value())
@@ -82,17 +91,17 @@ with sync_playwright() as p:
     box=page.locator('.el.textbox').last
     assert box.locator('.tiptap-content').count()==1
     field=box.locator('.tiptap-content')
-    field.click()
+    focus_editor(field)
     field.press('Control+a')
     page.keyboard.type('Tiptap unified example')
     assert 'Tiptap unified example' in field.inner_text()
     assert page.locator('#boxBorderVisible').is_visible()
     page.locator('#boxBorderVisible').check()
     assert 'border' in box.get_attribute('style')
-    field.click()
+    focus_editor(field)
     size.fill('20')
     assert field.locator('[style*="font-size"]').count()>0
-    field.click()
+    focus_editor(field)
     assert abs(float(size.input_value())-20)<.6,'Text box loses saved size when reselected'
     page.locator('[data-tab="layers"]').click()
     page.locator('#front').click()
