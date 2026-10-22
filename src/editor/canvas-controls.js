@@ -229,6 +229,10 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     });
   }
   function startMarquee(ev, entry) {
+    // Nothing on a blank sheet is text to select; with Shift held, Firefox would
+    // otherwise start extending a text selection and cancel the pointer.
+    ev.preventDefault();
+    if (document.activeElement?.closest?.('.page')) document.activeElement.blur();
     const from = toMm(entry.page, ev), additive = ev.shiftKey, before = ids.slice();
     const pageNumber = Number(entry.page.dataset.page);
     let moved = false;
@@ -247,6 +251,7 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
       window.removeEventListener('pointerup', up, true);
       window.removeEventListener('pointercancel', up, true);
       entry.marquee.hidden = true;
+      if (e.type === 'pointercancel') return; // interrupted: keep the selection as it was
       if (!moved) { if (!additive) setSelection([]); return; }
       const candidates = getItems().filter(item => (item.page || 1) === pageNumber).map(item => ({id: item.id, ...boxOf(item)}));
       const hits = marqueeHits(box(e), candidates).map(b => b.id);
