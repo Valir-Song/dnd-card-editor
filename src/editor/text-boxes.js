@@ -11,7 +11,7 @@ export function setupTextBoxes({addObject,current,persist,draw}) {
   };
   document.getElementById('addTextBox').onclick=()=>addObject({
     kind:'textbox',x:28,y:115,w:72,h:25,
-    text:'Двойной щелчок — ввести текст',
+    text:'Кликни, чтобы ввести текст',
     fontFamily:'Georgia',fontSize:12,textAlign:'left',textWeight:'normal',
     textColor:'#262137',bg:'#ffffff',borderColor:'#745193',
     bgTransparent:true,borderVisible:false,autoHeight:false
