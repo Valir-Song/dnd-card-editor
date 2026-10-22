@@ -15,6 +15,8 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run check:build
+      - name: Committed standalone HTML matches this build
+        run: cmp dist/index.html DND_Card_Editor_standalone.html || { echo "::error::Run npm run standalone and commit DND_Card_Editor_standalone.html"; exit 1; }
       - name: Save standalone HTML
         uses: actions/upload-artifact@v4
         with:
