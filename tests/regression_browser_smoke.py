@@ -171,5 +171,66 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': card and text-frame handles follow window resize and stage scrolling')
 
+    # 7. Chrome shares one localStorage between all local files: the newer of
+    #    "layout in this file" and "layout saved in the browser" must open,
+    #    the other must stay reachable, and the reset button must work.
+    context=browser.new_context(accept_downloads=True)
+    page=open_editor(context)
+    page.locator('#page2 .el.card').first.click(position={'x':2,'y':2})
+    page.keyboard.press('Delete')                       # browser save: 27 objects
+    page.locator('[data-tab="files"]').click()
+    with page.expect_download() as downloaded:
+        page.locator('#export').click()
+    exported=Path(tempfile.mkdtemp(prefix='dnd-fresh-'))/'export.html'
+    shutil.copy2(downloaded.value.path(),exported)       # file: 27 objects, dated
+    assert 'data-saved-at=' in exported.read_text(encoding='utf-8')
+    page.close()
+
+    same=open_editor(context,exported.as_uri())
+    assert same.locator('.notice').count()==0,'Identical layouts must open without a notice'
+    same.locator('#page2 .el.card').first.click(position={'x':2,'y':2})
+    same.keyboard.press('Delete')                        # browser save is now newer: 26
+    same.close()
+
+    newer_browser=open_editor(context,exported.as_uri())
+    assert newer_browser.locator('.el').count()==len(starter)-2
+    notice=newer_browser.locator('.notice[data-notice="freshness"]')
+    assert notice.is_visible() and 'новее макета в этом файле' in notice.inner_text()
+    notice.get_by_role('button',name='Открыть макет из файла').click()
+    assert newer_browser.locator('.el').count()==len(starter)-1
+    assert newer_browser.locator('.notice').count()==0
+    newer_browser.locator('#undo').click()
+    assert newer_browser.locator('.el').count()==len(starter)-2,'Switching layouts must be undoable'
+    newer_browser.close()
+
+    page=context.new_page()
+    page.goto(exported.as_uri()); page.wait_for_selector('.el .tiptap-content')
+    page.evaluate(f"()=>localStorage.setItem('{KEY}-meta',JSON.stringify({{savedAt:'2000-01-01T00:00:00Z'}}))")
+    page.close()
+    newer_file=open_editor(context,exported.as_uri())
+    assert newer_file.locator('.el').count()==len(starter)-1,'A newer file must win over an older save'
+    notice=newer_file.locator('.notice[data-notice="freshness"]')
+    assert 'он новее макета, сохранённого в браузере' in notice.inner_text()
+    assert json.loads(newer_file.evaluate(f"()=>localStorage.getItem('{KEY}-previous')")).__len__()==len(starter)-2
+    with newer_file.expect_download() as backup:
+        notice.get_by_role('button',name='Скачать его JSON').click()
+    assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8')))==len(starter)-2
+    notice.get_by_role('button',name='Открыть макет из браузера').click()
+    assert newer_file.locator('.el').count()==len(starter)-2
+
+    # Reset: back up, then show this file's layout; Ctrl+Z restores.
+    newer_file.locator('[data-tab="files"]').click()
+    with newer_file.expect_download() as backup:
+        newer_file.locator('#resetStorage').click()
+    assert newer_file.dialogs and 'Сбросить сохранение' in newer_file.dialogs[-1]
+    assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8')))==len(starter)-2
+    assert newer_file.locator('.el').count()==len(starter)-1
+    assert len(json.loads(stored(newer_file)))==len(starter)-1
+    newer_file.keyboard.press('Control+z')
+    assert newer_file.locator('.el').count()==len(starter)-2
+    assert not newer_file.errors,newer_file.errors
+    context.close()
+    print('PASS '+engine+': newer of file and browser save opens; other one stays reachable; reset button')
+
     browser.close()
 print('All 3.3.1 regression checks passed for '+engine)

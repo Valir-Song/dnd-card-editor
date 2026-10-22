@@ -12,19 +12,31 @@ import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
 import { normalizeLayout } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
+import { chooseStartupLayout, formatStamp } from './editor/freshness.js';
 
 // State and DOM rendering remain together to minimize v3 regressions.
-const key='dnd-card-editor-v3',recoveryKey=key+'-recovery';let items;
+const key='dnd-card-editor-v3',recoveryKey=key+'-recovery',metaKey=key+'-meta',previousKey=key+'-previous';let items;
 const notices=createNotices(document.getElementById('notices'));
-const embedded=normalizeLayout(JSON.parse(document.getElementById('initial').textContent)).items||[];
+const initialNode=document.getElementById('initial');
+const embedded=normalizeLayout(JSON.parse(initialNode.textContent)).items||[];
+const embeddedAt=initialNode.dataset.savedAt||null;
 // A damaged save must never lock the user out: fall back to the embedded layout
 // and keep the raw data so it can be downloaded and repaired.
-let stored=null,damagedSave=null;
-try{stored=localStorage.getItem(key)}catch(e){console.warn('Browser storage is unavailable',e)}
+let stored=null,storedAt=null,damagedSave=null,freshness=null;
+try{
+  stored=localStorage.getItem(key);
+  storedAt=JSON.parse(localStorage.getItem(metaKey)||'null')?.savedAt||null;
+}catch(e){console.warn('Browser storage is unavailable',e)}
 if(stored){
   let result;
   try{result=normalizeLayout(JSON.parse(stored))}catch(e){result={items:null,errors:['Данные не являются корректным JSON.']}}
-  if(result.items)items=result.items;else damagedSave={raw:stored,errors:result.errors};
+  if(result.items){
+    freshness={...chooseStartupLayout({storedItems:result.items,storedAt,embeddedItems:embedded,embeddedAt}),storedItems:result.items};
+    if(freshness.source==='browser')items=result.items;
+    // The newer file wins, but the older browser save must survive the next autosave.
+    else try{localStorage.setItem(previousKey,stored)}catch(e){console.warn('Could not keep the previous browser layout',e)}
+  }
+  else damagedSave={raw:stored,errors:result.errors};
 }
 items ||= structuredClone(embedded);
 let selected=null, activePage=1;
@@ -41,7 +53,11 @@ if(migratedBadges&&!damagedSave){try{localStorage.setItem(key,JSON.stringify(ite
 const pages=[document.getElementById('page1'),document.getElementById('page2')];
 const mm=v=>v+'mm',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function saveToStorage(){
-  try{localStorage.setItem(key,JSON.stringify(items));notices.hide('storage');return true}
+  try{
+    localStorage.setItem(key,JSON.stringify(items));
+    localStorage.setItem(metaKey,JSON.stringify({savedAt:new Date().toISOString()}));
+    notices.hide('storage');return true;
+  }
   catch(e){
     console.warn('Storage limit exceeded: export HTML to save',e);
     notices.show('storage','Макет не помещается в хранилище браузера (обычно из-за крупных картинок), поэтому последние изменения не сохранены: после перезагрузки откроется предыдущая версия. Скачайте HTML или JSON, чтобы не потерять работу.',[
@@ -51,6 +67,33 @@ function saveToStorage(){
     return false;
   }
 }
+function downloadJSON(name,data){
+  const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  const a=document.createElement('a');a.href=url;a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+// Replace the whole layout as one undoable step (Ctrl+Z brings the old one back).
+function switchLayout(next){
+  items=structuredClone(next);clearSelection();
+  draw();syncImageTools();syncBgTools();persist();
+  notices.hide('freshness');
+}
+function reportFreshness(){
+  if(!freshness?.conflict)return;
+  const fileStamp=formatStamp(embeddedAt),browserStamp=formatStamp(storedAt);
+  if(freshness.source==='file')notices.show('freshness','Открыт макет из этого файла (сохранён '+fileStamp+'): он новее макета, сохранённого в браузере ('+browserStamp+'). Макет из браузера не потерян.',[
+    {label:'Открыть макет из браузера',onClick:()=>switchLayout(freshness.storedItems)},
+    {label:'Скачать его JSON',onClick:()=>downloadJSON('Ричард_макет_из_браузера.json',freshness.storedItems)}
+  ]);
+  else notices.show('freshness','Открыт макет, сохранённый в браузере '+browserStamp+': он новее макета в этом файле ('+fileStamp+').',[
+    {label:'Открыть макет из файла',onClick:()=>switchLayout(embedded)}
+  ]);
+}
+document.getElementById('resetStorage').onclick=()=>{
+  if(!confirm('Сбросить сохранение браузера и открыть макет, записанный в этом файле?\n\nТекущий макет будет скачан как резервная копия JSON, а Ctrl+Z вернёт его.'))return;
+  downloadJSON('Ричард_макет_резервная_копия.json',items);
+  switchLayout(embedded);
+};
 function reportDamagedSave(){
   if(!damagedSave)return;
   try{localStorage.setItem(recoveryKey,damagedSave.raw)}catch(e){console.warn('Could not keep a copy of the damaged layout',e)}
@@ -167,3 +210,4 @@ try{draw()}catch(error){
 }
 setupToolbarTabs();
 reportDamagedSave();
+reportFreshness();
