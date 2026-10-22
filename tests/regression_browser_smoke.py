@@ -252,6 +252,35 @@ with sync_playwright() as p:
     assert abs(after['x']-before['x']-40)<1.5 and abs(after['y']-before['y']-30)<1.5,(before,after)
     assert not page.errors,page.errors
     context.close()
+    # Input that outruns the deferred drag start (fast flick or a busy machine)
+    # is replayed rather than lost; a plain click still moves nothing.
+    context=browser.new_context()
+    page=open_editor(context)
+    page.evaluate("localStorage.setItem('dnd-card-editor-snap',JSON.stringify({enabled:false,gridMm:0}))")
+    page.reload(); page.wait_for_selector('.page')
+    import_json(page,[{'id':'b','kind':'shape','shape':'rect','page':1,'x':100,'y':100,'w':30,'h':20,'z':1}])
+    k=page.locator('#page1').bounding_box()['width']/210
+    burst="""([up,dist])=>{const el=document.querySelector('.el[data-id="b"]');const r=el.getBoundingClientRect();
+      const x=r.left+r.width/2,y=r.top+r.height/2,o={bubbles:true,cancelable:true,button:0,buttons:1};
+      el.dispatchEvent(new MouseEvent('mousedown',{...o,clientX:x,clientY:y}));
+      if(dist)for(let i=1;i<=5;i++)document.dispatchEvent(new MouseEvent('mousemove',{...o,clientX:x+8*i,clientY:y+6*i}));
+      if(up)document.dispatchEvent(new MouseEvent('mouseup',{...o,buttons:0,clientX:x+(dist?40:0),clientY:y+(dist?30:0)}));
+      return [x,y]}"""
+    shape=lambda:next(i for i in json.loads(stored(page)) if i['id']=='b')
+    page.evaluate(burst,[True,True]); page.wait_for_timeout(150)
+    assert abs(shape()['x']-100-40/k)<0.3,('Flick within one task was lost',shape())
+    page.keyboard.press('Control+z'); page.wait_for_timeout(100)
+    page.locator('#page1').click(position={'x':4,'y':4})
+    x,y=page.evaluate(burst,[False,True]); page.wait_for_timeout(150)   # drag started after the moves
+    page.evaluate("([x,y])=>document.dispatchEvent(new MouseEvent('mouseup',{bubbles:true,button:0,buttons:0,clientX:x,clientY:y}))",[x+40,y+30])
+    page.wait_for_timeout(150)
+    assert abs(shape()['x']-100-40/k)<0.3,('Moves before drag start were lost',shape())
+    page.keyboard.press('Control+z'); page.wait_for_timeout(100)
+    page.locator('#page1').click(position={'x':4,'y':4})
+    page.evaluate(burst,[True,False]); page.wait_for_timeout(150)
+    assert shape()['x']==100,('A plain click moved the object',shape())
+    assert not page.errors,page.errors
+    context.close()
     print('PASS '+engine+': one-motion drag of an unselected object moves the full distance')
 
     # 9. Snapping: a dragged object aligns with another object's edge, shows a

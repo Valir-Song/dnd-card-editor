@@ -236,16 +236,33 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     if (retarget) setSelection([id], id);
     beginDrag(e, retarget);
   }
-  // Moveable renders a new target asynchronously; starting the drag in the same
-  // tick binds it to the old state and the gesture dies after the first move.
-  // Its documented pattern is to start the drag once the new target rendered.
-  // A plain click releases the button before the timer fires: then no drag starts.
-  let pressed = false;
-  window.addEventListener('mouseup', () => { pressed = false; }, true);
+  // A press that also selects the object is dragged by the editor itself:
+  // Moveable renders a new target asynchronously and would miss the gesture
+  // (it moved ~1 mm, then threw). Listeners attach synchronously, so a fast
+  // flick or a busy machine cannot outrun them; selected objects use Moveable.
+  let handlesFrame = 0;
   function beginDrag(e, retarget) {
     if (!retarget) { moveable.dragStart(e); return; }
-    pressed = true;
-    setTimeout(() => { if (pressed) moveable.dragStart(e); });
+    const startX = e.clientX, startY = e.clientY;
+    let started = false;
+    const move = ev => {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (!started) {
+        if (Math.hypot(dx, dy) < 3) return; // still a click
+        begin();
+        started = !!gesture;
+        if (!started) return;
+      }
+      applyDrag([dx, dy], ev.altKey);
+      handlesFrame ||= requestAnimationFrame(() => { handlesFrame = 0; moveable.updateRect(); });
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', up, true);
+      if (started) endGesture();
+    };
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
   }
   function afterDraw() {
     for (const id of ids.slice()) if (!itemFor(id)) ids = ids.filter(value => value !== id);
