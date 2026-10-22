@@ -11,7 +11,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm test
       - run: npm run build
       - run: npm run check:build
@@ -25,8 +25,12 @@ jobs:
         with:
           python-version: '3.12'
       - run: |
-          pip install playwright
+          pip install -r tests/requirements.txt
           python -m playwright install --with-deps chromium firefox
+      - name: 3.3.1 regression browser test (Chromium)
+        run: EDITOR_BROWSER=chromium python tests/regression_browser_smoke.py
+      - name: 3.3.1 regression browser test (Firefox)
+        run: EDITOR_BROWSER=firefox python tests/regression_browser_smoke.py
       - name: Moveable + Selecto canvas browser test (Chromium)
         run: EDITOR_BROWSER=chromium python tests/canvas_browser_smoke.py
       - name: Moveable + Selecto canvas browser test (Firefox)
