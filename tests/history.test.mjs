@@ -55,3 +55,31 @@ test('checkpoint count and image-heavy memory budget are bounded',()=>{
   while(f.history.undo())undone++;
   assert.ok(undone<=3 && undone>=1);
 });
+
+test('large pictures are stored once: many undo steps fit and restore exactly',()=>{
+  const picture=n=>'data:image/png;base64,'+String(n).repeat(200000); // ~200 KB each
+  const f=fixture({maxBytes:4*1024*1024}); // room for a few copies only
+  f.set([{id:'e1',title:'t',bgImage:picture(1)},{id:'e2',src:picture(2)}]);
+  f.history.reset();
+  for(let i=0;i<30;i++){f.doc()[0].title='t'+i;f.history.commit()}
+  let undone=0;
+  while(f.history.undo())undone++;
+  assert.equal(undone,30);
+  assert.equal(f.doc()[0].title,'t');
+  assert.equal(f.doc()[0].bgImage,picture(1));
+  assert.equal(f.doc()[1].src,picture(2));
+  while(f.history.redo());
+  assert.equal(f.doc()[0].title,'t29');
+});
+
+test('pictures replaced long ago are released from the history pool',()=>{
+  const picture=n=>'data:image/png;base64,'+String(n).repeat(100000);
+  // Each picture is ~200 KB in memory; the budget holds about five of them.
+  // Without releasing old ones the pool would fill it and leave a single undo.
+  const f=fixture({maxBytes:1024*1024});
+  for(let i=0;i<10;i++){f.doc()[0].bgImage=picture(i);f.history.commit()}
+  let undone=0;
+  while(f.history.undo())undone++;
+  assert.ok(undone>=3,'undo steps kept: '+undone);
+  assert.equal(f.doc()[0].bgImage,picture(9-undone));
+});
