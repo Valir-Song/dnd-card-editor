@@ -35,11 +35,13 @@ export function createInnerCanvas({pages,getItems,persist,mm,selectParent}) {
   // the next animation frame, after browser layout has settled.
   let pendingRect=false;
   const scheduleRect=()=>{
-    if(pendingRect)return;
+    // Resizing the frame itself also fires ResizeObserver. Do not recalculate
+    // Moveable's gesture origin halfway through a drag or resize.
+    if(pendingRect||gesture)return;
     pendingRect=true;
     requestAnimationFrame(()=>{
       pendingRect=false;
-      if(selected())moveable.updateRect();
+      if(selected()&&!gesture)moveable.updateRect();
     });
   };
   const textSizeObserver=new ResizeObserver(scheduleRect);
