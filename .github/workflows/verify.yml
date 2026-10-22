@@ -20,7 +20,7 @@ jobs:
       - name: Save standalone HTML
         uses: actions/upload-artifact@v4
         with:
-          name: DND-Card-Editor-3.3-Moveable-Selecto
+          name: DND-Card-Editor-standalone
           path: dist/index.html
           retention-days: 30
       - uses: actions/setup-python@v5
@@ -33,13 +33,13 @@ jobs:
         run: EDITOR_BROWSER=chromium python tests/ci_run.py regression_browser_smoke.py
       - name: 3.3.1 regression browser test (Firefox)
         run: EDITOR_BROWSER=firefox python tests/ci_run.py regression_browser_smoke.py
-      - name: Moveable + Selecto canvas browser test (Chromium)
+      - name: Canvas gestures browser test (Chromium)
         run: EDITOR_BROWSER=chromium python tests/ci_run.py canvas_browser_smoke.py
-      - name: Moveable + Selecto canvas browser test (Firefox)
+      - name: Canvas gestures browser test (Firefox)
         run: EDITOR_BROWSER=firefox python tests/ci_run.py canvas_browser_smoke.py
-      - name: Nested Moveable text frames (Chromium)
+      - name: Nested text frames (Chromium)
         run: EDITOR_BROWSER=chromium python tests/ci_run.py nested_browser_smoke.py
-      - name: Nested Moveable text frames (Firefox)
+      - name: Nested text frames (Firefox)
         run: EDITOR_BROWSER=firefox python tests/ci_run.py nested_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Chromium)
         run: EDITOR_BROWSER=chromium python tests/ci_run.py tiptap_browser_smoke.py

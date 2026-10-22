@@ -100,35 +100,10 @@
 .toolbar-content #textBoxTools input[type=color]{width:27px;height:25px;padding:1px}
 @media print{.el .editable:focus-within{background:transparent!important}.el .tiptap-content{outline:none!important}}
 
-/* 3.3 beta: geometry handles and marquee live outside printable sheets. */
-.moveable-control-box{z-index:180!important}
-.moveable-control-box .moveable-control{background:#2678bb;border:1px solid #fff}
-.selecto-selection{z-index:179!important;background:#2678bb19!important;border:1px solid #2678bb!important}
+/* Selection outline and multi-selection counter (handles: see 3.5 gesture layer). */
 @media screen{.el.selected{outline:1px dashed #2678bb;outline-offset:1px}}
 #selectionCount{font:12px Arial,sans-serif;color:#ded6ec}
-@media print{.moveable-control-box,.selecto-selection,#selectionCount{display:none!important}}
-
-/* Moveable group's translucent hit area must never steal clicks from Tiptap or targets. */
-.moveable-control-box .moveable-area{pointer-events:none!important}
-
-/* Parent hit areas pass through; actual resize handles keep pointer input. */
-.moveable-control-box .moveable-control{pointer-events:auto!important}
-
-/* A Moveable border line sometimes overlays a corner handle. Reserve hit tests for the handles. */
-.moveable-control-box .moveable-line{pointer-events:none!important}
-
-/* 3.3 nested Moveable. Text remains editable; only the border/handles move it.
-   The parent card has no active Moveable frame while a nested field is selected. */
-.dnd-inner-moveable{z-index:190!important}
-.dnd-inner-moveable .moveable-line{pointer-events:none!important}
-.dnd-inner-moveable .moveable-edgeDraggable{
-  pointer-events:auto!important;
-  cursor:move!important;
-  stroke-width:1;
-}
-.dnd-inner-moveable .moveable-control{pointer-events:auto!important;background:#8758b5!important}
-.dnd-inner-moveable .moveable-area{pointer-events:none!important}
-@media print{.dnd-inner-moveable{display:none!important}}
+@media print{#selectionCount{display:none!important}}
 
 /* 3.3.1: persistent warnings (storage full, damaged save) under the toolbar. */
 .notices:empty{display:none}
@@ -140,7 +115,7 @@
 .notice .notice-close{border:0;background:transparent;font-size:18px;line-height:1;padding:2px 6px}
 @media print{.notices{display:none!important}}
 
-/* 3.3.1: Moveable handles are positioned inside the (scrollable) stage. */
+/* Gesture layers are positioned inside the (scrollable) stage. */
 .stage{position:relative}
 
 /* 3.3.1: editing outlines never reach paper or PDF, whatever is selected or focused. */
@@ -179,3 +154,7 @@
 .page .el.selected{touch-action:none}
 body.gesture-active,body.gesture-active *{user-select:none!important}
 @media print{.gesture-layer{display:none!important}}
+/* Text frames inside a card use the same layer, in purple. */
+.gesture-frame.inner{outline-color:#8758b5}
+.gesture-frame.inner .gesture-handle{background:#8758b5}
+.gesture-marquee.inner{background:#8758b519;border-color:#8758b5}

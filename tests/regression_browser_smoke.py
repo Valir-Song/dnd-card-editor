@@ -1,6 +1,6 @@
 """Regression tests for 3.3.1 fixes, run against the ACTUAL Vite-built standalone HTML:
 bad JSON import, damaged localStorage, storage quota, export hygiene, print outlines
-and Moveable handle alignment after the page moves.
+and gesture-handle alignment after the page moves.
 """
 import os
 import re
@@ -38,15 +38,15 @@ def stored(page):
     return page.evaluate(f"()=>localStorage.getItem('{KEY}')")
 
 def handle_offset(page,element):
-    """Distance in px between the element's bottom-right corner and Moveable's SE handle.
-    Moveable draws handles on a later frame, so wait for a visible one and let two
+    """Distance in px between the element's bottom-right corner and the selection frame's SE handle.
+    Handles may be drawn on a later frame, so wait for a visible one and let two
     animation frames pass before measuring (slow CI runners need it)."""
-    page.wait_for_function("""()=>[...document.querySelectorAll('.gesture-frame:not([hidden]) [data-dir="se"], .dnd-inner-moveable .moveable-se')]
+    page.wait_for_function("""()=>[...document.querySelectorAll('.gesture-frame:not([hidden]) [data-dir="se"], .gesture-frame.inner:not([hidden]) [data-dir="se"]')]
       .some(n=>{const r=n.getBoundingClientRect();return r.width>0&&r.height>0})""",timeout=5000)
     page.evaluate("()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
     return page.evaluate("""e=>{
       const r=e.getBoundingClientRect();
-      const h=[...document.querySelectorAll('.gesture-frame:not([hidden]) [data-dir="se"], .dnd-inner-moveable .moveable-se')]
+      const h=[...document.querySelectorAll('.gesture-frame:not([hidden]) [data-dir="se"], .gesture-frame.inner:not([hidden]) [data-dir="se"]')]
         .map(n=>n.getBoundingClientRect()).find(r=>r.width>0&&r.height>0);
       return Math.hypot(h.x+h.width/2-r.right,h.y+h.height/2-r.bottom)
     }""",element.element_handle())
@@ -118,7 +118,7 @@ with sync_playwright() as p:
     boxes=None  # one control box per Moveable instance; must not grow per generation
     for generation in range(3):
         page=open_editor(context,url)
-        count=page.locator('.moveable-control-box, .gesture-layer').count()
+        count=page.locator('.gesture-layer').count()
         boxes=boxes if boxes is not None else count
         assert count==boxes,('Control boxes accumulate after re-export',generation,count,boxes)
         page.locator('[data-tab="files"]').click()
@@ -128,7 +128,7 @@ with sync_playwright() as p:
         shutil.copy2(downloaded.value.path(),exported)
         text=exported.read_text(encoding='utf-8')
         # Library source mentions these names, so look for real markup only.
-        for pattern in [r'<div[^>]+class="gesture-layer',r'<div[^>]+class="moveable-control-box',r'<div[^>]+class="selecto-selection',
+        for pattern in [r'<div[^>]+class="gesture-layer',
                         r'<style[^>]+data-styled-id',r'<div[^>]+class="notice"']:
             assert not re.search(pattern,text),(generation,pattern)
         sizes.append(len(text))
@@ -148,7 +148,7 @@ with sync_playwright() as p:
     assert card.evaluate('e=>getComputedStyle(e).outlineStyle')=='dashed'
     page.emulate_media(media='print')
     assert card.evaluate('e=>getComputedStyle(e).outlineStyle')=='none','Selected outline leaks into print'
-    assert page.evaluate("()=>[...document.querySelectorAll('.gesture-layer,.moveable-control-box,.selecto-selection,.toolbar')].every(e=>getComputedStyle(e).display==='none')")
+    assert page.evaluate("()=>[...document.querySelectorAll('.gesture-layer,.toolbar')].every(e=>getComputedStyle(e).display==='none')")
     page.emulate_media(media='screen')
     print('PASS '+engine+': selection outlines, handles and toolbar are hidden in print')
 

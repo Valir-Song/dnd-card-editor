@@ -1,4 +1,4 @@
-"""Regression suite for Moveable + Selecto against the actual standalone HTML.
+"""Regression suite for the gesture layer against the actual standalone HTML.
 Run independently for Chromium and Firefox via EDITOR_BROWSER.
 """
 import json
@@ -68,11 +68,11 @@ with sync_playwright() as p:
     assert abs(current('test-image')['x']-before_image['x'])<.1
     page.locator('#redo').click()
     assert abs(current('test-shape')['x']-after_shape['x'])<.2
-    print('PASS '+browser_name+': Moveable group drag, geometry, one-step undo/redo')
+    print('PASS '+browser_name+': group drag, geometry, one-step undo/redo')
     # Group resize must update both selected objects proportionally. Unlike
     # a saved group, this is a temporary editing selection on one A4 page.
     group_handle=page.locator('.gesture-frame:not([hidden]) [data-dir="se"]').last
-    assert group_handle.count()==1, 'Moveable group resize handle missing'
+    assert group_handle.count()==1, 'gesture-layer group resize handle missing'
     before_group_shape=current('test-shape').copy()
     before_group_image=current('test-image').copy()
     gx,gy=center(group_handle)
@@ -82,7 +82,7 @@ with sync_playwright() as p:
     page.locator('#undo').click()
     assert abs(current('test-shape')['w']-before_group_shape['w'])<.1
     assert abs(current('test-image')['w']-before_group_image['w'])<.1
-    print('PASS '+browser_name+': Moveable temporary group resize, one-step undo')
+    print('PASS '+browser_name+': temporary group resize, one-step undo')
     # Explicitly remove the second target, preserving group-drag semantics when
     # clicking a selected member. Then resize a single target.
     img.click(modifiers=['Shift'],position={'x':10,'y':10})
@@ -90,13 +90,13 @@ with sync_playwright() as p:
     # Single resize from the bottom right handle: it must update physical mm.
     shape.click(position={'x':12,'y':10})
     handles=page.locator('.gesture-frame:not([hidden]) [data-dir="se"]')
-    assert handles.count()>0, 'No Moveable southeast handle'
+    assert handles.count()>0, 'No gesture-layer southeast handle'
     handle=handles.last
     hx,hy=center(handle)
     original_w=current('test-shape')['w']
     drag(hx,hy,31,22)
     assert current('test-shape')['w']>original_w+2,(original_w,current('test-shape'),errors)
-    print('PASS '+browser_name+': Moveable resizing persists object dimensions')
+    print('PASS '+browser_name+': resizing persists object dimensions')
     # Drag a marquee from empty page background around shape and image.
     page_rect=page.locator('#page1').bounding_box()
     scale=page_rect['width']/210
@@ -106,7 +106,7 @@ with sync_playwright() as p:
     assert shape.evaluate('e=>e.classList.contains("selected")')
     assert img.evaluate('e=>e.classList.contains("selected")')
     assert page.locator('#selectionCount').inner_text()=='Выбрано: 2'
-    print('PASS '+browser_name+': Selecto marquee selection on empty page')
+    print('PASS '+browser_name+': marquee selection on empty page')
     # On a printed sheet no editing affordance may remain visible.
     page.emulate_media(media='print')
     assert page.locator('.gesture-layer').first.evaluate('e=>getComputedStyle(e).display')=='none'
@@ -120,7 +120,7 @@ with sync_playwright() as p:
     page.locator('#undo').click()
     assert page.locator('[data-id="test-shape"]').count()==1
     assert page.locator('[data-id="test-image"]').count()==1
-    # Tiptap editing must not trigger Moveable drag or accidental selection.
+    # Tiptap editing must not trigger gesture-layer drag or accidental selection.
     field=page.locator('[data-id="test-text"] .tiptap-content')
     previous=current('test-text')
     field.click()
@@ -135,7 +135,7 @@ with sync_playwright() as p:
     page.keyboard.type(' + правка')
     assert 'правка' in title.inner_text()
     # Badge movement remains a card-local special case. Text-frame grips,
-    # however, have been replaced with nested Moveable handles.
+    # however, have been replaced with text-frame handles.
     badge=page.locator('[data-id="test-card"] .level')
     card_before=current('test-card').copy()
     bx,by=center(badge)
@@ -146,17 +146,17 @@ with sync_playwright() as p:
     title.click()
     wrap=page.locator('[data-id="test-card"] .text-wrap[data-field="title"]')
     assert wrap.evaluate('e=>e.classList.contains("inner-selected")')
-    assert page.locator('.dnd-inner-moveable [data-direction="se"]').count()>0
+    assert page.locator('.gesture-frame.inner:not([hidden]) [data-dir="se"]').count()>0
     assert page.locator('[data-id="test-card"] .text-grip').count()==0
-    handle=page.locator('.dnd-inner-moveable [data-direction="se"]:visible').last
+    handle=page.locator('.gesture-frame.inner:not([hidden]) [data-dir="se"]').last
     handle.wait_for(state='visible')
     fx,fy=center(handle)
     drag(fx,fy,18,10)
     frame=current('test-card').get('textFrames',{}).get('title',{})
-    assert frame.get('w',0)>8 and frame.get('h',0)>3,('Nested Moveable resize failed',frame,errors)
+    assert frame.get('w',0)>8 and frame.get('h',0)>3,('Text-frame resize failed',frame,errors)
     assert current('test-card')['x']==card_before['x']
     assert not errors,errors
-    print('PASS '+browser_name+': Tiptap, badge and nested Moveable resize plus multi-delete undo')
+    print('PASS '+browser_name+': Tiptap, badge and text-frame resize plus multi-delete undo')
     page.locator('[data-tab="files"]').click()
     with page.expect_download() as outcome:
         page.locator('#export').click()
