@@ -367,13 +367,16 @@ with sync_playwright() as p:
     assert page.locator('.el.selected').count()==0
     page.locator('.el[data-id="a"]').click(); page.wait_for_timeout(50)
     p1=page.locator('#page1').bounding_box()
+    page.evaluate("""()=>{window.__events=[];for(const t of ['pointerdown','pointermove','pointerup','pointercancel','lostpointercapture',
+      'mousedown','mouseup','dragstart','selectstart','click'])window.addEventListener(t,e=>{const l=window.__events;
+      if(l.length<60&&(t!=='pointermove'||!l.length||!l[l.length-1].startsWith('pointermove')))l.push(t+(e.pointerId!==undefined?'#'+e.pointerId:'')+(e.shiftKey?'+shift':'')+':'+(e.target.id||e.target.className||e.target.tagName))},true)}""")
     page.keyboard.down('Shift')
     page.mouse.move(p1['x']+110*k,p1['y']+140*k); page.mouse.down()
     page.mouse.move(p1['x']+160*k,p1['y']+180*k,steps=6); page.mouse.up(); page.keyboard.up('Shift')
     page.wait_for_timeout(100)
     state=page.evaluate("""()=>({selected:[...document.querySelectorAll('.el.selected')].map(e=>e.dataset.id),
       count:document.getElementById('selectionCount').textContent,
-      marqueeHidden:document.querySelector('.gesture-marquee').hidden})""")
+      marqueeHidden:document.querySelector('.gesture-marquee').hidden,events:window.__events})""")
     assert state['selected']==['a','b'] and state['count']=='Выбрано: 2',('Shift+marquee must add b to a',state)
     assert not page.errors,page.errors
     context.close()
