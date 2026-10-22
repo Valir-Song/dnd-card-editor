@@ -38,7 +38,12 @@ def stored(page):
     return page.evaluate(f"()=>localStorage.getItem('{KEY}')")
 
 def handle_offset(page,element):
-    """Distance in px between the element's bottom-right corner and Moveable's SE handle."""
+    """Distance in px between the element's bottom-right corner and Moveable's SE handle.
+    Moveable draws handles on a later frame, so wait for a visible one and let two
+    animation frames pass before measuring (slow CI runners need it)."""
+    page.wait_for_function("""()=>[...document.querySelectorAll('.moveable-control-box .moveable-se')]
+      .some(n=>{const r=n.getBoundingClientRect();return r.width>0&&r.height>0})""",timeout=5000)
+    page.evaluate("()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
     return page.evaluate("""e=>{
       const r=e.getBoundingClientRect();
       const h=[...document.querySelectorAll('.moveable-control-box .moveable-se')]
