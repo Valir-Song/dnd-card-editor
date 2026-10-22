@@ -4,9 +4,14 @@ export function setupFiles({ getItems, setItems, getSelected, getSelectionIds, c
 // Snapshot unmodified source DOM once, before dynamic panels and Tiptap mount.
 // Exporting the live DOM would serialize editor internals and break reloading.
 const pristine=document.documentElement.cloneNode(true);
+// Moveable and Selecto attach their overlays and generated <style> tags while the
+// editor starts, before this snapshot. Strip them so each exported generation
+// starts from the same clean markup instead of accumulating stale copies.
+const RUNTIME_NODES='.moveable-control-box, .selecto-selection, style[data-styled-id], #notices > *';
+function cleanExport(doc){doc.querySelectorAll(RUNTIME_NODES).forEach(node=>node.remove());return doc}
 function download(name,content,type){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
 document.getElementById('save').onclick=()=>{alert(persist()?'Сохранено в браузере. Для надёжного переноса нажми «Скачать HTML».':'Не удалось сохранить в браузере: макет не помещается в хранилище. Нажми «Скачать HTML» или «JSON», чтобы не потерять работу.')};
-document.getElementById('export').onclick=()=>{persist();const doc=pristine.cloneNode(true);// Rebuild tab listeners when a downloaded copy opens again.
+document.getElementById('export').onclick=()=>{persist();const doc=cleanExport(pristine.cloneNode(true));// Rebuild tab listeners when a downloaded copy opens again.
 // The pristine source already contains original toolbar nodes.
 for(const id of ['cardBgTools','imageTools']){const node=doc.querySelector('#'+id);if(node)node.style.display='none'}
 for(const id of ['undo','redo']){const node=doc.querySelector('#'+id);if(node)node.disabled=true}
