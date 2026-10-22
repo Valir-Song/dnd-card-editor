@@ -17,7 +17,9 @@ import { createSnapSettings } from './editor/snapping.js';
 import { createStore } from './editor/store.js';
 
 // State and DOM rendering remain together to minimize v3 regressions.
-const key='dnd-card-editor-v3',recoveryKey=key+'-recovery',metaKey=key+'-meta',previousKey=key+'-previous';let items;
+const key='dnd-card-editor-v3',recoveryKey=key+'-recovery',metaKey=key+'-meta',previousKey=key+'-previous';
+/** @type {import('./types/layout').Item[]} */
+let items;
 const notices=createNotices(document.getElementById('notices'));
 const initialNode=document.getElementById('initial');
 const embedded=normalizeLayout(JSON.parse(initialNode.textContent)).items||[];
@@ -193,7 +195,7 @@ const snapOf=item=>JSON.stringify(item);
 const withoutGeometry=item=>JSON.stringify(item,(k,v)=>GEOMETRY.includes(k)?undefined:v);
 // Text edited in Tiptap (or the badge) is already on screen: just record it.
 function markRendered(item){const r=rendered.get(item.id);if(r)r.snap=snapOf(item)}
-function buildElement(item){const e=document.createElement('div');e.className='el '+(item.kind==='image'?'image-el':item.kind==='shape'?'shape '+(item.shape||'rect'):item.kind);e.dataset.id=item.id;e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);e.style.height=mm(item.h);if(item.bg&&item.kind!=='textbox')e.style.backgroundColor=item.bg;if(item.kind==='card'&&item.bgImage){const bi=document.createElement('img');bi.className='card-bg-image';bi.src=item.bgImage;bi.draggable=false;bi.style.objectFit=item.bgFit||'cover';bi.style.opacity=(item.bgOpacity??100)/100;bi.style.transform=`translate(${item.bgX||0}%,${item.bgY||0}%) scale(${(item.bgZoom??100)/100})`;e.append(bi);const shade=document.createElement('div');shade.className='card-bg-shade';shade.style.opacity=(item.bgShade||0)/100;e.append(shade)}if(item.kind==='card'){/* Цветовые полосы отключены */}if(item.kind==='shape'){e.style.backgroundColor=item.bg||'#d8c5ed';if(item.shape==='line')e.style.height='2px'}if(item.kind==='image'){const im=document.createElement('img');im.src=item.src;im.draggable=false;im.style.objectFit=item.fit||'contain';im.style.filter=`brightness(${item.brightness??100}%) contrast(${item.contrast??100}%)`;im.style.transform=`rotate(${item.rotation||0}deg)`;e.style.opacity=(item.opacity??100)/100;e.append(im)}if(item.kind==='textbox'){
+function buildElement(item){const e=document.createElement('div');e.className='el '+(item.kind==='image'?'image-el':item.kind==='shape'?'shape '+(item.shape||'rect'):item.kind);e.dataset.id=item.id;e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);e.style.height=mm(item.h);if(item.bg&&item.kind!=='textbox')e.style.backgroundColor=item.bg;if(item.kind==='card'&&item.bgImage){const bi=document.createElement('img');bi.className='card-bg-image';bi.src=item.bgImage;bi.draggable=false;bi.style.objectFit=item.bgFit||'cover';bi.style.opacity=String((item.bgOpacity??100)/100);bi.style.transform=`translate(${item.bgX||0}%,${item.bgY||0}%) scale(${(item.bgZoom??100)/100})`;e.append(bi);const shade=document.createElement('div');shade.className='card-bg-shade';shade.style.opacity=String((item.bgShade||0)/100);e.append(shade)}if(item.kind==='card'){/* Цветовые полосы отключены */}if(item.kind==='shape'){e.style.backgroundColor=item.bg||'#d8c5ed';if(item.shape==='line')e.style.height='2px'}if(item.kind==='image'){const im=document.createElement('img');im.src=item.src;im.draggable=false;im.style.objectFit=item.fit||'contain';im.style.filter=`brightness(${item.brightness??100}%) contrast(${item.contrast??100}%)`;im.style.transform=`rotate(${item.rotation||0}deg)`;e.style.opacity=String((item.opacity??100)/100);e.append(im)}if(item.kind==='textbox'){
   e.classList.toggle('auto-height',!!item.autoHeight);
   e.style.height=item.autoHeight?'auto':mm(item.h);
   e.style.maxHeight=item.autoHeight?mm(297-item.y):'';

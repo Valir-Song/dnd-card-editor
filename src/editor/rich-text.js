@@ -15,6 +15,7 @@ const fonts=['Georgia','Arial','Times New Roman','Verdana','Courier New'];
 const safeText=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 const pxToPoints=px=>Math.round(parseFloat(px)*0.75*10)/10;
 
+/** @param {import('../types/layout').Deps} deps */
 export function createRichText({current,select,store,selectText=select}){
   const mounted=new Map();
   let activeKey=null,selection=null,silent=false;

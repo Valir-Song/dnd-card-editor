@@ -2,6 +2,13 @@
  * In-memory layout history. Each meaningful gesture is one checkpoint.
  * Text typing and sliders can coalesce adjacent updates with a group key.
  * Snapshots are immutable strings, so undo never references a mutated object.
+ * @param {object} options
+ * @param {() => import('../types/layout').Item[]} options.read
+ * @param {(items: import('../types/layout').Item[]) => void} options.restore
+ * @param {(status: {undo: boolean, redo: boolean, steps: number}) => void} [options.onChange]
+ * @param {number} [options.limit]
+ * @param {number} [options.maxBytes]
+ * @param {() => number} [options.now]
  */
 export function createHistory({read, restore, onChange=()=>{}, limit=60, maxBytes=48*1024*1024, now=()=>Date.now()}) {
   let snapshots=[JSON.stringify(read())];
@@ -9,6 +16,7 @@ export function createHistory({read, restore, onChange=()=>{}, limit=60, maxByte
   let cursor=0;
   const status=()=>({undo:cursor>0, redo:cursor<snapshots.length-1, steps:cursor});
   function notify(){onChange(status())}
+  /** @param {import('../types/layout').CommitOptions} [options] */
   function commit({group=null, windowMs=850}={}) {
     const state=JSON.stringify(read());
     if(state===snapshots[cursor])return false;

@@ -1,5 +1,6 @@
 // Background, border and geometry controls for Tiptap-backed text boxes.
 // All typography is controlled by the shared Tiptap toolbar.
+/** @param {import('../types/layout').Deps} deps */
 export function setupTextBoxes({addObject,current,store}) {
   const group=document.getElementById('textBoxTools');
   const fields={

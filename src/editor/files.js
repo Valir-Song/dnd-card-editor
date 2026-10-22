@@ -1,5 +1,7 @@
 // Persistence, import/export, and delete shortcuts.
+import { target } from './dom.js';
 import { normalizeLayout } from './layout.js';
+/** @param {import('../types/layout').Deps} deps */
 export function setupFiles({ store, getSelectionIds, clearSelection, syncImageTools, syncBgTools }) {
 // Snapshot unmodified source DOM once, before dynamic panels and Tiptap mount.
 // Exporting the live DOM would serialize editor internals and break reloading.
@@ -18,7 +20,7 @@ const initial=doc.querySelector('#initial');initial.textContent=JSON.stringify(s
 document.getElementById('json').onclick=()=>download('Ричард_макет_2.json',JSON.stringify(store.items,null,2),'application/json');
 // Validate and render an imported layout before it replaces the current one or
 // reaches localStorage; a bad file must leave the editor exactly as it was.
-document.getElementById('import').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{
+document.getElementById('import').onchange=async e=>{const f=target(e).files[0];if(!f)return;try{
   let data;
   try{data=JSON.parse(await f.text())}catch(err){throw Error('Файл не является корректным JSON.')}
   const {items,errors}=normalizeLayout(data);
@@ -28,7 +30,7 @@ document.getElementById('import').onchange=async e=>{const f=e.target.files[0];i
   // A layout that fails to render is neither recorded nor saved; put the old one back.
   try{store.change(()=>items)}catch(err){store.replace(previous);store.render();throw Error('Макет не удалось отрисовать: '+err.message)}
   syncImageTools();syncBgTools()
-}catch(err){alert('Импорт отменён, текущий макет не изменён.\n\n'+err.message)}finally{e.target.value=''}};
+}catch(err){alert('Импорт отменён, текущий макет не изменён.\n\n'+err.message)}finally{target(e).value=''}};
 document.getElementById('print').onclick=()=>window.print();
-document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&getSelectionIds().length&&!e.target.isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)){const deleted=new Set(getSelectionIds());clearSelection();store.change(items=>items.filter(x=>!deleted.has(x.id)));syncImageTools();syncBgTools()}});
+document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&getSelectionIds().length&&!target(e).isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(target(e).tagName)){const deleted=new Set(getSelectionIds());clearSelection();store.change(items=>items.filter(x=>!deleted.has(x.id)));syncImageTools();syncBgTools()}});
 }

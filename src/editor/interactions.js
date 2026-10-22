@@ -1,5 +1,6 @@
 // The only remaining special-case gesture is the spell-level badge.
 // All other geometry is on the gesture layer: canvas-controls.js and inner-canvas.js.
+/** @param {import('../types/layout').Deps} deps */
 export function createInnerInteractions({select,store,mm}) {
   function startBadgeDrag(event,item,element,badge) {
     if(event.button!==0)return;
