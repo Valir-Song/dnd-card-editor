@@ -142,7 +142,23 @@ with sync_playwright() as p:
   # A fresh click on a child from the moved card re-enters its inner editing mode.
   title.locator('.tiptap-content').click()
   assert title.evaluate('e=>e.classList.contains("inner-selected")')
-  assert handle().count()==1
+  try:
+    handle().wait_for(state='visible',timeout=2000)
+  except Exception:
+    print('DIAGNOSTIC reselect',page.evaluate("""() => ({
+      nestedSelected: [...document.querySelectorAll('.text-wrap.inner-selected')].map(n=>n.dataset.field),
+      innerBoxes: [...document.querySelectorAll('.dnd-inner-moveable')].map(n=>({
+        display:getComputedStyle(n).display,
+        html:n.outerHTML.slice(0,400),
+        rect:n.getBoundingClientRect().toJSON()
+      })),
+      controls:[...document.querySelectorAll('.dnd-inner-moveable [data-direction="se"]')].map(n=>({
+        display:getComputedStyle(n).display,
+        parentDisplay:getComputedStyle(n.closest('.dnd-inner-moveable')).display,
+        rect:n.getBoundingClientRect().toJSON()
+      }))
+    })"""))
+    raise
   assert card.locator('.tiptap-content').count()==3
   page.emulate_media(media='print')
   assert page.locator('.dnd-inner-moveable').first.evaluate('e=>getComputedStyle(e).display')=='none'
