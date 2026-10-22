@@ -39,6 +39,11 @@ export function createHistory({read, restore, onChange=()=>{}, limit=60, maxByte
     notify();
     return true;
   }
+  // Forget all checkpoints, e.g. after replacing a damaged saved layout at startup.
+  function reset(){
+    snapshots=[JSON.stringify(read())]; metadata=[null]; cursor=0;
+    notify();
+  }
   notify();
-  return {commit,undo:()=>move(-1),redo:()=>move(1),status};
+  return {commit,undo:()=>move(-1),redo:()=>move(1),reset,status};
 }

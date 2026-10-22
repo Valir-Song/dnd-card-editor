@@ -49,7 +49,9 @@ export function setupToolbarTabs() {
   // Keep live multi-selection status when rebuilding the toolbar into tabs.
   const selectionCount=toolbar.querySelector('#selectionCount');
   if(selectionCount)top.append(selectionCount);
-  toolbar.replaceChildren(top,tablist,content);
+  // Warnings live under the tabs so they stay visible with the sticky toolbar.
+  const notices=toolbar.querySelector('#notices');
+  toolbar.replaceChildren(top,tablist,content,...(notices?[notices]:[]));
   function activate(index,focus=false){
     buttons.forEach((button,i)=>{
       const active=i===index;

@@ -119,3 +119,13 @@
 
 /* A Moveable border line sometimes overlays a corner handle. Reserve hit tests for the handles. */
 .moveable-control-box .moveable-line{pointer-events:none!important}
+
+/* 3.3.1: persistent warnings (storage full, damaged save) under the toolbar. */
+.notices:empty{display:none}
+.notices{display:flex;flex-direction:column;gap:1px;background:#29253a}
+.notice{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 12px;background:#fff1d6;color:#4a3410;border-left:4px solid #c7832a;font:13px/1.4 Arial,sans-serif}
+.notice span{flex:1 1 320px}
+.notice button{background:white;border:1px solid #d6b47c;border-radius:6px;padding:5px 9px;color:#4a3410;cursor:pointer;font:inherit}
+.notice button:hover{border-color:#a8742a}
+.notice .notice-close{border:0;background:transparent;font-size:18px;line-height:1;padding:2px 6px}
+@media print{.notices{display:none!important}}

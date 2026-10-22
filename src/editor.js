@@ -9,13 +9,24 @@ import { setupObjects } from './editor/objects.js';
 import { setupFiles } from './editor/files.js';
 import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
+import { normalizeLayout } from './editor/layout.js';
+import { createNotices } from './editor/notice.js';
 
 // State and DOM rendering remain together to minimize v3 regressions.
-const key='dnd-card-editor-v3';let items;
-const embedded=JSON.parse(document.getElementById('initial').textContent);
-try{const s=localStorage.getItem(key);items=s?JSON.parse(s):embedded}catch(e){items=embedded}
+const key='dnd-card-editor-v3',recoveryKey=key+'-recovery';let items;
+const notices=createNotices(document.getElementById('notices'));
+const embedded=normalizeLayout(JSON.parse(document.getElementById('initial').textContent)).items||[];
+// A damaged save must never lock the user out: fall back to the embedded layout
+// and keep the raw data so it can be downloaded and repaired.
+let stored=null,damagedSave=null;
+try{stored=localStorage.getItem(key)}catch(e){console.warn('Browser storage is unavailable',e)}
+if(stored){
+  let result;
+  try{result=normalizeLayout(JSON.parse(stored))}catch(e){result={items:null,errors:['Данные не являются корректным JSON.']}}
+  if(result.items)items=result.items;else damagedSave={raw:stored,errors:result.errors};
+}
+items ||= structuredClone(embedded);
 let selected=null, activePage=1;
-items.forEach((v,i)=>{if(!Number.isFinite(v.z))v.z=i+1});
 
 // Convert the old top-right default on saved cards; preserve manual positions.
 let migratedBadges=false;
@@ -24,11 +35,33 @@ for(const item of items){
     delete item.badgeX;delete item.badgeY;migratedBadges=true;
   }
 }
-if(migratedBadges){try{localStorage.setItem(key,JSON.stringify(items))}catch(e){console.warn('Could not save badge migration',e)}}
+if(migratedBadges&&!damagedSave){try{localStorage.setItem(key,JSON.stringify(items))}catch(e){console.warn('Could not save badge migration',e)}}
 
 const pages=[document.getElementById('page1'),document.getElementById('page2')];
 const mm=v=>v+'mm',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function saveToStorage(){try{localStorage.setItem(key,JSON.stringify(items))}catch(e){console.warn('Storage limit exceeded: export HTML to save',e)}}
+function saveToStorage(){
+  try{localStorage.setItem(key,JSON.stringify(items));notices.hide('storage');return true}
+  catch(e){
+    console.warn('Storage limit exceeded: export HTML to save',e);
+    notices.show('storage','Макет не помещается в хранилище браузера (обычно из-за крупных картинок), поэтому последние изменения не сохранены: после перезагрузки откроется предыдущая версия. Скачайте HTML или JSON, чтобы не потерять работу.',[
+      {label:'Скачать HTML',onClick:()=>document.getElementById('export').click()},
+      {label:'Скачать JSON',onClick:()=>document.getElementById('json').click()}
+    ]);
+    return false;
+  }
+}
+function reportDamagedSave(){
+  if(!damagedSave)return;
+  try{localStorage.setItem(recoveryKey,damagedSave.raw)}catch(e){console.warn('Could not keep a copy of the damaged layout',e)}
+  console.warn('Damaged saved layout replaced by the template',damagedSave.errors);
+  notices.show('damaged','Сохранённый в браузере макет повреждён и не открывается, поэтому загружен исходный шаблон. Скачайте копию повреждённых данных, прежде чем вносить изменения: при следующем сохранении она будет заменена.',[
+    {label:'Скачать повреждённый JSON',onClick:()=>{
+      const url=URL.createObjectURL(new Blob([damagedSave.raw],{type:'application/json'}));
+      const a=document.createElement('a');a.href=url;a.download='Ричард_макет_повреждённый.json';a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+    }}
+  ]);
+}
 const history=createHistory({read:()=>items,restore:restored=>{
   const focusedRich=rich.active();
   const wasEditing=!!document.activeElement?.classList?.contains('tiptap-content');
@@ -43,7 +76,7 @@ const history=createHistory({read:()=>items,restore:restored=>{
   document.getElementById('undo').disabled=!undo;
   document.getElementById('redo').disabled=!redo;
 }});
-function persist(options){history.commit(options);saveToStorage()}
+function persist(options){history.commit(options);return saveToStorage()}
 function navigateHistory(direction){
   // Edits are already saved on every input event; no pending DOM changes.
   return direction==='undo'?history.undo():history.redo();
@@ -110,5 +143,12 @@ setupObjects({addCard,addObject,current,getItems,setItems,getSelected,getSelecti
 setupLayers({current,getItems,getSelected,persist,draw,select});
 setupFiles({getItems,setItems,getSelected,getSelectionIds,clearSelection,persist,draw,syncImageTools,syncBgTools});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
-draw();
+try{draw()}catch(error){
+  // Valid-looking data can still fail to render; recover the same way.
+  if(!stored||damagedSave)throw error;
+  damagedSave={raw:stored,errors:[error.message]};
+  items=structuredClone(embedded);selected=null;
+  history.reset();draw();
+}
 setupToolbarTabs();
+reportDamagedSave();
