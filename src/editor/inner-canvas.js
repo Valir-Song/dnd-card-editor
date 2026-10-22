@@ -16,7 +16,9 @@ export function createInnerCanvas({pages,getItems,persist,mm,selectParent}) {
   const currentTargets=()=>fields.map(field=>nodeFor(parentId,field)).filter(Boolean);
   const frame=(item,field)=>{item.textFrames ||= {};item.textFrames[field] ||= {};return item.textFrames[field]};
   const selected=()=>fields.length>0;
-  const moveable=new Moveable(document.body,{
+  // Same container as the page-level Moveable, so handles scroll with the pages.
+  const stage=pages[0].closest('.stage')||document.body;
+  const moveable=new Moveable(stage,{
     // edgeDraggable activates only with draggable:false (Moveable contract).
     // Tiptap keeps ordinary text clicks; border gesture runs Moveable Drag.
     target:[],draggable:false,resizable:true,origin:false,
@@ -45,6 +47,8 @@ export function createInnerCanvas({pages,getItems,persist,mm,selectParent}) {
     });
   };
   const textSizeObserver=new ResizeObserver(scheduleRect);
+  window.addEventListener('resize',scheduleRect);
+  stage.addEventListener('scroll',scheduleRect,{passive:true});
   function sync() {
     const chosen=new Set(fields);
     for(const page of pages)for(const wrap of page.querySelectorAll('.text-wrap')){

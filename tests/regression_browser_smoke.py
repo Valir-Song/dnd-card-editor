@@ -160,9 +160,16 @@ with sync_playwright() as p:
     page.wait_for_timeout(100)
     assert page.locator('.stage').evaluate('s=>s.scrollLeft')>0,'Stage should scroll horizontally on narrow screens'
     assert handle_offset(page,card)<2,'Handles stale after stage scroll'
+    # The nested text-frame Moveable must follow the same scroll.
+    title=card.locator('.text-wrap[data-field="title"]')
+    title.locator('.tiptap-content').click()
+    assert handle_offset(page,title)<2
+    page.locator('.stage').evaluate('s=>{s.scrollLeft=40}')
+    page.wait_for_timeout(100)
+    assert handle_offset(page,title)<2,'Nested text-frame handles stale after stage scroll'
     assert not page.errors,page.errors
     context.close()
-    print('PASS '+engine+': Moveable handles follow window resize and stage scrolling')
+    print('PASS '+engine+': card and text-frame handles follow window resize and stage scrolling')
 
     browser.close()
 print('All 3.3.1 regression checks passed for '+engine)
