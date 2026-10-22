@@ -233,6 +233,8 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     // otherwise start extending a text selection and cancel the pointer.
     ev.preventDefault();
     if (document.activeElement?.closest?.('.page')) document.activeElement.blur();
+    // Capture so the release always comes back here, whatever the browser starts.
+    try { entry.page.setPointerCapture(ev.pointerId); } catch (error) { /* synthetic or already released */ }
     const from = toMm(entry.page, ev), additive = ev.shiftKey, before = ids.slice();
     const pageNumber = Number(entry.page.dataset.page);
     let moved = false;
@@ -262,6 +264,11 @@ export function createCanvasControls({pages, getItems, onSelection, persist, mm,
     window.addEventListener('pointercancel', up, true);
   }
 
+  // Firefox starts its own (Shift-)selection on the compatibility mousedown,
+  // which pointerdown's preventDefault does not stop: cancel it on blank sheet.
+  layers.forEach(({page}) => page.addEventListener('mousedown', e => {
+    if (e.button === 0 && !e.target.closest?.('.el')) e.preventDefault();
+  }, true));
   // Capture phase: decide before Tiptap's own pointerdown handlers run.
   layers.forEach(entry => entry.page.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
