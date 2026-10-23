@@ -40,7 +40,9 @@
 |---|---|
 | `index.html` | разметка панели и двух страниц; `__STARTER_DATA__` → стартовый макет при сборке; `<meta name="editor-version">` |
 | `src/starter-layout.json` | стартовый макет (28 объектов) |
-| `src/editor.js` | состояние `items`, загрузка/сохранение, отрисовка по `id`, создание store, связывание модулей |
+| `src/editor.js` | состояние `items`, фоновая запись и предупреждения о макете, создание store, связывание модулей |
+| `src/editor/startup.js` | какой макет открыть при запуске: перенос сохранения 3.2–3.8, своя запись или макет файла, `checkSaved`, ключи `dnd-card-editor-v3*` |
+| `src/editor/render.js` | отрисовка по `id`: `buildElement`, `patchGeometry`, `draw`, `markRendered`; вызывает её только store |
 | `src/editor/store.js` | **«секретарь»: единственный путь изменения макета** (см. ниже) |
 | `src/editor/history.js` | отмена/повтор на снимках-строках; картинки в пуле по одному разу |
 | `src/editor/canvas-controls.js` | слой жестов листа: выделение, рамка, 8 ручек, полосы за краем, перетаскивание, размер, рамка-выделение, привязка |
@@ -112,7 +114,7 @@
   более свежее, второе доступно из предупреждения. У чистого файла `data-saved-at` нет → побеждает запись.
 - IndexedDB вмещает сотни МБ; localStorage ~5 МБ. При ошибке записи — предупреждение и «⚠ Не сохранено».
   Надёжное хранение — по-прежнему «Скачать HTML».
-- `editor.js` начинается с `await` (открыть хранилище и прочитать сохранение): модуль с top-level await,
+- `editor.js` начинается с `await` (открыть хранилище, `loadStartupLayout` из startup.js): модуль с top-level await,
   сборка Vite это поддерживает.
 
 ### Store («секретарь»)
@@ -123,11 +125,11 @@
   цвет фона): отметить отрисованным, без перерисовки, шаг → сохранение.
 - Если перерисовка бросила исключение — ни шага, ни сохранения (на этом стоит защита импорта).
 - `store.replace` + `store.render` — без шага (откат импорта, восстановление при отмене).
-- Тест в `source.test.mjs` запрещает модулям вызывать `persist/draw/setItems/markRendered/saveToStorage`
-  и `history.commit` напрямую. Новые модули получают `store` через параметры и описывают их
+- Тест в `source.test.mjs` запрещает модулям (кроме `store`, `history`, `render`) вызывать
+  `persist/draw/setItems/markRendered/saveToStorage` и `history.commit` напрямую. Новые модули получают `store` через параметры и описывают их
   JSDoc-типом `import('../types/layout').Deps`.
 
-### Отрисовка (инкрементальная)
+### Отрисовка (инкрементальная, `render.js`)
 - `rendered: Map(id → {node, snap})`, `snap = JSON.stringify(item)`.
 - При `draw()`: снимок совпал → узел остаётся (Tiptap переподключается `rich.rebind`); изменилась только
   геометрия (`GEOMETRY = x,y,w,h,z,textFrames,badgeX,badgeY,badgeCustomPosition`) → `patchGeometry`;
@@ -135,7 +137,7 @@
 - **Любое не-геометрическое поле, изменённое без `store.shown`, пересоздаёт элемент и уничтожает его
   редакторы Tiptap** (теряется фокус/курсор). Правка, которая сама обновила DOM, — через `store.shown`.
 - Новое поле, которое меняется жестом и патчится на месте, добавлять и в `GEOMETRY`, и в `patchGeometry`.
-- `draw()` в конце зовёт `canvas.afterDraw()`, `innerCanvas.afterDraw()`, `syncTextBoxTools()`.
+- `draw()` в конце зовёт `afterDraw` из editor.js: `canvas.afterDraw()`, `innerCanvas.afterDraw()`, `syncTextBoxTools()`.
 
 ### Слой жестов
 - События указателя в фазе захвата на `.page`; поверх каждой страницы `.gesture-layer` внутри `.stage`,
@@ -241,7 +243,7 @@ PNG в репозитории нет специально: шрифты здес
   несжатой, а не падает).
 
 ## Стиль кода
-- Подражать окружающему коду. Старые модули (`editor.js`, `objects.js`, `files.js`, `layers.js` …) —
+- Подражать окружающему коду. Старые модули (`editor.js`, `render.js`, `objects.js`, `files.js`, `layers.js` …) —
   плотные однострочники; новые (`canvas-controls`, `inner-canvas`, `geometry`, `snapping`, `store`,
   `images`) — обычное форматирование с пробелами. Не переформатировать чужое попутно.
 - Комментарии в коде — по-английски, коротко «зачем». Надписи интерфейса, README, PR — по-русски.

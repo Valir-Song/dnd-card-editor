@@ -12,21 +12,18 @@ import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
 import { normalizeLayout } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
-import { chooseStartupLayout, formatStamp, chooseLayout, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
+import { formatStamp, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
 import { setupClipboard } from './editor/clipboard.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
 import { openStorage, createSaver } from './editor/storage.js';
+import { loadStartupLayout, checkSaved, newLayoutId, RECOVERY_KEY } from './editor/startup.js';
+import { createRenderer } from './editor/render.js';
 
-// State and DOM rendering remain together to minimize v3 regressions.
-// Saves live in IndexedDB (see storage.js), one record per layout. Editors up to
-// 3.8 kept one save in localStorage under `legacyKey`: it is moved once into the
-// record 'default' and never deleted, so an older editor file still opens it.
-const legacyKey='dnd-card-editor-v3',recoveryKey=legacyKey+'-recovery',legacyMetaKey=legacyKey+'-meta',legacyMovedKey=legacyKey+'-moved';
-/** @type {import('./types/layout').Item[]} */
-let items;
+// Saves live in IndexedDB (see storage.js), one record per layout; startup.js
+// picks the one this file opens with.
 const notices=createNotices(document.getElementById('notices'));
 const initialNode=document.getElementById('initial');
 const embedded=normalizeLayout(JSON.parse(initialNode.textContent)).items||[];
@@ -34,69 +31,15 @@ const embeddedAt=initialNode.dataset.savedAt||null;
 // ?storage=local forces the localStorage fallback (tests cover both paths).
 const storage=await openStorage({prefer:new URLSearchParams(location.search).get('storage')});
 document.documentElement.dataset.storage=storage.kind;
-// A damaged save must never lock the user out: fall back to the embedded layout
-// and keep the raw data so it can be downloaded and repaired.
-/** @type {{raw: string, errors: string[]} | null} */
-let damagedSave=null;
-/** @param {unknown} data */
-const checkSaved=data=>typeof data==='string'?{items:null,errors:['Данные не являются корректным JSON.']}:normalizeLayout(data);
-async function moveLegacySave(){
-  let raw=null,at=null;
-  try{
-    if(localStorage.getItem(legacyMovedKey))return;
-    raw=localStorage.getItem(legacyKey);
-    at=JSON.parse(localStorage.getItem(legacyMetaKey)||'null')?.savedAt||null;
-  }catch(e){console.warn('Could not read the save of an older editor',e)}
-  if(raw===null)return;
-  const markMoved=()=>{try{localStorage.setItem(legacyMovedKey,new Date().toISOString())}catch(e){}};
-  let parsed=raw;try{parsed=JSON.parse(raw)}catch(e){}
-  const result=checkSaved(parsed);
-  if(!result.items){damagedSave={raw,errors:result.errors};markMoved();return}
-  try{
-    // 3.9.0-beta.1 moved it already, without the mark.
-    if(!await storage.load('default'))await storage.put({id:'default',name:layoutTitle(result.items),savedAt:at||new Date().toISOString(),items:result.items});
-    markMoved();
-  }catch(e){console.warn('Could not move the save of an older editor; will retry next time',e)}
-}
-await moveLegacySave();
-/** @type {import('./types/storage').LayoutMeta[]} */
-let saves=[];
-try{saves=await storage.list()}catch(e){console.warn('Could not list saved layouts',e)}
-const choice=chooseLayout({fileId:initialNode.dataset.layoutId||null,fileAt:embeddedAt,fileText:initialNode.textContent,saves,
-  newId:()=>'m-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)});
+const startup=await loadStartupLayout({storage,initialNode,embedded,embeddedAt});
+const {choice,saves,saved,storedAt,freshness}=startup;
+/** @type {import('./types/layout').Item[]} */
+let items=startup.items;
+let {damagedSave,saveAtStart}=startup;
 // The layout this file stands for; «Мои макеты» can switch the editor to another one.
 const fileLayoutId=choice.layoutId;
-let layoutId=fileLayoutId,layoutName=initialNode.dataset.layoutName||'';
-/** @type {import('./types/storage').StoredLayout | null} */
-let saved=null;
-let storedAt=null,freshness=null;
-if(choice.hasSave)try{saved=await storage.load(layoutId)}catch(e){console.warn('Could not read the saved layout',e)}
-if(saved){
-  storedAt=saved.savedAt||null;
-  layoutName=saved.name||layoutName;
-  const result=checkSaved(saved.items);
-  if(result.items){
-    freshness={...chooseStartupLayout({storedItems:result.items,storedAt,embeddedItems:embedded,embeddedAt}),storedItems:result.items};
-    if(freshness.source==='browser')items=result.items;
-    // The newer file wins, but the older browser save must survive the next autosave.
-    else storage.put({id:layoutId+':previous',name:(saved.name||layoutTitle(result.items))+' — до открытия файла',savedAt:storedAt||new Date().toISOString(),items:result.items})
-      .catch(e=>console.warn('Could not keep the previous browser layout',e));
-  }
-  else damagedSave={raw:typeof saved.items==='string'?saved.items:JSON.stringify(saved.items),errors:result.errors};
-}
-items ||= structuredClone(embedded);
+let layoutId=fileLayoutId,layoutName=startup.layoutName;
 let selected=null, activePage=1;
-
-// Convert the old top-right default on saved cards; preserve manual positions.
-let migratedBadges=false;
-for(const item of items){
-  if(item.kind==='card' && !item.badgeCustomPosition && item.badgeX===81.5 && item.badgeY===1.1){
-    delete item.badgeX;delete item.badgeY;migratedBadges=true;
-  }
-}
-layoutName||=layoutTitle(items);
-// Written once the saver exists (below).
-let saveAtStart=!damagedSave&&migratedBadges;
 
 const pages=[document.getElementById('page1'),document.getElementById('page2')];
 const mm=v=>v+'mm',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -147,7 +90,7 @@ document.getElementById('resetStorage').onclick=()=>{
   // A clean editor file opens its template as a new layout: the saved one stays in «Мои макеты».
   const clean=!initialNode.dataset.layoutId&&!embeddedAt;
   if(clean||layoutId!==fileLayoutId){
-    layoutId=clean?'m-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7):fileLayoutId;
+    layoutId=clean?newLayoutId():fileLayoutId;
     layoutName=initialNode.dataset.layoutName||layoutTitle(embedded);syncLayoutIdentity();
   }
   switchLayout(embedded);
@@ -194,7 +137,7 @@ function reportLayoutChoice(){
 }
 function reportDamagedSave(){
   if(!damagedSave)return;
-  try{localStorage.setItem(recoveryKey,damagedSave.raw)}catch(e){console.warn('Could not keep a copy of the damaged layout (it can still be downloaded from the notice)',e)}
+  try{localStorage.setItem(RECOVERY_KEY,damagedSave.raw)}catch(e){console.warn('Could not keep a copy of the damaged layout (it can still be downloaded from the notice)',e)}
   console.warn('Damaged saved layout replaced by the template',damagedSave.errors);
   notices.show('damaged','Сохранённый в браузере макет повреждён и не открывается, поэтому загружен исходный шаблон. Скачайте копию повреждённых данных, прежде чем вносить изменения: при следующем сохранении она будет заменена.',[
     {label:'Скачать повреждённый JSON',onClick:()=>{
@@ -219,7 +162,7 @@ const history=createHistory({read:()=>items,restore:restored=>{
   document.getElementById('redo').disabled=!redo;
 }});
 // Every layout edit goes through the store: redraw, undo step, save — see store.js.
-const store=createStore({get:()=>items,set:value=>{items=value},history,save:saveToStorage,render:draw,mark:item=>markRendered(item)});
+const store=createStore({get:()=>items,set:value=>{items=value},history,save:saveToStorage,render:()=>renderer.draw(),mark:item=>renderer.markRendered(item)});
 function navigateHistory(direction){
   // Edits are already saved on every input event; no pending DOM changes.
   return direction==='undo'?history.undo():history.redo();
@@ -275,74 +218,9 @@ canvas.attachInner(innerCanvas);
   snapping.onChange(show);show();
 }
 
-const pendingEditors=[];
-function setField(node,item,f){
-  node.className=f+' editable'+(item.kind==='textbox'?' textbox-editor':'');
-  node.dataset.field=f;
-  pendingEditors.push({node,item,field:f});
-}
-// ---- rendering: one element per object, rebuilt only when that object changed ----
-const rendered=new Map(); // id -> {node, snap}
-const itemById=id=>items.find(x=>x.id===id);
-// Geometry that gestures already applied to the node: patch styles, never rebuild.
-const GEOMETRY=['x','y','w','h','z','textFrames','badgeX','badgeY','badgeCustomPosition'];
-const snapOf=item=>JSON.stringify(item);
-const withoutGeometry=item=>JSON.stringify(item,(k,v)=>GEOMETRY.includes(k)?undefined:v);
-// Text edited in Tiptap (or the badge) is already on screen: just record it.
-function markRendered(item){const r=rendered.get(item.id);if(r)r.snap=snapOf(item)}
-function buildElement(item){const e=document.createElement('div');e.className='el '+(item.kind==='image'?'image-el':item.kind==='shape'?'shape '+(item.shape||'rect'):item.kind);e.dataset.id=item.id;e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);e.style.height=mm(item.h);if(item.bg&&item.kind!=='textbox')e.style.backgroundColor=item.bg;if(item.kind==='card'&&item.bgImage){const bi=document.createElement('img');bi.className='card-bg-image';bi.src=item.bgImage;bi.draggable=false;bi.style.objectFit=item.bgFit||'cover';bi.style.opacity=String((item.bgOpacity??100)/100);bi.style.transform=`translate(${item.bgX||0}%,${item.bgY||0}%) scale(${(item.bgZoom??100)/100})`;e.append(bi);const shade=document.createElement('div');shade.className='card-bg-shade';shade.style.opacity=String((item.bgShade||0)/100);e.append(shade)}if(item.kind==='card'){/* Цветовые полосы отключены */}if(item.kind==='shape'){e.style.backgroundColor=item.bg||'#d8c5ed';if(item.shape==='line')e.style.height='2px'}if(item.kind==='image'){const im=document.createElement('img');im.src=item.src;im.draggable=false;im.style.objectFit=item.fit||'contain';im.style.filter=`brightness(${item.brightness??100}%) contrast(${item.contrast??100}%)`;im.style.transform=`rotate(${item.rotation||0}deg)`;e.style.opacity=String((item.opacity??100)/100);e.append(im)}if(item.kind==='textbox'){
-  e.classList.toggle('auto-height',!!item.autoHeight);
-  e.style.height=item.autoHeight?'auto':mm(item.h);
-  e.style.maxHeight=item.autoHeight?mm(297-item.y):'';
-  e.style.backgroundColor=item.bgTransparent?'transparent':(item.bg||'#ffffff');
-  e.style.border=item.borderVisible?'1px solid '+(item.borderColor||'#745193'):'1px solid transparent';
-  const content=document.createElement('div');setField(content,item,'text');
-  content.style.fontFamily=item.fontFamily||'Georgia';
-  content.style.fontSize=(item.fontSize||12)+'pt';
-  content.style.fontWeight=item.textWeight||'normal';
-  content.style.textAlign=item.textAlign||'left';
-  content.style.color=item.textColor||'#262137';
-  e.append(content);
-  const grip=document.createElement('span');grip.className='textbox-move';
-  grip.textContent='⠿';grip.title='Перетащить текстовую рамку';
-  grip.addEventListener('pointerdown',ev=>canvas.startDrag(ev,item.id));
-  e.append(grip);
-}for(const f of ['title','subtitle','meta','detail'])if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h){wrap.style.height=mm(pos.h);wrap.classList.add('sized')}const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{const it=itemById(item.id);if(!it)return;it.level=badge.textContent;store.shown(it,{group:'badge:'+it.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,itemById(item.id),e,badge));e.append(badge)}return e}
-function patchGeometry(e,item){
-  e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);
-  if(item.kind==='textbox'){e.style.height=item.autoHeight?'auto':mm(item.h);e.style.maxHeight=item.autoHeight?mm(297-item.y):''}
-  else if(!(item.kind==='shape'&&item.shape==='line'))e.style.height=mm(item.h);
-  for(const wrap of e.querySelectorAll(':scope > .text-wrap')){
-    const pos=(item.textFrames||{})[wrap.dataset.field]||{};
-    wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;wrap.style.width=pos.w?mm(pos.w):'';wrap.style.height=pos.h?mm(pos.h):'';wrap.classList.toggle('sized',!!pos.h);
-  }
-  const badge=e.querySelector(':scope > .level');
-  if(badge){badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':''}
-}
-function draw(){
-  pendingEditors.length=0;
-  const seen=new Set(),last=new Map(); // page -> previous node, to keep DOM order = data order
-  for(const item of items){
-    seen.add(item.id);
-    const page=pages[(item.page||1)-1],snap=snapOf(item),r=rendered.get(item.id);
-    // Gestures move nodes directly, so geometry is re-applied even when unchanged.
-    if(r&&r.snap===snap){rich.rebind(item.id,item);patchGeometry(r.node,item)}
-    else if(r&&withoutGeometry(item)===withoutGeometry(JSON.parse(r.snap))){rich.rebind(item.id,item);patchGeometry(r.node,item);r.snap=snap}
-    else{
-      if(r){rich.unmount(item.id);r.node.remove()}
-      rendered.set(item.id,{node:buildElement(item),snap});
-    }
-    const node=rendered.get(item.id).node,prev=last.get(page);
-    const wanted=prev?prev.nextSibling:page.firstChild;
-    if(node!==wanted)page.insertBefore(node,wanted);
-    last.set(page,node);
-  }
-  for(const [id,r] of rendered)if(!seen.has(id)){rich.unmount(id);r.node.remove();rendered.delete(id)}
-  pages.forEach((p,i)=>{if(!p.querySelector(':scope > .page-number')){const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)}});
-  for(const entry of pendingEditors)rich.mount(entry.node,entry.item,entry.field);
-  canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools()}
-// Throw away every element and editor (recovery paths, before replacing all data).
-function resetRender(){rich.destroy();for(const r of rendered.values())r.node.remove();rendered.clear()}
+const renderer=createRenderer({pages,getItems:()=>items,store,rich,
+  startDrag:(event,id)=>canvas.startDrag(event,id),startBadgeDrag,
+  afterDraw:()=>{canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools()}});
 function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
 // object, or the middle of the part of the active page that is on screen.
@@ -382,12 +260,12 @@ setupLayers({current,store,getSelected,getSelectionIds,select});
 setupClipboard({store,getSelectionIds,addObjects,clearSelection,afterRemove:()=>{syncImageTools();syncBgTools()}});
 setupFiles({store,getSelectionIds,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity:()=>({id:layoutId,name:layoutName})});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
-try{draw()}catch(error){
+try{renderer.draw()}catch(error){
   // Valid-looking data can still fail to render; recover the same way.
   if(!saved||freshness?.source!=='browser'||damagedSave)throw error;
   damagedSave={raw:JSON.stringify(saved.items),errors:[error.message]};saveAtStart=false;
   items=structuredClone(embedded);selected=null;
-  history.reset();resetRender();draw();
+  history.reset();renderer.resetRender();renderer.draw();
 }
 setupToolbarTabs();
 syncLayoutIdentity();

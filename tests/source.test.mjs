@@ -29,10 +29,11 @@ test('every feature module is imported and v3 storage remains compatible',()=>{
   const others=modules.map(x=>read('src/editor/'+x)).join('\n');
   // Imported from editor.js directly or from another feature module.
   for(const x of modules)assert.ok(js.includes('./editor/'+x)||others.includes("'./"+x+"'"),x+' is not imported');
-  assert.ok(js.includes('dnd-card-editor-v3'));
+  assert.ok(read('src/editor/startup.js').includes("'dnd-card-editor-v3'"));
 });
 test('feature modules change the layout only through the store',()=>{
-  for(const name of modules.filter(x=>x!=='store.js'&&x!=='history.js')){
+  // render.js is the renderer the store itself calls.
+  for(const name of modules.filter(x=>!['store.js','history.js','render.js'].includes(x))){
     const src=read('src/editor/'+name);
     assert.doesNotMatch(src,/\b(persist|draw|setItems|markRendered|saveToStorage)\(|history\.commit/,name+' must use store.change/commit/shown');
   }
