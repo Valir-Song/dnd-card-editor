@@ -15,6 +15,7 @@ import { createNotices } from './editor/notice.js';
 import { chooseStartupLayout, formatStamp, chooseLayout, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
 import { createSnapSettings } from './editor/snapping.js';
+import { findFreeSpot } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
 import { openStorage, createSaver } from './editor/storage.js';
 
@@ -342,8 +343,23 @@ function draw(){
 // Throw away every element and editor (recovery paths, before replacing all data).
 function resetRender(){rich.destroy();for(const r of rendered.values())r.node.remove();rendered.clear()}
 function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
-function current(){return items.find(x=>x.id===selected)}function addObject(o){const obj={...o,z:Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0))+1,id:'e'+Date.now()+Math.floor(Math.random()*10000),page:activePage};store.change(items=>{items.push(obj)});select(document.querySelector('[data-id="'+obj.id+'"]'))}
-function addCard(copy){const src=copy||{kind:'card',x:12,y:120,w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Кликни, чтобы изменить описание.',level:'1',roles:'support',bg:'#ffffff'};addObject({...structuredClone(src),x:Math.min(115,src.x+5),y:Math.min(270,src.y+5)})}
+function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
+// object, or the middle of the part of the active page that is on screen.
+function visibleMiddle(size){
+  const page=pages[activePage-1],r=page.getBoundingClientRect(),k=210/r.width;
+  const top=Math.max(r.top,document.querySelector('.toolbar')?.getBoundingClientRect().bottom||0),bottom=Math.min(r.bottom,innerHeight);
+  const y=bottom>top?((top+bottom)/2-r.top)*k:148.5;
+  const half=v=>Math.round(v*2)/2; // tidy numbers in the layout
+  return {x:half(105-size.w/2),y:half(y-size.h/2)};
+}
+function placeNew(size,wish){
+  const anchor=current();
+  wish||=anchor&&anchor.page===activePage?{x:anchor.x,y:anchor.y+anchor.h+2}:visibleMiddle(size);
+  return findFreeSpot(size,items.filter(v=>(v.page||1)===activePage),wish);
+}
+/** @param {object} o @param {{x: number, y: number}} [wish] */
+function addObject(o,wish){const obj={...o,...placeNew({w:o.w,h:o.h},wish),z:Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0))+1,id:'e'+Date.now()+Math.floor(Math.random()*10000),page:activePage};store.change(items=>{items.push(obj)});select(document.querySelector('[data-id="'+obj.id+'"]'))}
+function addCard(copy){const src=copy||{kind:'card',w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Кликни, чтобы изменить описание.',level:'1',roles:'support',bg:'#ffffff'};addObject(structuredClone(src),copy?{x:copy.x,y:copy.y+copy.h+2}:undefined)}
 setupObjects({addCard,addObject,current,getSelectionIds,clearSelection,store,syncImageTools,syncBgTools});
 ({syncTextBoxTools}=setupTextBoxes({addObject,current,store}));
 setupLayers({current,store,getSelected,select});

@@ -40,3 +40,33 @@ test('marquee selects boxes it covers by at least 12 % of their area',()=>{
   assert.deepEqual(marqueeHits(rectFromPoints([12,12],[-5,-5]),boxes).map(b=>b.id),[1]);
   assert.deepEqual(marqueeHits(rectFromPoints([13,13],[-5,-5]),boxes).map(b=>b.id),[1,2]);
 });
+
+import { findFreeSpot } from '../src/editor/geometry.js';
+const overlaps=(a,b,gap=0)=>a.x<b.x+b.w+gap&&b.x<a.x+a.w+gap&&a.y<b.y+b.h+gap&&b.y<a.y+a.h+gap;
+
+test('a free wish is kept as it is',()=>{
+  assert.deepEqual(findFreeSpot({w:20,h:10},[{x:100,y:100,w:30,h:30}],{x:20,y:20}),{x:20,y:20});
+});
+
+test('a taken wish moves to the closest free spot, never onto another box',()=>{
+  const taken=[{x:10,y:10,w:50,h:30}];
+  const spot=findFreeSpot({w:20,h:10},taken,{x:15,y:15});
+  assert.ok(!overlaps({...spot,w:20,h:10},taken[0],2),JSON.stringify(spot));
+  assert.ok(Math.hypot(spot.x-15,spot.y-15)<30,'stays close to the wish: '+JSON.stringify(spot));
+});
+
+test('repeated additions at the same wish never stack on each other',()=>{
+  const taken=[];
+  for(let i=0;i<12;i++){
+    const spot=findFreeSpot({w:35,h:22},taken,{x:87,y:137});
+    for(const box of taken)assert.ok(!overlaps({...spot,w:35,h:22},box),'overlap at step '+i);
+    taken.push({...spot,w:35,h:22});
+  }
+});
+
+test('the spot stays inside the page frame',()=>{
+  const spot=findFreeSpot({w:40,h:20},[],{x:500,y:-50});
+  assert.deepEqual(spot,{x:165,y:5});
+  const full=[{x:0,y:0,w:210,h:297}];
+  assert.deepEqual(findFreeSpot({w:40,h:20},full,{x:30,y:30}),{x:30,y:30},'a full page keeps the wish');
+});

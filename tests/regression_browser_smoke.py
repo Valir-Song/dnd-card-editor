@@ -722,5 +722,32 @@ with sync_playwright() as p:
       context.close()
       print('PASS '+engine+'/'+kind+': one save per layout; «Мои макеты»; clean and old files find the right save')
 
+    # 14. New objects go to a free spot: next to the selection, or in the part of
+    #     the page on screen — never all on one point (3.9 and earlier: 35×110 mm).
+    context=browser.new_context(viewport={'width':1280,'height':800})
+    page=open_editor(context)
+    import_json(page,[{'id':'A','kind':'card','page':1,'x':12,'y':40,'w':91,'h':23,'z':1,'title':'Карточка','meta':'м','detail':'д'}])
+    boxes=lambda:page.evaluate("""()=>[...document.querySelectorAll('#page1 > .el')].map(e=>{const s=e.style;return {id:e.dataset.id,x:parseFloat(s.left),y:parseFloat(s.top),w:parseFloat(s.width),h:parseFloat(s.height)||2}})""")
+    # A duplicate goes right under its card.
+    page.locator('.el[data-id="A"]').click(position={'x':3,'y':3})
+    page.locator('[data-tab="cards"]').click(); page.locator('#duplicate').click()
+    copy=[b for b in boxes() if b['id']!='A'][0]
+    assert copy['x']==12 and copy['y']==40+23+2,('The duplicate must go under its card',copy)
+    page.locator('#page1').click(position={'x':4,'y':4})   # nothing selected
+    page.locator('[data-tab="figures"]').click()
+    for _ in range(3): page.locator('#rect').click()
+    shapes=boxes()
+    assert len(shapes)==5
+    for i,a in enumerate(shapes):
+        assert 0<=a['x'] and a['x']+a['w']<=210 and 0<=a['y'] and a['y']+a['h']<=297,('Off the page',a)
+        for b in shapes[i+1:]:
+            assert not (a['x']<b['x']+b['w'] and b['x']<a['x']+a['w'] and a['y']<b['y']+b['h'] and b['y']<a['y']+a['h']),('Objects overlap',a,b)
+    # The first one (nothing selected) appeared on screen.
+    first=page.locator('#page1 > .el.shape').first.bounding_box()
+    assert 0<=first['y'] and first['y']+first['height']<=800,('The new object must be on screen',first)
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': new objects and duplicates go to a free spot, on screen')
+
     browser.close()
 print('All regression checks passed for '+engine)
