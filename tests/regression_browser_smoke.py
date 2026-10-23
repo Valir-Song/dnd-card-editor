@@ -997,5 +997,81 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': locked objects stay put, let the marquee through, keep editable text')
 
+    # 18. Arrow keys (3.11): 1 mm per press, Shift 5 mm or to the next grid line;
+    #     a series is one undo step; the group stays on the page; locked objects
+    #     stay; in text the arrows move the caret, Esc leaves the text and then
+    #     they move its frame. The grid is drawn faintly while it is on, never
+    #     printed or exported.
+    context=browser.new_context(viewport={'width':1280,'height':900},accept_downloads=True)
+    page=open_editor(context)
+    card=lambda i,x,y,z,**extra:{'id':i,'kind':'card','page':1,'x':x,'y':y,'w':60,'h':20,'z':z,'title':i,'meta':'м','detail':'д','bg':'#ffffff',**extra}
+    import_json(page,[card('A',20,30,1),card('B',100,30,2),card('L',20,100,3,locked=True)])
+    data=lambda:{i['id']:i for i in saved_layout(page)}
+    pos=lambda i:(data()[i]['x'],data()[i]['y'])
+    # In the card's left padding: clear of its texts and of the handles of a selected card.
+    pick=lambda i,shift=False:page.locator(f'.el[data-id="{i}"]').click(position={'x':4,'y':20},modifiers=['Shift'] if shift else [])
+    keys=lambda *names:[page.keyboard.press(n) for n in names]
+    pick('A'); keys('ArrowRight','ArrowRight','ArrowRight','ArrowDown')
+    assert pos('A')==(23,31),pos('A')
+    assert page.locator('.el[data-id="A"]').evaluate('e=>e.style.left')=='23mm'
+    keys('Shift+ArrowRight'); assert pos('A')==(28,31),('Shift: 5 mm without a grid',pos('A'))
+    page.locator('#undo').click(); assert pos('A')==(20,30),('One undo for the series',pos('A'))
+    keys(*['Shift+ArrowLeft']*6); assert pos('A')==(0,30),('Kept on the page',pos('A'))
+    page.locator('#undo').click(); assert pos('A')==(20,30)
+    # With a 5 mm grid Shift goes to the next grid line; the grid shows on the sheet.
+    page.select_option('#snapGrid','5')
+    assert page.locator('.stage').get_attribute('data-grid')=='5'
+    grid_style=lambda prop:page.evaluate("p=>getComputedStyle(document.querySelector('#page1'),'::before')[p]",prop)
+    assert 'gradient' in grid_style('backgroundImage'),grid_style('backgroundImage')
+    pick('A'); keys('ArrowRight','Shift+ArrowRight'); assert pos('A')==(25,30),pos('A')
+    keys('Shift+ArrowRight'); assert pos('A')==(30,30)
+    keys('Shift+ArrowLeft','Shift+ArrowDown'); assert pos('A')==(25,35),pos('A')
+    page.emulate_media(media='print'); assert grid_style('display')=='none','The grid is never printed'
+    page.emulate_media(media='screen')
+    # A file opened with the grid already on (the setting is remembered) exports without it.
+    gridded=open_editor(context)
+    assert gridded.locator('.stage').get_attribute('data-grid')=='5'
+    gridded.locator('[data-tab="files"]').click()
+    with gridded.expect_download() as download: gridded.locator('#export').click()
+    stage_tag=re.search(r'<main[^>]*class="stage"[^>]*>',Path(download.value.path()).read_text(encoding='utf-8')).group(0)
+    assert 'data-grid' not in stage_tag,('The grid is not part of the file',stage_tag)
+    gridded.close()
+    page.locator('#snapToggle').uncheck()
+    assert page.locator('.stage').get_attribute('data-grid') is None and grid_style('content') in ('none','normal')
+    page.locator('#snapToggle').check(); page.select_option('#snapGrid','0')
+    assert page.locator('.stage').get_attribute('data-grid') is None
+    # A group moves together; a locked object stays (alone or in the group).
+    a,b=pos('A'),pos('B')
+    pick('A'); pick('B',True); keys('ArrowDown')
+    assert pos('A')==(a[0],a[1]+1) and pos('B')==(b[0],b[1]+1)
+    a=pos('A'); pick('A'); pick('L',True); keys('ArrowRight')
+    assert pos('A')==(a[0]+1,a[1]) and pos('L')==(20,100),'Locked objects do not move'
+    pick('L'); keys('ArrowRight','ArrowDown'); assert pos('L')==(20,100)
+    # In text the arrows move the caret, not the card.
+    b=pos('B')
+    page.locator('.el[data-id="B"] .title .tiptap-content').click()
+    keys('End','ArrowLeft'); page.keyboard.type('Q')
+    assert pos('B')==b and page.locator('.el[data-id="B"] .title').inner_text().strip()=='QB'
+    # Esc leaves the text; the arrows then move its frame inside the card.
+    page.locator('.el[data-id="B"] .detail .tiptap-content').click()
+    keys('Escape')
+    assert page.evaluate('!document.activeElement.isContentEditable'),'Esc leaves the text'
+    assert page.locator('.gesture-frame.inner:not([hidden])').count()==1,'The text frame stays selected'
+    keys('ArrowRight','ArrowDown')
+    frame=data()['B'].get('textFrames',{}).get('detail',{})
+    assert (frame.get('x'),frame.get('y'))==(1,1) and pos('B')==b,(frame,pos('B'))
+    page.locator('#undo').click()
+    assert not data()['B'].get('textFrames',{}).get('detail',{}).get('x'),'One undo for the frame series'
+    # After a toolbar button the arrows move the selection (here the new copy).
+    pick('A'); page.locator('[data-tab="cards"]').click(); page.locator('#duplicate').click()
+    copy=[k for k in data() if k not in ('A','B','L')][0]; c=pos(copy)
+    keys('ArrowDown'); assert pos(copy)==(c[0],c[1]+1),'The arrows move the new copy'
+    # On a toolbar tab they switch tabs and move nothing.
+    a=pos('A'); pick('A'); page.locator('[data-tab="cards"]').click(); keys('ArrowRight')
+    assert pos('A')==a and page.locator('[data-tab="appearance"]').get_attribute('aria-selected')=='true'
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': arrow keys move the selection, by grid with Shift; the grid shows on screen only')
+
     browser.close()
 print('All regression checks passed for '+engine)

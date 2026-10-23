@@ -16,6 +16,7 @@ import { formatStamp, layoutTitle, isCopy, fileBase } from './editor/freshness.j
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
 import { setupClipboard } from './editor/clipboard.js';
 import { setupLock, isLocked } from './editor/lock.js';
+import { setupNudge } from './editor/nudge.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
@@ -213,9 +214,13 @@ innerCanvas=createInnerCanvas({
   selectParent:id=>canvas.setSelection([id],id,{keepInner:true})
 });
 canvas.attachInner(innerCanvas);
+setupNudge({canvas,innerCanvas,snapping});
 {
   const toggle=document.getElementById('snapToggle'),grid=document.getElementById('snapGrid');
-  const show=()=>{const s=snapping.get();toggle.checked=s.enabled;grid.value=String(s.gridMm);grid.disabled=!s.enabled};
+  // The grid is drawn faintly on the sheets while it is on (screen only, see styles.css).
+  const stage=document.querySelector('.stage');
+  const show=()=>{const s=snapping.get();toggle.checked=s.enabled;grid.value=String(s.gridMm);grid.disabled=!s.enabled;
+    if(s.enabled&&s.gridMm>0)stage.dataset.grid=String(s.gridMm);else delete stage.dataset.grid};
   toggle.onchange=()=>snapping.set({enabled:toggle.checked});
   grid.onchange=()=>snapping.set({gridMm:Number(grid.value)});
   snapping.onChange(show);show();

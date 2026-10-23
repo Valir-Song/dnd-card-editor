@@ -3,7 +3,7 @@
 // millimetres. Rich text stays Tiptap-owned: a press on editable text is never
 // a gesture. Text frames inside cards are handled by inner-canvas.js.
 import { collectLines, snapAxis, snapMove } from './snapping.js';
-import { bbox, resizeBox, scaleBoxes, marqueeHits, rectFromPoints } from './geometry.js';
+import { bbox, resizeBox, scaleBoxes, marqueeHits, rectFromPoints, clampMove, gridStep } from './geometry.js';
 
 const DIRECTIONS = {nw: [-1, -1], n: [0, -1], ne: [1, -1], w: [-1, 0], e: [1, 0], sw: [-1, 1], s: [0, 1], se: [1, 1]};
 const EDGES = ['top', 'right', 'bottom', 'left'];
@@ -341,6 +341,24 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
     if (locked(id)) return;
     track(e, {onStart: () => { begin(); return !!gesture; }, onMove: (dist, ev) => applyDrag(dist, ev.altKey)});
   }
+  // Arrow keys: move the unlocked selected objects by (dx, dy) mm, as a group
+  // that stays on the page. With `grid`, the group's left/top edge goes to the
+  // next grid line instead. A series of presses is one undo step.
+  function nudge(dx, dy, {grid = 0} = {}) {
+    if (!ids.length) return false;
+    const records = ids.map(itemFor).filter(item => item && !item.locked).map(item => ({item, ...boxOf(item)}));
+    if (!records.length) return true;
+    const frame = bbox(records);
+    if (grid) {
+      if (dx) dx = gridStep(frame.x, Math.sign(dx), grid);
+      if (dy) dy = gridStep(frame.y, Math.sign(dy), grid);
+    }
+    ({dx, dy} = clampMove(records, dx, dy));
+    if (!dx && !dy) return true;
+    for (const {item} of records) { item.x += dx; item.y += dy; }
+    store.commit({group: 'nudge:' + ids.join(','), windowMs: 1000});
+    return true;
+  }
   function afterDraw() {
     for (const id of ids.slice()) if (!itemFor(id)) ids = ids.filter(value => value !== id);
     if (primary && !ids.includes(primary)) primary = null;
@@ -352,7 +370,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   window.addEventListener('resize', () => { placeLayers(); renderFrame(); });
   placeLayers();
   return {
-    setSelection, afterDraw, startDrag, attachInner,
+    setSelection, afterDraw, startDrag, attachInner, nudge,
     getIds: () => ids.slice(),
     getPrimary: () => primary,
     clear: () => setSelection([])
