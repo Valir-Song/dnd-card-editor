@@ -15,7 +15,7 @@ import { createNotices } from './editor/notice.js';
 import { chooseStartupLayout, formatStamp, chooseLayout, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
 import { createSnapSettings } from './editor/snapping.js';
-import { findFreeSpot } from './editor/geometry.js';
+import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
 import { openStorage, createSaver } from './editor/storage.js';
 
@@ -357,12 +357,27 @@ function placeNew(size,wish){
   wish||=anchor&&anchor.page===activePage?{x:anchor.x,y:anchor.y+anchor.h+2}:visibleMiddle(size);
   return findFreeSpot(size,items.filter(v=>(v.page||1)===activePage),wish);
 }
+let idSeq=0;
+const newId=()=>'e'+Date.now()+String(++idSeq).padStart(3,'0');
+// Add objects to the active page as one undoable step, keeping their layout among
+// themselves: the group goes to the free spot nearest the wish, on top of the
+// page, and becomes the selection.
+/** @param {object[]} list @param {{x: number, y: number}} [wish] */
+function addObjects(list,wish){
+  const sources=list.map(o=>({x:0,y:0,...structuredClone(o)})).sort((a,b)=>(a.z||0)-(b.z||0));
+  const box=bbox(sources),spot=placeNew({w:box.w,h:box.h},wish);
+  let z=Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0));
+  const added=sources.map(o=>({...o,x:o.x-box.x+spot.x,y:o.y-box.y+spot.y,z:++z,id:newId(),page:activePage}));
+  store.change(items=>{items.push(...added)});
+  canvas.setSelection(added.map(o=>o.id),added[0].id);
+  return added;
+}
 /** @param {object} o @param {{x: number, y: number}} [wish] */
-function addObject(o,wish){const obj={...o,...placeNew({w:o.w,h:o.h},wish),z:Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0))+1,id:'e'+Date.now()+Math.floor(Math.random()*10000),page:activePage};store.change(items=>{items.push(obj)});select(document.querySelector('[data-id="'+obj.id+'"]'))}
-function addCard(copy){const src=copy||{kind:'card',w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Кликни, чтобы изменить описание.',level:'1',roles:'support',bg:'#ffffff'};addObject(structuredClone(src),copy?{x:copy.x,y:copy.y+copy.h+2}:undefined)}
-setupObjects({addCard,addObject,current,getSelectionIds,clearSelection,store,syncImageTools,syncBgTools});
+function addObject(o,wish){addObjects([o],wish)}
+function addCard(){addObject({kind:'card',w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Кликни, чтобы изменить описание.',level:'1',roles:'support',bg:'#ffffff'})}
+setupObjects({addCard,addObject,addObjects,current,getSelectionIds,clearSelection,store,syncImageTools,syncBgTools});
 ({syncTextBoxTools}=setupTextBoxes({addObject,current,store}));
-setupLayers({current,store,getSelected,select});
+setupLayers({current,store,getSelected,getSelectionIds,select});
 setupFiles({store,getSelectionIds,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity:()=>({id:layoutId,name:layoutName})});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 try{draw()}catch(error){

@@ -749,5 +749,55 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': new objects and duplicates go to a free spot, on screen')
 
+    # 15. Group actions: with several objects selected (by Shift+click or a
+    #     marquee there is no single "current" one, so 3.10.0-beta.1 and earlier
+    #     did nothing) duplicate, layer moves, colour and delete act on all of them.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    card=lambda i,y,z:{'id':i,'kind':'card','page':1,'x':12,'y':y,'w':60,'h':20,'z':z,'title':i,'meta':'м','detail':'д','bg':'#ffffff'}
+    import_json(page,[card('A',30,1),card('B',40,2),{**card('C',55,3),'x':40}])
+    def pick(*ids):
+        page.locator('#page1').click(position={'x':4,'y':4})
+        for n,i in enumerate(ids):
+            page.locator(f'.el[data-id="{i}"]').click(position={'x':3,'y':3},modifiers=['Shift'] if n else [])
+        assert page.locator('#selectionCount').inner_text()=='Выбрано: '+str(len(ids)),page.locator('#selectionCount').inner_text()
+    data=lambda:{i['id']:i for i in saved_layout(page)}
+    order=lambda:''.join(i for i,_ in sorted(((k,v['z']) for k,v in data().items()),key=lambda kv:kv[1]))
+    # Layers: the pair keeps its own order (A under C) and skips over B.
+    pick('A','C')
+    page.locator('[data-tab="layers"]').click()
+    page.locator('#back').click(); assert order()=='ACB',order()
+    page.locator('#front').click(); assert order()=='BAC',order()
+    page.locator('#backward').click(); assert order()=='ACB',order()
+    page.locator('#forward').click(); assert order()=='BAC',order()
+    assert page.locator('#selectionCount').inner_text()=='Выбрано: 2','The group stays selected'
+    # Colour: both change, one undo brings both back.
+    page.locator('[data-tab="appearance"]').click()
+    page.evaluate("()=>{const i=document.getElementById('bg');i.value='#ff0000';i.dispatchEvent(new Event('input'))}")
+    assert data()['A']['bg']=='#ff0000' and data()['C']['bg']=='#ff0000' and data()['B']['bg']=='#ffffff'
+    assert page.locator('.el[data-id="C"]').evaluate('e=>e.style.backgroundColor')=='rgb(255, 0, 0)'
+    page.locator('#undo').click()
+    assert data()['A']['bg']=='#ffffff' and data()['C']['bg']=='#ffffff','One undo restores the whole group'
+    # Duplicate: two copies laid out like the originals, under the group, selected; one undo.
+    pick('A','C')
+    page.locator('[data-tab="cards"]').click(); page.locator('#duplicate').click()
+    copies=[v for k,v in data().items() if k not in 'ABC']
+    assert len(copies)==2,copies
+    a2,c2=sorted(copies,key=lambda v:v['x'])
+    assert (c2['x']-a2['x'],c2['y']-a2['y'])==(28,25),('The copies keep their layout',a2,c2)
+    assert min(a2['y'],c2['y'])>=30+45,('The copies go under the group',a2,c2)
+    assert page.locator('#selectionCount').inner_text()=='Выбрано: 2','The copies become the selection'
+    page.locator('#undo').click()
+    assert sorted(data())==['A','B','C'],'One undo removes both copies'
+    # Delete: both go, undo brings both back.
+    pick('A','C')
+    page.keyboard.press('Delete')
+    assert sorted(data())==['B']
+    page.locator('#undo').click()
+    assert sorted(data())==['A','B','C']
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': group duplicate, layers, colour and delete act on the whole selection')
+
     browser.close()
 print('All regression checks passed for '+engine)
