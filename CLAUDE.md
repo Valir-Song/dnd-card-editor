@@ -55,6 +55,7 @@
 | `src/editor/layouts-dialog.js` | окно «Мои макеты» |
 | `src/editor/clipboard.js` | Ctrl+C/X/V объектов: JSON с меткой `dnd-card-editor/objects` в системном буфере; в тексте не вмешивается |
 | `src/editor/files.js` | сохранить, скачать HTML/JSON, импорт, печать, «Сжать картинки», Delete |
+| `src/editor/layers.js` | слои; `reorderLayers` — чистая функция порядка для одного объекта и группы (Node-тесты) |
 | `src/editor/{objects,layers,card-background,image-tools,text-boxes,interactions}.js` | кнопки панели по темам; `interactions.js` — перетаскивание значка уровня |
 | `src/editor/toolbar-tabs.js` | раскладка панели по вкладкам (список id кнопок каждой вкладки) |
 | `src/editor/notice.js` | жёлтые предупреждения под панелью |
