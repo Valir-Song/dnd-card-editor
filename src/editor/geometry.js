@@ -55,3 +55,29 @@ export function marqueeHits(rect,boxes,ratio=0.12){
 export function rectFromPoints(a,b){
   return {x:Math.min(a[0],b[0]),y:Math.min(a[1],b[1]),w:Math.abs(a[0]-b[0]),h:Math.abs(a[1]-b[1])};
 }
+
+/**
+ * Where to put a new box so that it covers nothing: of the spots on a `step` mm
+ * grid inside the page frame, the free one closest to `near` (the wished-for
+ * top-left corner). `gap` keeps a little air between boxes. On a full page the
+ * wish itself is returned, kept on the page.
+ * @param {{w: number, h: number}} size
+ * @param {Box[]} taken
+ * @param {{x: number, y: number}} near
+ * @param {{page?: {w: number, h: number}, margin?: number, gap?: number, step?: number}} [options]
+ * @returns {{x: number, y: number}}
+ */
+export function findFreeSpot(size,taken,near,{page=PAGE,margin=5,gap=2,step=2.5}={}){
+  const maxX=Math.max(margin,page.w-margin-size.w),maxY=Math.max(margin,page.h-margin-size.h);
+  const clamp=(/** @type {number} */ v,/** @type {number} */ hi)=>Math.min(Math.max(v,margin),hi);
+  const wish={x:clamp(near.x,maxX),y:clamp(near.y,maxY)};
+  /** @param {{x: number, y: number}} p */
+  const free=p=>taken.every(b=>p.x>=b.x+b.w+gap||b.x>=p.x+size.w+gap||p.y>=b.y+b.h+gap||b.y>=p.y+size.h+gap);
+  if(free(wish))return wish;
+  /** @type {Array<{x: number, y: number, d: number}>} */
+  const spots=[];
+  for(let x=margin;x<=maxX+1e-9;x+=step)for(let y=margin;y<=maxY+1e-9;y+=step)spots.push({x,y,d:Math.hypot(x-wish.x,y-wish.y)});
+  spots.sort((a,b)=>a.d-b.d);
+  const spot=spots.find(free);
+  return spot?{x:spot.x,y:spot.y}:wish;
+}

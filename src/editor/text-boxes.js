@@ -11,7 +11,7 @@ export function setupTextBoxes({addObject,current,store}) {
     autoHeight:document.getElementById('boxAutoHeight')
   };
   document.getElementById('addTextBox').onclick=()=>addObject({
-    kind:'textbox',x:28,y:115,w:72,h:25,
+    kind:'textbox',w:72,h:25,
     text:'Кликни, чтобы ввести текст',
     fontFamily:'Georgia',fontSize:12,textAlign:'left',textWeight:'normal',
     textColor:'#262137',bg:'#ffffff',borderColor:'#745193',
