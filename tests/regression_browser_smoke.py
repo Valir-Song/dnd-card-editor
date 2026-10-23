@@ -851,6 +851,27 @@ with sync_playwright() as p:
     assert [(x,y) for x,y,_ in back]==[(12,30),(100,30)] and back[0][2]=='Карта A',('A cut group returns to its place',back)
     page.locator('#undo').click(); assert els(page)==[]
     page.locator('#undo').click(); assert len(els(page))==2,'Undoing the cut restores the originals'
+    # A text field that last held the caret must not get the objects too: with the
+    # focus away from text, a paste aimed at it adds the object only, and a cut does
+    # not cut the field's text (owner's report: the card's JSON landed in a title).
+    title=lambda:page.locator('.el[data-id="B"] .title').inner_text()
+    before_title=title()
+    page.locator('.el[data-id="B"] .title .tiptap-content').click()
+    page.keyboard.press('End'); page.keyboard.press('Shift+Home')
+    pick(page,'A'); keys(page,'copy')
+    assert page.evaluate("document.activeElement===document.body||!document.activeElement.isContentEditable")
+    count=len(els(page))
+    page.evaluate("""text=>{const dt=new DataTransfer();dt.setData('text/plain',text);
+      const event=new ClipboardEvent('paste',{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:dt});
+      document.querySelector('.el[data-id="B"] .title .tiptap-content').dispatchEvent(event)}""",clip['text'] if not real_keys else page.evaluate('navigator.clipboard.readText()'))
+    assert len(els(page))==count+1 and title()==before_title,('Paste must add the object only',title())
+    page.locator('#undo').click()
+    page.locator('.el[data-id="B"] .title .tiptap-content').click()
+    page.keyboard.press('End'); page.keyboard.press('Shift+Home')
+    pick(page,'A'); keys(page,'cut')
+    assert title()==before_title,('Cutting objects must not cut text',title())
+    assert 'A' not in [e['id'] for e in els(page)]
+    page.locator('#undo').click()
     # Into another layout (another editor file in the same browser).
     pick(page,'A'); keys(page,'copy')
     other=open_editor(context); import_json(other,[card('Z',60,120)])

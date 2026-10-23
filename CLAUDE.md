@@ -226,6 +226,9 @@ python3 tests/regression_browser_smoke.py # один набор (нужен св
   Playwright буфер не даёт: раздел 16 там шлёт ClipboardEvent, а DataTransfer крепит через
   `Object.defineProperty(event,'clipboardData',…)` — из конструктора Firefox его выбрасывает; `SYNTHETIC_CLIPBOARD=1`
   запускает эту ветку в Chromium.
+- События буфера (copy/cut/paste) браузер шлёт туда, где последний раз было выделение текста, даже если
+  фокус уже на листе: ProseMirror вставлял туда JSON объектов и вырезал свой текст. Поэтому clipboard.js
+  слушает в фазе захвата и, забирая событие, вызывает `stopImmediatePropagation`.
 - Строгие модули (`tsconfig.strict.json`): параметры описывать JSDoc (`@param`), пустые массивы и
   `Map`/`Set` — через `/** @type */`; `null` проверять явно, а не `?.` с последующим обращением.
   Строгий режим уже нашёл: `canvas.getContext('2d')` может вернуть `null` (теперь картинка остаётся

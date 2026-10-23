@@ -27,6 +27,9 @@ export function decodeClip(text) {
   return normalizeLayout(data.items).items;
 }
 
+/** The event is ours: no default action and no other listener (a text editor). @param {Event} event */
+const claim = event => { event.preventDefault(); event.stopImmediatePropagation(); };
+
 // Typing means the focus is in a text field. The event's target is not enough:
 // clipboard events go to wherever text was last selected, even after the user
 // has clicked objects on the sheet.
@@ -48,7 +51,7 @@ export function setupClipboard({store, getSelectionIds, addObjects, clearSelecti
     const list = /** @type {Item[]} */ (ids.map(id => store.find(id)).filter(Boolean));
     if (!list.length) return null;
     event.clipboardData.setData('text/plain', encodeClip(list));
-    event.preventDefault();
+    claim(event);
     return ids;
   }
   // Some browsers send no «copy»/«cut» event without selected text: with objects
@@ -60,7 +63,10 @@ export function setupClipboard({store, getSelectionIds, addObjects, clearSelecti
     event.preventDefault();
     document.execCommand(action);
   });
-  document.addEventListener('copy', event => { copy(event); });
+  // Listening in the capture phase lets objects take the event before a text
+  // editor that last held a selection does: it would paste the objects' text
+  // into itself, or cut its own text, while the focus is elsewhere.
+  document.addEventListener('copy', event => { copy(event); }, true);
   document.addEventListener('cut', event => {
     const ids = copy(event);
     if (!ids) return;
@@ -68,16 +74,16 @@ export function setupClipboard({store, getSelectionIds, addObjects, clearSelecti
     clearSelection();
     store.change(items => items.filter(item => !removed.has(item.id)));
     afterRemove();
-  });
+  }, true);
   document.addEventListener('paste', event => {
     if (typing()) return;
     const list = decodeClip(event.clipboardData?.getData('text/plain') ?? '');
     if (!list) return;
-    event.preventDefault();
+    claim(event);
     // A copy whose originals are still here goes under them, like «Дублировать»;
     // after a cut, or in another file, the objects return to their own place
     // (or the nearest free spot).
     const box = bbox(list), originals = list.some(item => store.find(item.id));
     addObjects(list, originals ? {x: box.x, y: box.y + box.h + 2} : {x: box.x, y: box.y});
-  });
+  }, true);
 }
