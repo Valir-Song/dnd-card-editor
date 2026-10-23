@@ -799,5 +799,89 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': group duplicate, layers, colour and delete act on the whole selection')
 
+    # 16. Copy, cut and paste of objects. Chromium uses the real keys and system
+    #     clipboard; Firefox under Playwright has no clipboard access, so the same
+    #     events are dispatched with their own DataTransfer.
+    # SYNTHETIC_CLIPBOARD=1 runs the Firefox path in Chromium (Firefox exists only in CI).
+    real_keys=engine=='chromium' and not os.environ.get('SYNTHETIC_CLIPBOARD')
+    context=browser.new_context(**({'permissions':['clipboard-read','clipboard-write']} if real_keys else {}))
+    page=open_editor(context)
+    card=lambda i,x,y:{'id':i,'kind':'card','page':1,'x':x,'y':y,'w':60,'h':20,'z':1,'title':'Карта '+i,'meta':'м','detail':'д'}
+    import_json(page,[card('A',12,30),card('B',100,30)])
+    clip={'text':''}
+    def keys(pg,action):
+        if real_keys:
+            pg.keyboard.press('Control+'+{'copy':'c','cut':'x','paste':'v'}[action]); return
+        clip['text']=pg.evaluate("""([type,text])=>{const dt=new DataTransfer();if(text)dt.setData('text/plain',text);
+          const target=document.activeElement&&document.activeElement!==document.body?document.activeElement:document.body;
+          // Firefox drops clipboardData given to the constructor of a synthetic event: attach it directly.
+          const event=new ClipboardEvent(type,{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:dt});
+          target.dispatchEvent(event);return dt.getData('text/plain')}""",
+          [action,clip['text'] if action=='paste' else ''])or clip['text']
+    def els(pg): return pg.evaluate("""()=>[...document.querySelectorAll('#page1 > .el')].map(e=>({id:e.dataset.id,x:parseFloat(e.style.left),y:parseFloat(e.style.top),title:e.querySelector('.title')?.innerText.trim()}))""")
+    pick=lambda pg,i,shift=False:pg.locator(f'.el[data-id="{i}"]').click(position={'x':3,'y':3},modifiers=['Shift'] if shift else [])
+    # Copy + paste: a new object under the original, same content; one undo removes it.
+    pick(page,'A'); keys(page,'copy'); keys(page,'paste')
+    now=els(page); new=[e for e in now if e['id'] not in ('A','B')]
+    assert len(new)==1 and new[0]['title']=='Карта A' and (new[0]['x'],new[0]['y'])==(12,52),('A copy goes under its original',now)
+    assert len({e['id'] for e in now})==3,'The copy gets its own id'
+    page.locator('#undo').click(); assert len(els(page))==2,'One undo removes the pasted copy'
+    # Inside a text field the keys work on text, not on objects: copying selected
+    # text gives text, and pasting objects there adds no objects (Tiptap gets it).
+    # (A real Ctrl+V into Tiptap under Playwright reads the clipboard before an
+    # earlier write lands now and then, with or without this feature, so the
+    # paste goes to the field as an event.)
+    page.locator('.el[data-id="B"] .title .tiptap-content').click()
+    page.keyboard.press('End')
+    if real_keys:
+        page.keyboard.press('Shift+Home'); keys(page,'copy')
+        assert page.evaluate('navigator.clipboard.readText()')=='Карта B','Text copy must stay text'
+    added=page.evaluate("""text=>{const dt=new DataTransfer();dt.setData('text/plain',text);
+      const event=new ClipboardEvent('paste',{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:dt});
+      document.querySelector('.el[data-id="B"] .title .tiptap-content').dispatchEvent(event);
+      return document.querySelectorAll('#page1 > .el').length}""",page.evaluate("()=>JSON.stringify({kind:'dnd-card-editor/objects',version:1,items:[{id:'q',kind:'shape',page:1,x:1,y:1,w:5,h:5}]})"))
+    assert added==2,'Paste into a text field must not add objects'
+    page.locator('#page1').click(position={'x':4,'y':4})
+    # Cut a group: both go; paste puts them back where they were, as one undo step each.
+    # (Right after text editing: the old text selection must not swallow the keys.)
+    pick(page,'A'); pick(page,'B',True); keys(page,'cut')
+    assert els(page)==[],'Cut removes the whole selection'
+    keys(page,'paste')
+    back=sorted((e['x'],e['y'],e['title']) for e in els(page))
+    assert [(x,y) for x,y,_ in back]==[(12,30),(100,30)] and back[0][2]=='Карта A',('A cut group returns to its place',back)
+    page.locator('#undo').click(); assert els(page)==[]
+    page.locator('#undo').click(); assert len(els(page))==2,'Undoing the cut restores the originals'
+    # A text field that last held the caret must not get the objects too: with the
+    # focus away from text, a paste aimed at it adds the object only, and a cut does
+    # not cut the field's text (owner's report: the card's JSON landed in a title).
+    title=lambda:page.locator('.el[data-id="B"] .title').inner_text()
+    before_title=title()
+    page.locator('.el[data-id="B"] .title .tiptap-content').click()
+    page.keyboard.press('End'); page.keyboard.press('Shift+Home')
+    pick(page,'A'); keys(page,'copy')
+    assert page.evaluate("document.activeElement===document.body||!document.activeElement.isContentEditable")
+    count=len(els(page))
+    page.evaluate("""text=>{const dt=new DataTransfer();dt.setData('text/plain',text);
+      const event=new ClipboardEvent('paste',{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:dt});
+      document.querySelector('.el[data-id="B"] .title .tiptap-content').dispatchEvent(event)}""",clip['text'] if not real_keys else page.evaluate('navigator.clipboard.readText()'))
+    assert len(els(page))==count+1 and title()==before_title,('Paste must add the object only',title())
+    page.locator('#undo').click()
+    page.locator('.el[data-id="B"] .title .tiptap-content').click()
+    page.keyboard.press('End'); page.keyboard.press('Shift+Home')
+    pick(page,'A'); keys(page,'cut')
+    assert title()==before_title,('Cutting objects must not cut text',title())
+    assert 'A' not in [e['id'] for e in els(page)]
+    page.locator('#undo').click()
+    # Into another layout (another editor file in the same browser).
+    pick(page,'A'); keys(page,'copy')
+    other=open_editor(context); import_json(other,[card('Z',60,120)])
+    if not real_keys: other.evaluate('document.body.focus()')
+    keys(other,'paste')
+    got=[e for e in els(other) if e['id']!='Z']
+    assert len(got)==1 and got[0]['title']=='Карта A' and (got[0]['x'],got[0]['y'])==(12,30),('Paste into another file',got)
+    assert not page.errors and not other.errors,(page.errors,other.errors)
+    context.close()
+    print('PASS '+engine+': copy, cut and paste of objects; text keys stay text; works across files')
+
     browser.close()
 print('All regression checks passed for '+engine)

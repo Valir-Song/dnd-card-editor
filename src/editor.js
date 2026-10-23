@@ -14,6 +14,7 @@ import { normalizeLayout } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
 import { chooseStartupLayout, formatStamp, chooseLayout, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
+import { setupClipboard } from './editor/clipboard.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
@@ -378,6 +379,7 @@ function addCard(){addObject({kind:'card',w:91,h:23,title:'Новая спосо
 setupObjects({addCard,addObject,addObjects,current,getSelectionIds,clearSelection,store,syncImageTools,syncBgTools});
 ({syncTextBoxTools}=setupTextBoxes({addObject,current,store}));
 setupLayers({current,store,getSelected,getSelectionIds,select});
+setupClipboard({store,getSelectionIds,addObjects,clearSelection,afterRemove:()=>{syncImageTools();syncBgTools()}});
 setupFiles({store,getSelectionIds,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity:()=>({id:layoutId,name:layoutName})});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 try{draw()}catch(error){
