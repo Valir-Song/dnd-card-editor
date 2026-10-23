@@ -1,0 +1,3 @@
+# Versions whose look differs from main on purpose (one per line).
+# tests/visual_browser_smoke.py reports their differences instead of failing.
+# Add the new version here only in a PR that changes the look intentionally.

@@ -159,7 +159,7 @@ npm test                     # Node-тесты (сейчас 63)
 npm run typecheck            # TypeScript по JS: обычный tsconfig.json + строгий tsconfig.strict.json
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html
-python3 tests/run_e2e.py     # все 4 браузерных набора в Chromium (~3–4 мин)
+python3 tests/run_e2e.py     # все 5 браузерных наборов в Chromium (~4–5 мин)
 CPU_THROTTLE=4 python3 tests/run_e2e.py   # то же с замедленным в 4 раза процессором (~6–8 мин)
 python3 tests/regression_browser_smoke.py # один набор (нужен свежий npm run build)
 ```
@@ -167,6 +167,11 @@ python3 tests/regression_browser_smoke.py # один набор (нужен св
 ручки при прокрутке, свежесть, перетаскивание одним движением, привязка, слой жестов и касания,
 инкрементальная отрисовка, картинки, своё сохранение для каждого макета, свободное место для новых объектов, действия с группой, копирование и вставка), `canvas` (жесты листа), `nested` (текстовые рамки карточки),
 `tiptap` (текст и форматирование).
+`visual` — снимки обеих страниц (шаблон и лист со всеми видами объектов) **против редактора из `main`**,
+отрисованного на той же машине (git show origin/main:DND_Card_Editor_standalone.html; `VISUAL_REFERENCE=`
+— другой эталон). Порог 0,05 % пикселей; при разнице картинки new/reference/diff — в `tests/visual-out/`.
+Намеренно меняешь вид — впиши новую версию в `tests/visual-accept.txt` (иначе CI красный). Эталонных
+PNG в репозитории нет специально: шрифты здесь и в CI разные (Verdana→Inter здесь).
 
 ## Версия и сборка
 - При смене версии править: `package.json`, `package-lock.json` (строки 3 и 9), `index.html`

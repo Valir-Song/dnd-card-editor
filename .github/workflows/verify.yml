@@ -47,6 +47,13 @@ jobs:
         run: EDITOR_BROWSER=chromium python tests/ci_run.py tiptap_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Firefox)
         run: EDITOR_BROWSER=firefox python tests/ci_run.py tiptap_browser_smoke.py
+      # The visual reference is the editor on main, rendered on this same runner.
+      - name: Fetch main for the visual reference
+        run: git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
+      - name: Visual comparison with main (Chromium)
+        run: EDITOR_BROWSER=chromium python tests/ci_run.py visual_browser_smoke.py
+      - name: Visual comparison with main (Firefox)
+        run: EDITOR_BROWSER=firefox python tests/ci_run.py visual_browser_smoke.py
       # Same suites on a 4x slower CPU: timing races show up here first.
       - name: All browser suites, 4x CPU throttling (Chromium)
         run: |
