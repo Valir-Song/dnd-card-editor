@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SUITES=['regression_browser_smoke.py','canvas_browser_smoke.py','nested_browser_smoke.py','tiptap_browser_smoke.py']
+SUITES=['regression_browser_smoke.py','canvas_browser_smoke.py','nested_browser_smoke.py','tiptap_browser_smoke.py','visual_browser_smoke.py']
 engine=sys.argv[1] if len(sys.argv)>1 else 'chromium'
 here=Path(__file__).resolve().parent
 env={**os.environ,'EDITOR_BROWSER':engine}

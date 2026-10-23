@@ -109,6 +109,7 @@ python -m playwright install chromium firefox
 npm run test:e2e           # все браузерные тесты в Chromium (Windows тоже)
 npm run test:e2e:firefox   # то же в Firefox
 CPU_THROTTLE=4 npm run test:e2e   # Chromium с 4-кратно замедленным процессором (ловит гонки)
+python tests/visual_browser_smoke.py   # снимки страниц против редактора из main (нужен npm run build)
 ```
 
 В облачных сессиях Claude Code скрипт `.claude/hooks/session-start.sh` при старте сам ставит зависимости
