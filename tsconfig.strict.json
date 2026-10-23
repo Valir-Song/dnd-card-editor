@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "strict": true },
+  "include": [
+    "src/types/*.d.ts",
+    "src/editor/store.js",
+    "src/editor/history.js",
+    "src/editor/images.js",
+    "src/editor/geometry.js",
+    "src/editor/snapping.js",
+    "src/editor/layout.js",
+    "src/editor/freshness.js"
+  ]
+}

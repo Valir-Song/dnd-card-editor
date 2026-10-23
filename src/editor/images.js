@@ -5,7 +5,8 @@
 export const MAX_SIDE = 1600;
 export const QUALITY = 0.85;
 
-/** Size that fits within `max` on the long side, never enlarged. */
+/** Size that fits within `max` on the long side, never enlarged.
+ * @param {number} width @param {number} height */
 export function fitWithin(width, height, max = MAX_SIDE) {
   const k = Math.min(1, max / Math.max(width, height));
   return {width: Math.max(1, Math.round(width * k)), height: Math.max(1, Math.round(height * k))};
@@ -48,6 +49,7 @@ export async function compressImage(src) {
   const canvas = document.createElement('canvas');
   canvas.width = size.width; canvas.height = size.height;
   const ctx = canvas.getContext('2d');
+  if (!ctx) return src; // no canvas available: keep the picture as it is
   ctx.drawImage(img, 0, 0, size.width, size.height);
   let result;
   if (hasTransparency(ctx, size)) {
@@ -59,13 +61,14 @@ export async function compressImage(src) {
   return result.length < src.length ? result : src;
 }
 
+/** @param {CanvasRenderingContext2D} ctx @param {{width: number, height: number}} size */
 function hasTransparency(ctx, {width, height}) {
   const data = ctx.getImageData(0, 0, width, height).data;
   for (let i = 3; i < data.length; i += 4) if (data[i] < 255) return true;
   return false;
 }
 
-/** File → compressed data URL. */
+/** File → compressed data URL. @param {File} file */
 export async function readCompressed(file) {
   return compressImage(await readFile(file));
 }

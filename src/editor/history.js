@@ -14,22 +14,26 @@
  */
 export function createHistory({read, restore, onChange=()=>{}, limit=60, maxBytes=48*1024*1024, now=()=>Date.now()}) {
   const REF='\u0000image:'; // never occurs in layout text
-  const pool=new Map(), refs=new Map(); // ref -> data URL, data URL -> ref
+  /** @type {Map<string, string>} */
+  const pool=new Map(); // ref -> data URL
+  /** @type {Map<string, string>} */
+  const refs=new Map(); // data URL -> ref
   let nextRef=0;
-  const isPicture=value=>typeof value==='string'&&value.length>=1024&&value.startsWith('data:');
-  const encode=items=>JSON.stringify(items,(key,value)=>{
+  const isPicture=(/** @type {unknown} */ value)=>typeof value==='string'&&value.length>=1024&&value.startsWith('data:');
+  const encode=(/** @type {import('../types/layout').Item[]} */ items)=>JSON.stringify(items,(key,value)=>{
     if(!isPicture(value))return value;
     let ref=refs.get(value);
     if(ref===undefined){ref=REF+(nextRef++);refs.set(value,ref);pool.set(ref,value)}
     return ref;
   });
-  const decode=text=>JSON.parse(text,(key,value)=>typeof value==='string'&&value.startsWith(REF)?pool.get(value):value);
+  const decode=(/** @type {string} */ text)=>JSON.parse(text,(key,value)=>typeof value==='string'&&value.startsWith(REF)?pool.get(value):value);
   // Forget pictures that no remaining snapshot refers to.
   function prune(){
     const used=new Set(snapshots.flatMap(text=>text.match(/\\u0000image:\d+/g)||[]).map(ref=>REF+ref.slice(12)));
     for(const [ref,value] of pool)if(!used.has(ref)){pool.delete(ref);refs.delete(value)}
   }
   let snapshots=[encode(read())];
+  /** @type {Array<{group: string | null, at: number} | null>} */
   let metadata=[null];
   let cursor=0;
   const status=()=>({undo:cursor>0, redo:cursor<snapshots.length-1, steps:cursor});
@@ -40,7 +44,7 @@ export function createHistory({read, restore, onChange=()=>{}, limit=60, maxByte
     if(state===snapshots[cursor])return false;
     const at=now();
     const previous=metadata[cursor];
-    const coalesce=Boolean(group && cursor>0 && cursor===snapshots.length-1 && previous?.group===group && at-previous.at<windowMs);
+    const coalesce=Boolean(group && cursor>0 && cursor===snapshots.length-1 && previous!==null && previous.group===group && at-previous.at<windowMs);
     if(coalesce){snapshots[cursor]=state; metadata[cursor]={group,at};}
     else {
       if(snapshots.splice(cursor+1).length)prune();
@@ -57,6 +61,7 @@ export function createHistory({read, restore, onChange=()=>{}, limit=60, maxByte
     notify();
     return true;
   }
+  /** @param {number} delta */
   function move(delta){
     const index=cursor+delta;
     if(index<0||index>=snapshots.length)return false;
