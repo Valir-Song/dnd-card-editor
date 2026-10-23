@@ -163,7 +163,9 @@ with sync_playwright() as p:
         page.locator('#export').click()
     artifact=outcome.value
     version=json.loads((Path(__file__).resolve().parents[1]/'package.json').read_text(encoding='utf-8'))['version']
-    assert artifact.suggested_filename=='DND_Card_Editor_'+re.sub(r'[^0-9a-z]+','_',version,flags=re.I)+'.html',artifact.suggested_filename
+    # Named after the layout (the template's heading here), then the editor version.
+    stem=re.sub(r'[^\w]+','_',page.locator('#layoutName').input_value()).strip('_') or 'DND_Card_Editor'
+    assert artifact.suggested_filename==stem+'_'+re.sub(r'[^0-9a-z]+','_',version,flags=re.I)+'.html',artifact.suggested_filename
     copied=Path(tempfile.mkdtemp(prefix='dnd-33-'))/'exported.html'
     shutil.copy2(Path(artifact.path()),copied)
     reopened=context.new_page()

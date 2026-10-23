@@ -156,3 +156,18 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .gesture-frame.inner{outline-color:#8758b5}
 .gesture-frame.inner .gesture-handle{background:#8758b5}
 .gesture-marquee.inner{background:#8758b519;border-color:#8758b5}
+.layouts-dialog{border:0;border-radius:10px;padding:18px 20px;width:min(560px,calc(100vw - 32px));max-height:80vh;box-shadow:0 12px 40px #0006;font:14px/1.4 system-ui,sans-serif;color:#262137}
+.layouts-dialog::backdrop{background:#1d16294d}
+.layouts-dialog h2{margin:0 0 6px;font-size:18px}
+.layouts-hint{margin:0 0 12px;color:#5d5470;font-size:12.5px}
+.layouts-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.layouts-list li{display:flex;gap:10px;align-items:center;justify-content:space-between;border:1px solid #e4dcef;border-radius:8px;padding:8px 10px}
+.layouts-list li.copy{margin-left:18px;background:#faf8fd}
+.layouts-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.layouts-info strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layouts-info small{color:#6b6280}
+.layouts-current{font-size:11px;color:#5b3d86;font-weight:600}
+.layouts-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.layouts-actions button,.layouts-close{border:1px solid #cbbfe0;background:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font:inherit;font-size:12.5px}
+.layouts-close{margin-top:14px;float:right}
+@media(max-width:520px){.layouts-list li{flex-direction:column;align-items:stretch}.layouts-actions{justify-content:flex-start}}
