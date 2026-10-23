@@ -55,7 +55,8 @@
 | `src/editor/toolbar-tabs.js` | раскладка панели по вкладкам (список id кнопок каждой вкладки) |
 | `src/editor/notice.js` | жёлтые предупреждения под панелью |
 | `src/editor/dom.js` | `target(event)` для проверки типов |
-| `src/types/*.d.ts` | типы: `Item`, `Store`, `Deps`, `CommitOptions`; DOM-поиск как поля ввода |
+| `src/types/*.d.ts` | типы: `Item`, `Store`, `Deps`, `CommitOptions`; геометрия (`Box`, `Point`, `Dir`, `Lines`); DOM-поиск как поля ввода |
+| `tsconfig.strict.json` | строгий режим TypeScript для модулей из списка `include`; новый модуль — сразу туда |
 | `tests/*.test.mjs` | Node-тесты (`npm test`) |
 | `tests/*_browser_smoke.py` | Playwright-наборы по собранному `dist/index.html` |
 | `tests/smoke.md` | ручной контрольный список перед релизом |
@@ -123,7 +124,7 @@
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
 npm test                     # Node-тесты (сейчас 41)
-npm run typecheck            # TypeScript по JS (checkJs, без вывода файлов)
+npm run typecheck            # TypeScript по JS: обычный tsconfig.json + строгий tsconfig.strict.json
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html
 python3 tests/run_e2e.py     # все 4 браузерных набора в Chromium (~3–4 мин)
@@ -181,6 +182,10 @@ python3 tests/regression_browser_smoke.py # один набор (нужен св
 - Moveable/Selecto удалены (3.5) — не возвращать; свой слой жестов проще и надёжнее.
 - В JS-файлах TypeScript считает объекты «открытыми» и не ругается на незнакомые свойства —
   поэтому API (Store и т. п.) описаны интерфейсами в `src/types/*.d.ts`, а не выводятся из кода.
+- Строгие модули (`tsconfig.strict.json`): параметры описывать JSDoc (`@param`), пустые массивы и
+  `Map`/`Set` — через `/** @type */`; `null` проверять явно, а не `?.` с последующим обращением.
+  Строгий режим уже нашёл: `canvas.getContext('2d')` может вернуть `null` (теперь картинка остаётся
+  несжатой, а не падает).
 
 ## Стиль кода
 - Подражать окружающему коду. Старые модули (`editor.js`, `objects.js`, `files.js`, `layers.js` …) —

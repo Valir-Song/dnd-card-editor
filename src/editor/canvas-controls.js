@@ -21,6 +21,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   const mmPerPx = page => 210 / page.getBoundingClientRect().width;
   const itemFor = id => store.find(id);
   const clip = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
+  /** @returns {import('../types/geometry').Point} */
   const toMm = (page, ev) => {
     const r = page.getBoundingClientRect(), k = 210 / r.width;
     return [(ev.clientX - r.left) * k, (ev.clientY - r.top) * k];

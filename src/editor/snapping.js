@@ -5,21 +5,28 @@ const STORE='dnd-card-editor-snap';
 export const PAGE_LINES={x:[0,5,105,205,210],y:[0,5,148.5,292,297]};
 
 export function createSnapSettings(){
+  /** @type {import('../types/geometry').SnapSettings} */
   const state={enabled:true,gridMm:0};
   try{Object.assign(state,JSON.parse(localStorage.getItem(STORE)||'{}'))}catch(e){}
+  /** @type {Set<() => void>} */
   const listeners=new Set();
   return {
     get:()=>({...state}),
+    /** @param {Partial<import('../types/geometry').SnapSettings>} next */
     set(next){
       Object.assign(state,next);
       try{localStorage.setItem(STORE,JSON.stringify(state))}catch(e){}
       listeners.forEach(listener=>listener());
     },
-    onChange:listener=>listeners.add(listener)
+    onChange:(/** @type {() => void} */ listener)=>listeners.add(listener)
   };
 }
 
 // Candidate lines from every other object on the page plus the sheet guides.
+/**
+ * @param {Array<import('../types/geometry').Box & {id: string, page?: number}>} items @param {number} page @param {Set<string>} excludeIds
+ * @returns {import('../types/geometry').Lines}
+ */
 export function collectLines(items,page,excludeIds){
   const lines={x:[...PAGE_LINES.x],y:[...PAGE_LINES.y]};
   for(const item of items){
@@ -32,7 +39,9 @@ export function collectLines(items,page,excludeIds){
 
 // Smallest correction that puts one of `edges` on a line within `threshold`;
 // otherwise, with a grid, move the first edge onto the nearest grid step.
+/** @param {number[]} edges @param {number[]} lines @param {number} threshold @returns {import('../types/geometry').Snap} */
 export function snapAxis(edges,lines,threshold,grid=0){
+  /** @type {import('../types/geometry').Snap | null} */
   let best=null;
   for(const edge of edges)for(const line of lines){
     const offset=line-edge;
@@ -44,6 +53,10 @@ export function snapAxis(edges,lines,threshold,grid=0){
 }
 
 // Snap a moving box (its left/centre/right and top/middle/bottom) after a raw move.
+/**
+ * @param {import('../types/geometry').Box} box @param {number} dx @param {number} dy @param {import('../types/geometry').Lines} lines
+ * @param {{threshold: number, grid?: number}} options
+ */
 export function snapMove(box,dx,dy,lines,{threshold,grid=0}){
   const x=box.x+dx,y=box.y+dy;
   const sx=snapAxis([x,x+box.w/2,x+box.w],lines.x,threshold,grid);

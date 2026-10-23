@@ -6,9 +6,19 @@ export const KINDS=['header','note','resources','section','card','shape','image'
 const GEOMETRY=['x','y','w','h'];
 const MAX_ERRORS=5;
 
+/**
+ * @param {unknown} data parsed JSON from a file, the browser save or the template
+ * @param {{makeId?: (seen: Set<string>) => string}} [options]
+ * @returns {{items: import('../types/layout').Item[], errors: string[]} | {items: null, errors: string[]}}
+ */
 export function normalizeLayout(data,{makeId=defaultId}={}){
   if(!Array.isArray(data))return {items:null,errors:['Файл должен содержать массив объектов макета.']};
-  const errors=[],seen=new Set(),items=[];
+  /** @type {string[]} */
+  const errors=[];
+  /** @type {Set<string>} */
+  const seen=new Set();
+  /** @type {import('../types/layout').Item[]} */
+  const items=[];
   data.forEach((source,index)=>{
     const label='Объект №'+(index+1);
     if(!source||typeof source!=='object'||Array.isArray(source)){errors.push(label+': ожидается объект.');return}
@@ -28,6 +38,7 @@ export function normalizeLayout(data,{makeId=defaultId}={}){
   return errors.length?{items:null,errors}:{items,errors};
 }
 
+/** @param {Set<string>} seen */
 function defaultId(seen){
   let id;
   do id='e'+Date.now()+Math.floor(Math.random()*10000);while(seen.has(id));

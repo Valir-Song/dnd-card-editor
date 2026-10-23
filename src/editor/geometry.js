@@ -1,7 +1,9 @@
 // Pure millimetre geometry for canvas gestures: resizing with a fixed opposite
 // edge, proportional group scaling and marquee hit tests. No DOM here.
 export const PAGE={w:210,h:297};
+/** @typedef {import('../types/geometry').Box} Box */
 
+/** @param {Box[]} boxes @returns {Box} */
 export function bbox(boxes){
   const x=Math.min(...boxes.map(b=>b.x)),y=Math.min(...boxes.map(b=>b.y));
   return {x,y,w:Math.max(...boxes.map(b=>b.x+b.w))-x,h:Math.max(...boxes.map(b=>b.y+b.h))-y};
@@ -9,6 +11,11 @@ export function bbox(boxes){
 
 // dir is [-1|0|1, -1|0|1]: which edges move (e.g. [1,1] = bottom-right handle).
 // The opposite edge stays fixed; the result stays on the page and above `min`.
+/**
+ * @param {Box} box @param {import('../types/geometry').Dir} dir @param {number} dx @param {number} dy
+ * @param {{min?: {w: number, h: number}, keepRatio?: boolean, page?: {w: number, h: number}}} [options]
+ * @returns {Box}
+ */
 export function resizeBox(box,dir,dx,dy,{min={w:12,h:6},keepRatio=false,page=PAGE}={}){
   let w=box.w+dx*dir[0],h=box.h+dy*dir[1];
   if(keepRatio&&dir[0]&&dir[1]){
@@ -28,12 +35,14 @@ export function resizeBox(box,dir,dx,dy,{min={w:12,h:6},keepRatio=false,page=PAG
 }
 
 // Map each box from the group frame `from` into the resized frame `to`.
+/** @param {Box[]} boxes @param {Box} from @param {Box} to @returns {Box[]} */
 export function scaleBoxes(boxes,from,to){
   const sx=from.w?to.w/from.w:1,sy=from.h?to.h/from.h:1;
   return boxes.map(b=>({x:to.x+(b.x-from.x)*sx,y:to.y+(b.y-from.y)*sy,w:b.w*sx,h:b.h*sy}));
 }
 
 // Boxes covered by the marquee by at least `ratio` of their own area.
+/** @template {Box} T @param {Box} rect @param {T[]} boxes @returns {T[]} */
 export function marqueeHits(rect,boxes,ratio=0.12){
   return boxes.filter(b=>{
     const w=Math.min(rect.x+rect.w,b.x+b.w)-Math.max(rect.x,b.x);
@@ -42,6 +51,7 @@ export function marqueeHits(rect,boxes,ratio=0.12){
   });
 }
 
+/** @param {import('../types/geometry').Point} a @param {import('../types/geometry').Point} b @returns {Box} */
 export function rectFromPoints(a,b){
   return {x:Math.min(a[0],b[0]),y:Math.min(a[1],b[1]),w:Math.abs(a[0]-b[0]),h:Math.abs(a[1]-b[1])};
 }

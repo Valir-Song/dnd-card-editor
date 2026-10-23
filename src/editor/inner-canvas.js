@@ -177,6 +177,7 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
     const card = ev.target.closest?.('.el');
     if (!card || ev.target.closest('.text-wrap, .editable, [contenteditable], .level')) return;
     ev.preventDefault();
+    /** @type {(e: PointerEvent) => import('../types/geometry').Point} */
     const toMm = e => { const p = entry.page.getBoundingClientRect(), k = 210 / p.width; return [(e.clientX - p.left) * k, (e.clientY - p.top) * k]; };
     const from = toMm(ev);
     let moved = false;

@@ -39,7 +39,7 @@ export function createStore({get, set, history, save, render, mark = () => {}}) 
     // remember that, so the next redraw keeps the element instead of rebuilding it.
     /** @param {Item | Item[]} items @param {CommitOptions} [options] */
     shown(items, options) {
-      for (const item of [].concat(items)) mark(item);
+      for (const item of Array.isArray(items) ? items : [items]) mark(item);
       return finish(options, false);
     },
     // Replace data without an undo step (startup recovery, undo/redo itself).
