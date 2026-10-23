@@ -9,6 +9,7 @@ const DIRECTIONS = {nw: [-1, -1], n: [0, -1], ne: [1, -1], w: [-1, 0], e: [1, 0]
 const EDGES = ['top', 'right', 'bottom', 'left'];
 const CLICK_SLOP = 3; // px a press may wander and still count as a click
 const NATIVE = '.editable, [contenteditable], input, textarea, select, .level, .textbox-move';
+const LOCK_ICON = '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="7" width="10" height="7.5" rx="1.5" fill="currentColor"/></svg>';
 
 /** @param {import('../types/layout').Deps} deps */
 export function createCanvasControls({pages, store, onSelection, mm, snapping}) {
@@ -20,6 +21,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   const elements = () => ids.map(nodeFor).filter(Boolean);
   const mmPerPx = page => 210 / page.getBoundingClientRect().width;
   const itemFor = id => store.find(id);
+  const locked = id => !!itemFor(id)?.locked;
   const clip = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
   /** @returns {import('../types/geometry').Point} */
   const toMm = (page, ev) => {
@@ -56,6 +58,11 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
       handle.addEventListener('pointerdown', ev => startResize(ev, page, dir));
       frame.append(handle);
     }
+    const lock = document.createElement('div');
+    lock.className = 'gesture-lock';
+    lock.title = 'Закреплено: не двигается и не удаляется';
+    lock.innerHTML = LOCK_ICON;
+    frame.append(lock);
     const marquee = document.createElement('div');
     marquee.className = 'gesture-marquee';
     marquee.hidden = true;
@@ -79,6 +86,10 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
       const b = bbox(targets.map(item => boxOf(item)));
       Object.assign(frame.style, {left: mm(b.x), top: mm(b.y), width: mm(b.w), height: mm(b.h)});
       frame.classList.toggle('group', targets.length > 1);
+      // Locked objects have no handles; with nothing movable the bands go too.
+      const lockedCount = targets.filter(item => item.locked).length;
+      frame.classList.toggle('has-locked', lockedCount > 0);
+      frame.classList.toggle('locked', lockedCount === targets.length);
     }
   }
 
@@ -99,15 +110,22 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
     }
     renderFrame();
     const status = document.getElementById('selectionCount');
-    if (status) status.textContent = inner?.hasSelection()
-      ? (inner.count() > 1 ? 'Текстовых блоков: ' + inner.count() : 'Выбран текстовый блок')
-      : ids.length > 1 ? 'Выбрано: ' + ids.length : '';
+    if (!status) return;
+    if (inner?.hasSelection()) {
+      status.textContent = inner.count() > 1 ? 'Текстовых блоков: ' + inner.count() : 'Выбран текстовый блок';
+      return;
+    }
+    const count = ids.length > 1 ? 'Выбрано: ' + ids.length : '';
+    const fixed = ids.filter(locked).length;
+    const note = !fixed ? '' : ids.length === 1 ? 'закреплён' : 'закреплено: ' + fixed;
+    status.textContent = count && note ? count + ' · ' + note : count || (note && note[0].toUpperCase() + note.slice(1));
   }
 
   // ---- gestures ----
   function begin() {
+    // Locked objects stay put (and count as snap lines) when their group moves.
     const chosen = ids.map(id => ({id, item: itemFor(id), node: nodeFor(id)}))
-      .filter(record => record.item && record.node);
+      .filter(record => record.item && record.node && !record.item.locked);
     if (!chosen.length) { gesture = null; return; }
     const page = chosen[0].node.closest('.page');
     const scale = mmPerPx(page);
@@ -239,7 +257,9 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
       onMove: (dist, e) => applyResize(dist, dir, {free: e.altKey, keepRatio: e.shiftKey && gesture?.records.length === 1})
     });
   }
-  function startMarquee(ev, entry) {
+  // `clicked`: the locked object the press started on; a click without
+  // dragging selects it (to unlock it or change its colour), Shift+click toggles it.
+  function startMarquee(ev, entry, clicked = null) {
     // Text selection on the blank sheet is cancelled on mousedown (below), not
     // here: cancelling pointerdown would also suppress the mouseup fallback.
     if (document.activeElement?.closest?.('.page')) /** @type {HTMLElement} */ (document.activeElement).blur();
@@ -260,18 +280,28 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
       end: (e, cancelled) => {
         entry.marquee.hidden = true;
         if (cancelled) return; // interrupted: keep the selection as it was
-        if (!moved) { if (!additive) setSelection([]); return; }
-        const candidates = store.items.filter(item => (item.page || 1) === pageNumber).map(item => ({id: item.id, ...boxOf(item)}));
+        if (!moved) {
+          if (clicked) setSelection(!additive ? [clicked] : before.includes(clicked) ? before.filter(id => id !== clicked) : [...before, clicked], clicked);
+          else if (!additive) setSelection([]);
+          return;
+        }
+        // The marquee passes over locked objects (a background, a section frame).
+        const candidates = store.items.filter(item => (item.page || 1) === pageNumber && !item.locked).map(item => ({id: item.id, ...boxOf(item)}));
         const hits = marqueeHits(box(e), candidates).map(b => b.id);
         setSelection(additive ? [...before, ...hits] : hits);
       }
     });
   }
 
+  // A press on a locked object (not on its text) behaves like one on the blank sheet.
+  const pressesLocked = e => {
+    const element = e.target.closest?.('.el');
+    return !!element && locked(element.dataset.id) && !e.target.closest('.text-wrap, ' + NATIVE);
+  };
   // Firefox starts its own (Shift-)selection on the compatibility mousedown,
   // which pointerdown's preventDefault does not stop: cancel it on blank sheet.
   layers.forEach(({page}) => page.addEventListener('mousedown', e => {
-    if (e.button === 0 && !e.target.closest?.('.el')) e.preventDefault();
+    if (e.button === 0 && (!e.target.closest?.('.el') || pressesLocked(e))) e.preventDefault();
   }, true));
   // Capture phase: decide before Tiptap's own pointerdown handlers run.
   layers.forEach(entry => entry.page.addEventListener('pointerdown', e => {
@@ -292,6 +322,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
       return; // Tiptap receives normal clicks; no parent drag starts.
     }
     if (e.altKey) return; // Alt+drag within a card is the nested text-frame marquee.
+    if (pressesLocked(e)) { startMarquee(e, entry, id); return; }
     if (e.shiftKey) {
       e.preventDefault();
       setSelection(ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
@@ -307,6 +338,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
     if (!ids.includes(id)) setSelection([id], id);
+    if (locked(id)) return;
     track(e, {onStart: () => { begin(); return !!gesture; }, onMove: (dist, ev) => applyDrag(dist, ev.altKey)});
   }
   function afterDraw() {

@@ -65,7 +65,7 @@ FIXTURE=[
   {'id':'n','kind':'note','page':1,'x':107,'y':68,'w':91,'h':30,'z':5,'title':'ЗАМЕТКА','detail':'Строка один\nСтрока два с переносом'},
   {'id':'r','kind':'resources','page':1,'x':12,'y':102,'w':91,'h':30,'z':6,'title':'РЕСУРСЫ','detail':'Вдохновение: □ □ □\nЯчейки 1: □ □ □ □'},
   {'id':'s','kind':'section','page':1,'x':12,'y':136,'w':186,'h':8,'z':7,'title':'СЕКЦИЯ · ЗАГОЛОВОК'},
-  {'id':'rect','kind':'shape','shape':'rect','page':1,'x':107,'y':102,'w':40,'h':20,'z':8,'bg':'#d8c5ed'},
+  {'id':'rect','kind':'shape','shape':'rect','page':1,'x':107,'y':102,'w':40,'h':20,'z':8,'bg':'#d8c5ed','locked':True},  # a lock never changes the look
   {'id':'circle','kind':'shape','shape':'circle','page':1,'x':152,'y':102,'w':20,'h':20,'z':9,'bg':'#8e6eb0'},
   {'id':'line','kind':'shape','shape':'line','page':1,'x':107,'y':126,'w':90,'h':2,'z':10,'bg':'#745193'},
   {'id':'img','kind':'image','page':1,'x':12,'y':150,'w':50,'h':30,'z':11,'src':stripes,'opacity':80,'brightness':110,'contrast':90,'rotation':0,'fit':'contain'},

@@ -158,6 +158,13 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .gesture-frame.inner{outline-color:#8758b5}
 .gesture-frame.inner .gesture-handle{background:#8758b5}
 .gesture-marquee.inner{background:#8758b519;border-color:#8758b5}
+/* 3.11: locked objects (lock.js) keep their place: no handles, a lock badge. */
+.el.locked{cursor:default}
+.gesture-frame.has-locked .gesture-handle,.gesture-frame.inner.locked .gesture-handle{display:none}
+.gesture-frame.locked .gesture-edge,.gesture-frame.inner.locked .gesture-edge{pointer-events:none}
+.gesture-frame.locked{outline-color:#7d7590}
+.gesture-lock{display:none;position:absolute;left:100%;top:0;margin:-17px 0 0 2px;width:15px;height:15px;border-radius:3px;background:#7d7590;color:#fff;line-height:0;padding:2px;box-sizing:border-box;pointer-events:none}
+.gesture-frame.has-locked .gesture-lock{display:block}
 .layouts-dialog{border:0;border-radius:10px;padding:18px 20px;width:min(560px,calc(100vw - 32px));max-height:80vh;box-shadow:0 12px 40px #0006;font:14px/1.4 system-ui,sans-serif;color:#262137}
 .layouts-dialog::backdrop{background:#1d16294d}
 .layouts-dialog h2{margin:0 0 6px;font-size:18px}

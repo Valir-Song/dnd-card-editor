@@ -5,7 +5,7 @@ export function setupToolbarTabs() {
   if (!toolbar || toolbar.dataset.tabsReady === 'true') return;
   toolbar.dataset.tabsReady = 'true';
   const groups = [
-    {id:'cards', label:'Карточки', ids:['add','duplicate','delete']},
+    {id:'cards', label:'Карточки', ids:['add','duplicate','delete','lock']},
     {id:'appearance', label:'Оформление', ids:['bg','cardBgTools','imageTools']},
     {id:'text', label:'Текст', ids:['addTextBox','bold','italic','underline','strike','fontFamily','fontSize','textAlign','textcolor','bulletList','orderedList','clearFormatting','textBoxTools']},
     {id:'figures', label:'Фигуры и изображения', ids:['rect','circle','line','upload']},

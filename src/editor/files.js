@@ -4,7 +4,7 @@ import { compressImage } from './images.js';
 import { fileBase } from './freshness.js';
 import { normalizeLayout } from './layout.js';
 /** @param {import('../types/layout').Deps} deps */
-export function setupFiles({ store, getSelectionIds, clearSelection, syncImageTools, syncBgTools, flushSave, identity }) {
+export function setupFiles({ store, getSelectionIds, removeObjects, clearSelection, syncImageTools, syncBgTools, flushSave, identity }) {
 // Snapshot unmodified source DOM once, before dynamic panels and Tiptap mount.
 // Exporting the live DOM would serialize editor internals and break reloading.
 const pristine=document.documentElement.cloneNode(true);
@@ -49,5 +49,5 @@ compressButton.onclick=async()=>{
   store.change(items=>{for(const item of items)for(const f of fields)if(shrunk.has(item[f]))item[f]=shrunk.get(item[f])});
   alert('Картинки сжаты: было '+mb(before)+', стало '+mb(after)+'. Ctrl+Z вернёт прежние.');
 };
-document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&getSelectionIds().length&&!target(e).isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(target(e).tagName)){const deleted=new Set(getSelectionIds());clearSelection();store.change(items=>items.filter(x=>!deleted.has(x.id)));syncImageTools();syncBgTools()}});
+document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&getSelectionIds().length&&!target(e).isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(target(e).tagName))removeObjects(getSelectionIds())});
 }

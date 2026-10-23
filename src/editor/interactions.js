@@ -4,6 +4,8 @@
 export function createInnerInteractions({select,store,mm}) {
   function startBadgeDrag(event,item,element,badge) {
     if(event.button!==0)return;
+    // A locked card keeps its badge in place; its text is still edited.
+    if(item?.locked){select(element);return}
     event.preventDefault();event.stopPropagation();
     select(element);
     const page=element.closest('.page');

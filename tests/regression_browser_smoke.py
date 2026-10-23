@@ -883,5 +883,119 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': copy, cut and paste of objects; text keys stay text; works across files')
 
+    # 17. Locked objects (3.11): a locked background lets a marquee start on it and
+    #     pick the cards above (before, the press dragged the background away); a
+    #     click still selects it; it never moves, resizes or gets deleted, while
+    #     its text stays editable. Copies start unlocked; the lock is saved.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    card=lambda i,x,y,z:{'id':i,'kind':'card','page':1,'x':x,'y':y,'w':60,'h':20,'z':z,'title':i,'meta':'м','detail':'д','level':'1','bg':'#ffffff'}
+    import_json(page,[{'id':'BG','kind':'shape','shape':'rect','page':1,'x':10,'y':20,'w':190,'h':150,'z':1,'bg':'#eeeeee','locked':True},
+                      card('A',20,30,2),card('B',100,30,3)])
+    data=lambda:{i['id']:i for i in saved_layout(page)}
+    status=lambda:page.locator('#selectionCount').inner_text()
+    def at(x,y):
+        b=page.locator('#page1').bounding_box();k=b['width']/210
+        return b['x']+x*k,b['y']+y*k
+    def drag(start,end,steps=8):
+        page.mouse.move(*start); page.mouse.down(); page.mouse.move(*end,steps=steps); page.mouse.up()
+    left=lambda i:page.locator(f'.el[data-id="{i}"]').evaluate('e=>e.style.left')
+    frame='.gesture-frame:not(.inner):not([hidden])'
+    # A marquee starting on the locked background selects the cards, not the background.
+    drag(at(15,25),at(170,60))
+    assert status()=='Выбрано: 2',('The marquee must pick the cards over a locked background',status())
+    assert left('BG')=='10mm' and data()['BG']['x']==10,'The locked background must not move'
+    # Shift+marquee from it adds to the selection; Shift+click toggles it.
+    page.locator('.el[data-id="B"]').click(position={'x':3,'y':3})
+    page.mouse.move(*at(15,25)); page.keyboard.down('Shift'); page.mouse.down(); page.mouse.move(*at(60,45),steps=8); page.mouse.up()
+    assert status()=='Выбрано: 2',('Shift+marquee from a locked object adds to the selection',status())
+    page.mouse.click(*at(15,100)); page.keyboard.up('Shift')
+    assert status()=='Выбрано: 3 · закреплено: 1',status()
+    # A click selects it: no handles, a lock badge, «Закреплён».
+    page.mouse.click(*at(15,100))
+    assert status()=='Закреплён',status()
+    assert page.locator(frame).evaluate("f=>f.classList.contains('locked')")
+    assert page.locator(frame+' [data-dir="se"]').bounding_box() is None,'A locked object has no resize handles'
+    assert page.locator(frame+' .gesture-lock').is_visible()
+    # Dragging it draws a marquee instead; it stays.
+    drag(at(15,100),at(60,140))
+    assert left('BG')=='10mm' and data()['BG']['x']==10
+    # Delete leaves it, with a notice that offers to unlock it (one undo step).
+    page.mouse.click(*at(15,100))
+    page.keyboard.press('Delete')
+    assert 'BG' in data(),'Delete must not remove a locked object'
+    notice=page.locator('[data-notice="locked"]')
+    assert notice.is_visible() and 'не удалён' in notice.inner_text(),notice.inner_text()
+    notice.locator('button',has_text='Открепить').click()
+    assert 'locked' not in data()['BG'],'Unlocking removes the field'
+    page.locator('#undo').click()
+    assert data()['BG'].get('locked') is True,'Undo locks it again'
+    # The button locks the selected card and shows the state.
+    page.locator('.el[data-id="A"]').click(position={'x':3,'y':3})
+    page.locator('[data-tab="cards"]').click()
+    lock=page.locator('#lock')
+    assert 'Закрепить' in lock.inner_text() and lock.get_attribute('aria-pressed')=='false'
+    lock.click()
+    assert data()['A'].get('locked') is True
+    assert 'Открепить' in lock.inner_text() and lock.get_attribute('aria-pressed')=='true'
+    assert page.locator('.el[data-id="A"]').evaluate("e=>e.classList.contains('locked')")
+    # It does not move by its body or its badge, but its text is still typed into.
+    box=page.locator('.el[data-id="A"]').bounding_box()
+    drag((box['x']+3,box['y']+3),(box['x']+60,box['y']+40))
+    assert left('A')=='20mm' and data()['A']['x']==20,'A locked card must not move'
+    badge=page.locator('.el[data-id="A"] .level').bounding_box()
+    drag((badge['x']+badge['width']/2,badge['y']+badge['height']/2),(badge['x']-40,badge['y']+5))
+    assert 'badgeX' not in data()['A'],'The badge of a locked card stays'
+    page.locator('.el[data-id="A"] .title .tiptap-content').click()
+    page.keyboard.press('End'); page.keyboard.type('Z')
+    assert page.locator('.el[data-id="A"] .title').inner_text().strip()=='AZ'
+    # Its text frames have no handles or drag bands.
+    page.locator('.el[data-id="A"] .detail .tiptap-content').click()
+    inner='.gesture-frame.inner:not([hidden])'
+    assert page.locator(inner).evaluate("f=>f.classList.contains('locked')")
+    assert page.locator(inner+' [data-dir="se"]').bounding_box() is None
+    assert page.locator(inner+' .gesture-edge.top').evaluate("e=>getComputedStyle(e).pointerEvents")=='none'
+    # Ctrl+Shift+L toggles the lock (outside text).
+    page.locator('.el[data-id="B"]').click(position={'x':3,'y':3})
+    page.keyboard.press('Control+Shift+L')
+    assert data()['B'].get('locked') is True,'Ctrl+Shift+L locks'
+    page.keyboard.press('Control+Shift+L')
+    assert 'locked' not in data()['B'],'Ctrl+Shift+L unlocks'
+    # A duplicate of a locked card starts unlocked.
+    page.locator('.el[data-id="A"]').click(position={'x':3,'y':3})
+    page.locator('#duplicate').click()
+    copies=[v for k,v in data().items() if k not in ('BG','A','B')]
+    assert len(copies)==1 and 'locked' not in copies[0] and data()['A'].get('locked') is True,copies
+    page.locator('#undo').click()
+    # In a group with a locked card, the others move and get deleted; it stays.
+    page.locator('.el[data-id="A"]').click(position={'x':3,'y':3})
+    page.locator('.el[data-id="B"]').click(position={'x':3,'y':3},modifiers=['Shift'])
+    assert status()=='Выбрано: 2 · закреплено: 1',status()
+    assert page.locator(frame+' [data-dir="se"]').bounding_box() is None,'No handles while a locked object is in the group'
+    box=page.locator('.el[data-id="B"]').bounding_box()
+    drag((box['x']+3,box['y']+3),(box['x']+3+38,box['y']+3))
+    moved=data()
+    assert moved['A']['x']==20 and moved['B']['x']>100,('Only the unlocked one moves',moved['A']['x'],moved['B']['x'])
+    page.locator('#undo').click()
+    page.locator('.el[data-id="A"]').click(position={'x':3,'y':3})
+    page.locator('.el[data-id="B"]').click(position={'x':3,'y':3},modifiers=['Shift'])
+    page.keyboard.press('Delete')
+    assert sorted(data())==['A','BG'] and status()=='Закреплён',(sorted(data()),status())
+    page.locator('#undo').click(); assert sorted(data())==['A','B','BG']
+    # «Удалить» and cut leave it too (cut still copies it).
+    page.locator('.el[data-id="A"]').click(position={'x':3,'y':3})
+    page.locator('#delete').click()
+    assert 'A' in data()
+    copied=page.evaluate("""()=>{const dt=new DataTransfer();const e=new ClipboardEvent('cut',{bubbles:true,cancelable:true});
+      Object.defineProperty(e,'clipboardData',{value:dt});document.body.dispatchEvent(e);return dt.getData('text/plain')}""")
+    assert '"id":"A"' in copied and 'A' in data(),'Cut copies a locked object but leaves it'
+    # The lock is saved with the layout.
+    wait_saved(page)
+    again=open_editor(context)
+    assert again.locator('.el[data-id="A"]').evaluate("e=>e.classList.contains('locked')")
+    assert not page.errors and not again.errors,(page.errors,again.errors)
+    context.close()
+    print('PASS '+engine+': locked objects stay put, let the marquee through, keep editable text')
+
     browser.close()
 print('All regression checks passed for '+engine)
