@@ -56,7 +56,7 @@
 | `src/editor/storage.js` | хранение: IndexedDB или запасной localStorage, фоновая запись (`createSaver`) |
 | `src/editor/freshness.js` | какой макет открыть (`chooseLayout`), свежее — файл или своя запись, имена файлов |
 | `src/editor/layouts-dialog.js` | окно «Мои макеты» |
-| `src/editor/lock.js` | «Закрепить»: `locked` у объекта, кнопка и Ctrl+Shift+L; чистые `lockState`/`setLockedFlag` (Node-тесты) |
+| `src/editor/lock.js` | «Закрепить»: `locked` у объекта, кнопка и Ctrl+Shift+L, «Открепить всё на странице» (`activePage`); чистые `lockState`/`setLockedFlag` (Node-тесты) |
 | `src/editor/nudge.js` | стрелки: 1 мм, Shift — до линии сетки (`gridStep`) или 5 мм; Esc выходит из текста; не трогает текст, поля, вкладки, диалоги |
 | `src/editor/align.js` | вкладка «Выравнивание»: `arrange` (чистая, Node-тесты) поверх `alignBoxes`/`distributeBoxes`/`matchSize` из geometry.js; цели — `canvas.arrangeTargets()` или `innerCanvas.arrangeTargets()` (тексты карточки) |
 | `src/editor/clipboard.js` | Ctrl+C/X/V объектов: JSON с меткой `dnd-card-editor/objects` в системном буфере; в тексте не вмешивается |
@@ -178,7 +178,7 @@
 ## Команды
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
-npm test                     # Node-тесты (сейчас 63)
+npm test                     # Node-тесты (сейчас 80)
 npm run typecheck            # TypeScript по JS: обычный tsconfig.json + строгий tsconfig.strict.json
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html
@@ -187,7 +187,7 @@ python3 tests/run_e2e.py firefox   # то же в Firefox (~3 мин; стави
 CPU_THROTTLE=4 python3 tests/run_e2e.py   # то же с замедленным в 4 раза процессором (~6–8 мин)
 python3 tests/regression_browser_smoke.py # один набор (нужен свежий npm run build)
 ```
-Браузерные наборы: `regression` (16 разделов; разделы про хранение — для обоих хранилищ: импорт, повреждённое сохранение, перенос 3.8, 7 МБ, ошибка записи, экспорт, печать,
+Браузерные наборы: `regression` (20 разделов, 17–20 — закрепление, стрелки и сетка, выравнивание, умная привязка; разделы про хранение — для обоих хранилищ: импорт, повреждённое сохранение, перенос 3.8, 7 МБ, ошибка записи, экспорт, печать,
 ручки при прокрутке, свежесть, перетаскивание одним движением, привязка, слой жестов и касания,
 инкрементальная отрисовка, картинки, своё сохранение для каждого макета, свободное место для новых объектов, действия с группой, копирование и вставка), `canvas` (жесты листа), `nested` (текстовые рамки карточки),
 `tiptap` (текст и форматирование).

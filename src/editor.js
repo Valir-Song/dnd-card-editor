@@ -283,7 +283,7 @@ setupObjects({addCard,addObject,addObjects,current,getSelectionIds,removeObjects
 ({syncTextBoxTools}=setupTextBoxes({addObject,current,store}));
 setupLayers({current,store,getSelected,getSelectionIds,select});
 setupClipboard({store,getSelectionIds,addObjects,removeObjects});
-lock=setupLock({store,getSelectionIds,current});
+lock=setupLock({store,getSelectionIds,current,getPage:()=>activePage});
 setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity:()=>({id:layoutId,name:layoutName})});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 try{renderer.draw()}catch(error){
