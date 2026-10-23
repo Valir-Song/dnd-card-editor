@@ -15,6 +15,7 @@ import { createNotices } from './editor/notice.js';
 import { formatStamp, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
 import { setupClipboard } from './editor/clipboard.js';
+import { setupLock, isLocked } from './editor/lock.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
@@ -185,6 +186,8 @@ const getSelected=()=>selected,clearSelection=()=>{selected=null;canvas.clear()}
 // Deleting an embedded text frame must never remove its parent card.
 const getSelectionIds=()=>innerCanvas?.hasSelection()?[]:canvas.getIds();
 let syncTextBoxTools=()=>{};
+/** @type {ReturnType<typeof setupLock> | null} */
+let lock=null;
 let innerCanvas=null;
 const rich=createRichText({
   current,select,store,
@@ -203,7 +206,7 @@ const canvas=createCanvasControls({pages,store,mm,snapping,onSelection:(ids,prim
   if(ids.length){const c=store.find(ids[0]);activePage=c?.page||1;}
   const c=current();
   if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;
-  syncImageTools();syncBgTools();syncTextBoxTools();
+  syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();notices.hide('locked');
 }});
 innerCanvas=createInnerCanvas({
   pages,store,mm,
@@ -220,7 +223,7 @@ canvas.attachInner(innerCanvas);
 
 const renderer=createRenderer({pages,getItems:()=>items,store,rich,
   startDrag:(event,id)=>canvas.startDrag(event,id),startBadgeDrag,
-  afterDraw:()=>{canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools()}});
+  afterDraw:()=>{canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools();lock?.sync()}});
 function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
 // object, or the middle of the part of the active page that is on screen.
@@ -243,7 +246,8 @@ const newId=()=>'e'+Date.now()+String(++idSeq).padStart(3,'0');
 // page, and becomes the selection.
 /** @param {object[]} list @param {{x: number, y: number}} [wish] */
 function addObjects(list,wish){
-  const sources=list.map(o=>({x:0,y:0,...structuredClone(o)})).sort((a,b)=>(a.z||0)-(b.z||0));
+  // Copies start unlocked, so they can be put in place.
+  const sources=list.map(o=>{const c={x:0,y:0,...structuredClone(o)};delete c.locked;return c}).sort((a,b)=>(a.z||0)-(b.z||0));
   const box=bbox(sources),spot=placeNew({w:box.w,h:box.h},wish);
   let z=Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0));
   const added=sources.map(o=>({...o,x:o.x-box.x+spot.x,y:o.y-box.y+spot.y,z:++z,id:newId(),page:activePage}));
@@ -253,12 +257,25 @@ function addObjects(list,wish){
 }
 /** @param {object} o @param {{x: number, y: number}} [wish] */
 function addObject(o,wish){addObjects([o],wish)}
+// Delete objects as one undo step. Locked ones stay, selected, with a notice
+// that offers to unlock them (Delete, «Удалить» and cut all come here).
+/** @param {string[]} ids */
+function removeObjects(ids){
+  const list=ids.map(id=>store.find(id)).filter(Boolean),kept=list.filter(isLocked).map(x=>x.id);
+  const gone=new Set(list.filter(x=>!isLocked(x)).map(x=>x.id));
+  if(gone.size){canvas.setSelection(kept);store.change(items=>items.filter(x=>!gone.has(x.id)));syncImageTools();syncBgTools()}
+  if(kept.length)notices.show('locked',(kept.length>1?'Закреплённые объекты не удалены':'Закреплённый объект не удалён')+': закрепление защищает от случайного удаления и сдвига.',[
+    {label:'Открепить',onClick:()=>{lock?.setLocked(kept,false);notices.hide('locked')}}
+  ]);
+  return gone.size;
+}
 function addCard(){addObject({kind:'card',w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Кликни, чтобы изменить описание.',level:'1',roles:'support',bg:'#ffffff'})}
-setupObjects({addCard,addObject,addObjects,current,getSelectionIds,clearSelection,store,syncImageTools,syncBgTools});
+setupObjects({addCard,addObject,addObjects,current,getSelectionIds,removeObjects,store});
 ({syncTextBoxTools}=setupTextBoxes({addObject,current,store}));
 setupLayers({current,store,getSelected,getSelectionIds,select});
-setupClipboard({store,getSelectionIds,addObjects,clearSelection,afterRemove:()=>{syncImageTools();syncBgTools()}});
-setupFiles({store,getSelectionIds,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity:()=>({id:layoutId,name:layoutName})});
+setupClipboard({store,getSelectionIds,addObjects,removeObjects});
+lock=setupLock({store,getSelectionIds,current});
+setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity:()=>({id:layoutId,name:layoutName})});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 try{renderer.draw()}catch(error){
   // Valid-looking data can still fail to render; recover the same way.

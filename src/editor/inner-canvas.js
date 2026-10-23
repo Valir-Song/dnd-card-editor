@@ -62,6 +62,8 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
       const b = bbox(targets.map(rectMm));
       Object.assign(frame.style, {left: mm(b.x), top: mm(b.y), width: mm(b.w), height: mm(b.h)});
       frame.classList.toggle('group', targets.length > 1);
+      // Text in a locked card is still edited, but its frames stay put.
+      frame.classList.toggle('locked', !!parentFor(parentId)?.locked);
     }
   }
   // Text is live DOM: formatting can change a frame's natural size without a
@@ -107,7 +109,7 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
   // ---- gestures: drag (dir === null) or resize from a handle ----
   function begin() {
     const owner = parentFor(parentId), chosen = currentTargets();
-    if (!owner || !chosen.length) return false;
+    if (!owner || owner.locked || !chosen.length) return false;
     const records = chosen.map(node => {
       const position = frameData(owner, node.dataset.field), abs = rectMm(node);
       const x = position.x || 0, y = position.y || 0;

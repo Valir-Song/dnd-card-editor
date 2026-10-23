@@ -17,6 +17,8 @@ export interface Item {
   shape?: 'rect' | 'circle' | 'line';
   src?: string; fit?: string; opacity?: number; brightness?: number; contrast?: number; rotation?: number;
   roles?: string;
+  // Locked in place (see src/editor/lock.js); absent means unlocked.
+  locked?: boolean;
   // Text box (kind 'textbox').
   autoHeight?: boolean; bgTransparent?: boolean; borderVisible?: boolean; borderColor?: string;
   fontFamily?: string; fontSize?: number; textAlign?: string; textColor?: string; textWeight?: string;

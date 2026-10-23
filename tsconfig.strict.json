@@ -15,6 +15,7 @@
     "src/editor/layers.js",
     "src/editor/clipboard.js",
     "src/editor/startup.js",
-    "src/editor/render.js"
+    "src/editor/render.js",
+    "src/editor/lock.js"
   ]
 }

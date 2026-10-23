@@ -41,9 +41,9 @@ const typing = () => {
 /**
  * @param {{store: import('../types/layout').Store, getSelectionIds: () => string[],
  *   addObjects: (list: Item[], wish?: {x: number, y: number}) => unknown,
- *   clearSelection: () => void, afterRemove: () => void}} deps
+ *   removeObjects: (ids: string[]) => number}} deps
  */
-export function setupClipboard({store, getSelectionIds, addObjects, clearSelection, afterRemove}) {
+export function setupClipboard({store, getSelectionIds, addObjects, removeObjects}) {
   /** @param {ClipboardEvent} event */
   function copy(event) {
     if (typing() || !event.clipboardData) return null;
@@ -69,11 +69,7 @@ export function setupClipboard({store, getSelectionIds, addObjects, clearSelecti
   document.addEventListener('copy', event => { copy(event); }, true);
   document.addEventListener('cut', event => {
     const ids = copy(event);
-    if (!ids) return;
-    const removed = new Set(ids);
-    clearSelection();
-    store.change(items => items.filter(item => !removed.has(item.id)));
-    afterRemove();
+    if (ids) removeObjects(ids); // locked objects are copied but stay
   }, true);
   document.addEventListener('paste', event => {
     if (typing()) return;
