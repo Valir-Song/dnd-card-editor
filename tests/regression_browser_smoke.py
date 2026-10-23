@@ -97,7 +97,7 @@ with sync_playwright() as p:
     native=open_editor(probe_context).evaluate('document.documentElement.dataset.storage')
     probe_context.close()
     backends=[b for b in BACKENDS if b[0]=='localstorage' or native=='indexeddb']
-    if native!='indexeddb': print('NOTE '+engine+': no IndexedDB for local files ('+native+'); checking the localStorage fallback')
+    print('NOTE '+engine+': storage for local files is '+native+('' if native=='indexeddb' else '; checking the localStorage fallback only'))
 
     for kind,query in backends:
         url=html_path.as_uri()+query
