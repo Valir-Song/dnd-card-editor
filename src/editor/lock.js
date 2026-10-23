@@ -38,10 +38,12 @@ const typing = () => {
 /**
  * The «Закрепить» button and Ctrl+Shift+L. They act on the selection, or on
  * the card whose text frame is selected (then the selection itself is empty).
+ * «Открепить всё на странице» unlocks every object of the page being worked on
+ * (the marquee passes over locked objects, so they are hard to select together).
  * @param {{store: import('../types/layout').Store, getSelectionIds: () => string[],
- *   current: () => Item | undefined}} deps
+ *   current: () => Item | undefined, getPage: () => number}} deps
  */
-export function setupLock({store, getSelectionIds, current}) {
+export function setupLock({store, getSelectionIds, current, getPage}) {
   const button = /** @type {HTMLButtonElement} */ (document.getElementById('lock'));
   const targets = () => {
     const ids = getSelectionIds();
@@ -65,6 +67,11 @@ export function setupLock({store, getSelectionIds, current}) {
     if (items.length) setLocked(items.map(item => item.id), lockState(items) !== 'all');
   }
   button.addEventListener('click', toggle);
+  /** @type {HTMLButtonElement} */ (document.getElementById('unlockPage')).addEventListener('click', () => {
+    const page = getPage();
+    const items = store.items.filter(item => (item.page || 1) === page && isLocked(item));
+    if (items.length) setLocked(items.map(item => item.id), false);
+  });
   document.addEventListener('keydown', event => {
     // Inside text the same keys belong to the text editor.
     if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.altKey || typing()) return;

@@ -989,6 +989,14 @@ with sync_playwright() as p:
     copied=page.evaluate("""()=>{const dt=new DataTransfer();const e=new ClipboardEvent('cut',{bubbles:true,cancelable:true});
       Object.defineProperty(e,'clipboardData',{value:dt});document.body.dispatchEvent(e);return dt.getData('text/plain')}""")
     assert '"id":"A"' in copied and 'A' in data(),'Cut copies a locked object but leaves it'
+    # «Открепить всё на странице»: every lock of the page goes, as one undo step.
+    page.locator('.el[data-id="B"]').click(position={'x':3,'y':3})
+    page.keyboard.press('Control+Shift+L')
+    assert data()['A'].get('locked') and data()['B'].get('locked') and data()['BG'].get('locked')
+    page.locator('#unlockPage').click()
+    assert not any(data()[i].get('locked') for i in ('A','B','BG')),'All locks of the page are gone'
+    page.locator('#undo').click()
+    assert all(data()[i].get('locked') for i in ('A','B','BG')),'One undo brings them back'
     # The lock is saved with the layout.
     wait_saved(page)
     again=open_editor(context)
