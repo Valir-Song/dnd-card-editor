@@ -11,6 +11,7 @@
     "src/editor/layout.js",
     "src/editor/freshness.js",
     "src/editor/storage.js",
-    "src/editor/layouts-dialog.js"
+    "src/editor/layouts-dialog.js",
+    "src/editor/layers.js"
   ]
 }
