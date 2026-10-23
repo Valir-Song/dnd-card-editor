@@ -1078,5 +1078,66 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': arrow keys move the selection, by grid with Shift; the grid shows on screen only')
 
+    # 19. «Выравнивание» (3.11): align to the selection's edge or centre (one
+    #     object: to the sheet's 5 mm frame), equal gaps, one width; a locked
+    #     object is the edge the others align to and never moves; text frames
+    #     of a card line up too. Each button is one undo step.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    card=lambda i,x,y,w,h,z,**extra:{'id':i,'kind':'card','page':1,'x':x,'y':y,'w':w,'h':h,'z':z,'title':i,'meta':'мета '+i,'detail':'д','bg':'#ffffff',**extra}
+    import_json(page,[card('A',10,30,60,20,1,textFrames={'title':{'x':6}}),card('B',70,50,40,20,2),card('C',130,40,50,30,3),card('L',30,120,60,20,4,locked=True)])
+    data=lambda:{i['id']:i for i in saved_layout(page)}
+    xs=lambda *ids:[data()[i]['x'] for i in ids]
+    ys=lambda *ids:[data()[i]['y'] for i in ids]
+    pick=lambda i,shift=False:page.locator(f'.el[data-id="{i}"]').click(position={'x':4,'y':20},modifiers=['Shift'] if shift else [])
+    def picks(*ids):
+        page.locator('#page1').click(position={'x':4,'y':4})
+        for n,i in enumerate(ids): pick(i,n>0)
+    press=lambda button:page.locator('#'+button).click()
+    page.locator('[data-tab="align"]').click()
+    assert page.locator('#alignLeft').is_disabled(),'Nothing selected: the buttons are off'
+    picks('A','B')
+    assert page.locator('#alignLeft').is_enabled() and page.locator('#distributeX').is_disabled() and page.locator('#sameWidth').is_enabled()
+    picks('A','B','C')
+    assert page.locator('#distributeX').is_enabled()
+    press('alignTop'); assert ys('A','B','C')==[30,30,30],ys('A','B','C')
+    page.locator('#undo').click(); assert ys('A','B','C')==[30,50,40],'One undo per button'
+    press('alignCenter'); assert xs('A','B','C')==[65,75,70],xs('A','B','C')
+    page.locator('#undo').click()
+    press('alignBottom'); assert ys('A','B','C')==[50,50,40],ys('A','B','C')
+    page.locator('#undo').click()
+    press('distributeX'); assert xs('A','B','C')==[10,80,130],('Equal 10 mm gaps',xs('A','B','C'))
+    press('sameWidth'); assert [data()[i]['w'] for i in 'ABC']==[60,60,60],'The width of the first one picked'
+    assert page.locator('.el[data-id="C"]').evaluate('e=>e.style.width')=='60mm'
+    page.locator('#undo').click(); page.locator('#undo').click()
+    # One object: to the sheet's frame.
+    picks('B')
+    press('alignCenter'); assert xs('B')==[85],xs('B')
+    press('alignRight'); assert xs('B')==[165]
+    press('alignTop'); assert ys('B')==[5]
+    # A locked object is the edge the others go to, and it stays.
+    picks('B'); pick('L',True)
+    press('alignLeft'); assert xs('B','L')==[30,30],('Aligned to the locked card',xs('B','L'))
+    press('alignBottom'); assert ys('L')==[120] and ys('B')==[120],ys('B','L')
+    # Text frames of one card line up with each other (the title starts 6 mm in).
+    picks('A')
+    page.locator('.el[data-id="A"] .title .tiptap-content').click()
+    meta=page.locator('.el[data-id="A"] .meta').bounding_box()  # its top lies under the title frame's drag band
+    page.locator('.el[data-id="A"] .meta').click(modifiers=['Shift'],position={'x':6,'y':meta['height']-2})
+    assert page.locator('#selectionCount').inner_text()=='Текстовых блоков: 2'
+    page.keyboard.press('Escape')
+    lefts=lambda:page.evaluate("""()=>['title','meta'].map(f=>document.querySelector('.el[data-id="A"] .text-wrap[data-field="'+f+'"]').getBoundingClientRect().left)""")
+    before=lefts()
+    assert before[0]-before[1]>15,before
+    press('alignLeft')
+    after=lefts()
+    assert abs(after[0]-after[1])<1,('Text frames align left',after)
+    assert abs(data()['A']['textFrames']['title']['x'])<0.01 and data()['A']['x']==10,'The title comes back; the card stays'
+    page.locator('#undo').click()
+    assert data()['A']['textFrames']['title']['x']==6,'One undo for the frames'
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': align, distribute and one size act on the selection, the sheet, locked anchors and text frames')
+
     browser.close()
 print('All regression checks passed for '+engine)

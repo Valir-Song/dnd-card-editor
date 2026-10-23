@@ -10,6 +10,7 @@ export function setupToolbarTabs() {
     {id:'text', label:'Текст', ids:['addTextBox','bold','italic','underline','strike','fontFamily','fontSize','textAlign','textcolor','bulletList','orderedList','clearFormatting','textBoxTools']},
     {id:'figures', label:'Фигуры и изображения', ids:['rect','circle','line','upload']},
     {id:'layers', label:'Слои', ids:['front','forward','backward','back']},
+    {id:'align', label:'Выравнивание', ids:['alignLeft','alignCenter','alignRight','alignTop','alignMiddle','alignBottom','distributeX','distributeY','sameWidth','sameHeight']},
     {id:'files', label:'Файл', ids:['save','export','json','import','print','layoutName','layouts','compressImages','resetStorage']}
   ];
   const nodes = new Map();

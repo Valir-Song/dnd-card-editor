@@ -17,6 +17,7 @@
     "src/editor/startup.js",
     "src/editor/render.js",
     "src/editor/lock.js",
-    "src/editor/nudge.js"
+    "src/editor/nudge.js",
+    "src/editor/align.js"
   ]
 }

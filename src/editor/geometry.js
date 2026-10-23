@@ -106,3 +106,55 @@ export function gridStep(value,direction,grid){
   const next=direction>0?Math.floor(k+eps)+1:Math.ceil(k-eps)-1;
   return next*grid-value;
 }
+
+// A single object aligns to the sheet's 5 mm frame.
+export const PAGE_FRAME={x:5,y:5,w:200,h:287};
+/** Layout values are kept to 0.01 mm: equal gaps of 33.333… mm stay readable. @param {number} v */
+const tidy=v=>Math.round(v*100)/100;
+
+/**
+ * Align boxes to an edge or centre line of `frame` (the selection's bounding
+ * box, or PAGE_FRAME for one object). Only x or only y changes.
+ * @param {Box[]} boxes @param {'left'|'center'|'right'|'top'|'middle'|'bottom'} mode @param {Box} frame
+ * @returns {Box[]}
+ */
+export function alignBoxes(boxes,mode,frame){
+  return boxes.map(b=>{
+    if(mode==='left')return {...b,x:tidy(frame.x)};
+    if(mode==='center')return {...b,x:tidy(frame.x+(frame.w-b.w)/2)};
+    if(mode==='right')return {...b,x:tidy(frame.x+frame.w-b.w)};
+    if(mode==='top')return {...b,y:tidy(frame.y)};
+    if(mode==='middle')return {...b,y:tidy(frame.y+(frame.h-b.h)/2)};
+    return {...b,y:tidy(frame.y+frame.h-b.h)};
+  });
+}
+
+/**
+ * Equal gaps along an axis: the first box (smallest start) and the end of the
+ * last one stay, the others are spaced evenly in their order along the axis.
+ * Fewer than three boxes stay as they are. Result in the input order.
+ * @param {Box[]} boxes @param {'x'|'y'} axis @returns {Box[]}
+ */
+export function distributeBoxes(boxes,axis){
+  const out=boxes.map(b=>({...b}));
+  if(boxes.length<3)return out;
+  const size=axis==='x'?'w':'h';
+  const centre=(/** @type {Box} */ b)=>b[axis]+b[size]/2;
+  const order=boxes.map((b,i)=>i).sort((i,j)=>boxes[i][axis]-boxes[j][axis]||centre(boxes[i])-centre(boxes[j]));
+  const first=boxes[order[0]],last=boxes[order[order.length-1]];
+  const total=boxes.reduce((sum,b)=>sum+b[size],0);
+  const gap=(last[axis]+last[size]-first[axis]-total)/(boxes.length-1);
+  let at=first[axis];
+  for(const i of order){out[i][axis]=tidy(at);at+=boxes[i][size]+gap}
+  return out;
+}
+
+/**
+ * Give every box the width (dim 'w') or height ('h') of `ref`, keeping its
+ * top-left corner; a box never grows past the page edge.
+ * @param {Box[]} boxes @param {Box} ref @param {'w'|'h'} dim @param {{w: number, h: number}} [page]
+ * @returns {Box[]}
+ */
+export function matchSize(boxes,ref,dim,page=PAGE){
+  return boxes.map(b=>dim==='w'?{...b,w:tidy(Math.min(ref.w,page.w-b.x))}:{...b,h:tidy(Math.min(ref.h,page.h-b.y))});
+}

@@ -90,3 +90,37 @@ test('grid steps go to the next grid line in the direction of the key',async()=>
   assert.ok(Math.abs(gridStep(22.4999999,1,2.5)-2.5)<1e-6,'float noise just below a line counts as on the line');
   assert.equal(gridStep(0,-1,1),-1);
 });
+
+test('alignment moves boxes to an edge or a centre line of the frame',async()=>{
+  const {alignBoxes,PAGE_FRAME}=await import('../src/editor/geometry.js');
+  const boxes=[{x:10,y:30,w:60,h:20},{x:80,y:50,w:40,h:20},{x:130,y:40,w:50,h:30}];
+  const frame={x:10,y:30,w:170,h:40};
+  assert.deepEqual(alignBoxes(boxes,'left',frame).map(b=>b.x),[10,10,10]);
+  assert.deepEqual(alignBoxes(boxes,'right',frame).map(b=>b.x),[120,140,130]);
+  assert.deepEqual(alignBoxes(boxes,'center',frame).map(b=>b.x),[65,75,70]);
+  assert.deepEqual(alignBoxes(boxes,'top',frame).map(b=>b.y),[30,30,30]);
+  assert.deepEqual(alignBoxes(boxes,'bottom',frame).map(b=>b.y),[50,50,40]);
+  assert.deepEqual(alignBoxes(boxes,'middle',frame).map(b=>b.y),[40,40,35]);
+  assert.deepEqual(alignBoxes(boxes,'left',frame).map(b=>[b.y,b.w,b.h]),boxes.map(b=>[b.y,b.w,b.h]),'only x changes');
+  // One object: the sheet's 5 mm frame.
+  assert.deepEqual(alignBoxes([{x:50,y:50,w:40,h:20}],'center',PAGE_FRAME)[0],{x:85,y:50,w:40,h:20});
+  assert.deepEqual(alignBoxes([{x:50,y:50,w:40,h:20}],'bottom',PAGE_FRAME)[0],{x:50,y:272,w:40,h:20});
+});
+
+test('distribution leaves equal gaps, keeps the outer boxes and the input order',async()=>{
+  const {distributeBoxes}=await import('../src/editor/geometry.js');
+  const boxes=[{x:130,y:0,w:50,h:10},{x:10,y:0,w:60,h:10},{x:70,y:0,w:40,h:10}];
+  const out=distributeBoxes(boxes,'x');
+  assert.deepEqual(out.map(b=>b.x),[130,10,80],'gaps of 10 mm between 10–70, 80–120, 130–180');
+  const gaps=distributeBoxes([{x:0,y:0,w:10,h:10},{x:12,y:0,w:10,h:10},{x:50,y:0,w:10,h:10},{x:100,y:0,w:20,h:10}],'x');
+  assert.deepEqual(gaps.map(b=>b.x),[0,33.33,66.67,100],'gaps of 23.33 mm, tidy to 0.01 mm');
+  assert.deepEqual(distributeBoxes([{x:0,y:5,w:1,h:1},{x:0,y:9,w:1,h:1}],'y').map(b=>b.y),[5,9],'two boxes stay');
+  assert.deepEqual(distributeBoxes([{x:0,y:0,w:10,h:30},{x:0,y:10,w:10,h:30},{x:0,y:20,w:10,h:30}],'y').map(b=>b.y),[0,10,20],'overlapping boxes keep equal (negative) gaps');
+});
+
+test('one width or height for all, from the reference, kept on the page',async()=>{
+  const {matchSize}=await import('../src/editor/geometry.js');
+  const ref={x:0,y:0,w:91,h:23};
+  assert.deepEqual(matchSize([{x:10,y:10,w:50,h:10},{x:150,y:280,w:30,h:10}],ref,'w').map(b=>b.w),[91,60]);
+  assert.deepEqual(matchSize([{x:10,y:10,w:50,h:10},{x:150,y:280,w:30,h:10}],ref,'h').map(b=>b.h),[23,17]);
+});
