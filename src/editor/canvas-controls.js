@@ -131,10 +131,13 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
     const scale = mmPerPx(page);
     const settings = snapping?.get();
     const records = chosen.map(record => ({...record, ...boxOf(record.item, record.node)}));
+    const pageNumber = chosen[0].item.page || 1, moving = new Set(chosen.map(r => r.id));
     gesture = {
       scale, page, records, frame: bbox(records),
       // Snap lines are fixed for the gesture: everything that is not moving.
-      lines: settings?.enabled ? collectLines(store.items, chosen[0].item.page || 1, new Set(chosen.map(r => r.id))) : null,
+      lines: settings?.enabled ? collectLines(store.items, pageNumber, moving) : null,
+      // The objects that stay, for equal gaps in a row or column (rendered sizes).
+      others: settings?.enabled ? store.items.filter(item => (item.page || 1) === pageNumber && !moving.has(item.id)).map(item => boxOf(item)) : null,
       grid: settings?.enabled ? settings.gridMm : 0,
       threshold: 6 * scale // 6 screen pixels, whatever the zoom
     };
@@ -143,9 +146,10 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   function applyDrag(dist, free = false) {
     if (!gesture || !dist) return;
     const {records, scale} = gesture;
-    let rawX = dist[0] * scale, rawY = dist[1] * scale, guides = {x: null, y: null};
-    if (gesture.lines && !free) ({dx: rawX, dy: rawY, guides} = snapMove(gesture.frame, rawX, rawY, gesture.lines, gesture));
+    let rawX = dist[0] * scale, rawY = dist[1] * scale, guides = {x: null, y: null}, gaps = [];
+    if (gesture.lines && !free) ({dx: rawX, dy: rawY, guides, gaps} = snapMove(gesture.frame, rawX, rawY, gesture.lines, gesture));
     showGuides(guides);
+    showGaps(gaps);
     const dx = clip(rawX, Math.max(...records.map(r => -r.x)), Math.min(...records.map(r => 210 - r.x - r.w)));
     const dy = clip(rawY, Math.max(...records.map(r => -r.y)), Math.min(...records.map(r => 297 - r.y - r.h)));
     for (const r of records) place(r, {x: r.x + dx, y: r.y + dy});
@@ -194,16 +198,29 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   function showGuides({x, y}) {
     const page = gesture?.page;
     for (const p of pages) for (const [axis, value] of [['x', x], ['y', y]]) {
-      let line = p.querySelector(':scope > .snap-guide.' + axis);
+      let line = p.querySelector(':scope > .snap-guide:not(.inner-guide).' + axis);
       if (p !== page || value === null) { line?.remove(); continue; }
       if (!line) { line = document.createElement('div'); line.className = 'snap-guide ' + axis; p.append(line); }
       line.style[axis === 'x' ? 'left' : 'top'] = mm(value);
+    }
+  }
+  // Equal gaps of a row or column, while a drag keeps them: pink bars with the gap in mm.
+  function showGaps(marks) {
+    for (const p of pages) for (const node of p.querySelectorAll(':scope > .gap-guide')) node.remove();
+    for (const m of marks) {
+      const node = document.createElement('div');
+      node.className = 'gap-guide ' + m.axis;
+      node.dataset.gap = String(Math.round((m.to - m.from) * 10) / 10).replace('.', ',');
+      const [along, across, size] = m.axis === 'x' ? ['left', 'top', 'width'] : ['top', 'left', 'height'];
+      Object.assign(node.style, {[along]: mm(m.from), [across]: mm(m.at), [size]: mm(m.to - m.from)});
+      gesture?.page.append(node);
     }
   }
   function endGesture() {
     document.body.classList.remove('gesture-active');
     if (!gesture) return;
     showGuides({x: null, y: null});
+    showGaps([]);
     gesture = null;
     // One history checkpoint per drag or resize, regardless of the number of targets.
     store.commit();

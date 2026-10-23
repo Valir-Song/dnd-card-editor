@@ -4,6 +4,7 @@
 // the field's ordinary position). Tiptap owns the text; this module owns the
 // frame, its drag bands and handles, and the Alt+marquee inside a card.
 import { bbox, resizeBox, scaleBoxes, marqueeHits, rectFromPoints } from './geometry.js';
+import { boxLines, snapAxis, snapMove } from './snapping.js';
 
 const DIRECTIONS = {nw: [-1, -1], n: [0, -1], ne: [1, -1], w: [-1, 0], e: [1, 0], sw: [-1, 1], s: [0, 1], se: [1, 1]};
 const EDGES = ['top', 'right', 'bottom', 'left'];
@@ -11,7 +12,7 @@ const CLICK_SLOP = 3;
 const NO_LIMIT = {w: Infinity, h: Infinity};
 
 /** @param {import('../types/layout').Deps} deps */
-export function createInnerCanvas({pages, store, mm, selectParent}) {
+export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
   let parentId = null, fields = [], gesture = null;
   const unique = values => [...new Set(values)];
   const parentFor = id => store.find(id);
@@ -25,6 +26,12 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
   function rectMm(node) {
     const page = node.closest('.page'), p = page.getBoundingClientRect(), r = node.getBoundingClientRect(), k = 210 / p.width;
     return {x: (r.left - p.left) * k, y: (r.top - p.top) * k, w: r.width * k, h: r.height * k};
+  }
+  // The card's area inside its padding, where its texts normally sit.
+  function innerArea(card) {
+    const outer = rectMm(card), style = getComputedStyle(card);
+    const k = 210 / card.closest('.page').getBoundingClientRect().width, pad = side => (parseFloat(style['padding' + side]) || 0) * k;
+    return {x: outer.x + pad('Left'), y: outer.y + pad('Top'), w: outer.w - pad('Left') - pad('Right'), h: outer.h - pad('Top') - pad('Bottom')};
   }
 
   // ---- overlay inside the page-level gesture layers ----
@@ -115,18 +122,38 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
       const x = position.x || 0, y = position.y || 0;
       return {node, position, x, y, abs};
     });
-    gesture = {records, frame: bbox(records.map(r => r.abs)), scale: 210 / chosen[0].closest('.page').getBoundingClientRect().width};
+    const scale = 210 / chosen[0].closest('.page').getBoundingClientRect().width, card = parentNode(parentId);
+    // Texts snap to their own card only — its edges, its inner area, its centre
+    // lines and its other texts — never to the sheet, the grid or other cards.
+    const still = wraps(parentId).filter(node => !chosen.includes(node)).map(rectMm);
+    const lines = snapping?.get().enabled ? boxLines([rectMm(card), innerArea(card), ...still]) : null;
+    gesture = {records, frame: bbox(records.map(r => r.abs)), scale, lines, card: rectMm(card), threshold: 6 * scale};
     document.body.classList.add('gesture-active');
     return true;
   }
-  function drag(dist) {
-    const [dx, dy] = dist.map(v => v * gesture.scale);
+  function drag(dist, free = false) {
+    let [dx, dy] = dist.map(v => v * gesture.scale), guides = {x: null, y: null};
+    if (gesture.lines && !free) ({dx, dy, guides} = snapMove(gesture.frame, dx, dy, gesture.lines, {threshold: gesture.threshold}));
+    showGuides(guides);
     for (const r of gesture.records) setFrame(r, {x: r.x + dx, y: r.y + dy});
     render();
   }
-  function resize(dist, dir) {
-    const [dx, dy] = dist.map(v => v * gesture.scale);
-    const {records} = gesture, single = records.length === 1;
+  function resize(dist, dir, free = false) {
+    let [dx, dy] = dist.map(v => v * gesture.scale);
+    const {records} = gesture, single = records.length === 1, guides = {x: null, y: null};
+    // Only the dragged edges of a single frame snap, as on the sheet.
+    if (single && gesture.lines && !free) {
+      const f = gesture.frame;
+      if (dir[0]) {
+        const snap = snapAxis([dir[0] > 0 ? f.x + f.w + dx : f.x + dx], gesture.lines.x, gesture.threshold);
+        dx += snap.offset; guides.x = snap.line;
+      }
+      if (dir[1]) {
+        const snap = snapAxis([dir[1] > 0 ? f.y + f.h + dy : f.y + dy], gesture.lines.y, gesture.threshold);
+        dy += snap.offset; guides.y = snap.line;
+      }
+    }
+    showGuides(guides);
     const to = resizeBox(gesture.frame, dir, dx, dy, {min: single ? {w: 8, h: 3} : {w: 1, h: 1}, page: NO_LIMIT});
     const boxes = single ? [to] : scaleBoxes(records.map(r => r.abs), gesture.frame, to);
     // Offsets change by exactly how far the box moved, so a fixed edge stays exact.
@@ -135,6 +162,16 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
       w: Math.max(8, boxes[i].w), h: Math.max(3, boxes[i].h)
     }));
     render();
+  }
+  // Guide lines across the card only (the sheet's guides span the page).
+  function showGuides({x, y}) {
+    const page = gesture?.records[0].node.closest('.page'), card = gesture?.card;
+    for (const p of pages) for (const [axis, value] of [['x', x], ['y', y]]) {
+      let line = p.querySelector(':scope > .snap-guide.inner-guide.' + axis);
+      if (p !== page || value === null) { line?.remove(); continue; }
+      if (!line) { line = document.createElement('div'); line.className = 'snap-guide inner-guide ' + axis; p.append(line); }
+      Object.assign(line.style, axis === 'x' ? {left: mm(value), top: mm(card.y), height: mm(card.h)} : {top: mm(value), left: mm(card.x), width: mm(card.w)});
+    }
   }
   function setFrame(record, values) {
     Object.assign(record.position, values);
@@ -155,7 +192,7 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
         if (Math.hypot(...dist) < CLICK_SLOP) return;
         if (!(started = begin())) return done();
       }
-      dir ? resize(dist, dir) : drag(dist);
+      dir ? resize(dist, dir, e.altKey) : drag(dist, e.altKey);
     };
     const done = e => {
       if (e && e.pointerId !== id) return;
@@ -164,6 +201,7 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
       window.removeEventListener('pointercancel', done, true);
       document.body.classList.remove('gesture-active');
       if (!started) return;
+      showGuides({x: null, y: null});
       gesture = null;
       store.commit(); // the whole gesture is one undo checkpoint
       render();
@@ -214,10 +252,7 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
   function arrangeTargets() {
     const owner = parentFor(parentId), nodes = currentTargets(), card = parentNode(parentId);
     if (!owner || !nodes.length || !card) return null;
-    const outer = rectMm(card), style = getComputedStyle(card);
-    const k = 210 / card.closest('.page').getBoundingClientRect().width, pad = side => (parseFloat(style['padding' + side]) || 0) * k;
-    const area = {x: outer.x + pad('Left'), y: outer.y + pad('Top'), w: outer.w - pad('Left') - pad('Right'), h: outer.h - pad('Top') - pad('Bottom')};
-    const boxes = nodes.map(rectMm);
+    const area = innerArea(card), boxes = nodes.map(rectMm);
     return {
       boxes, area,
       fixed: nodes.map(() => !!owner.locked),

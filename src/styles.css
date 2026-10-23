@@ -130,7 +130,17 @@
 .snap-guide{position:absolute;z-index:170;pointer-events:none;background:#d6337a}
 .snap-guide.x{top:0;bottom:0;width:1px;margin-left:-.5px}
 .snap-guide.y{left:0;right:0;height:1px;margin-top:-.5px}
+/* A text frame's guides stay inside its card. */
+.snap-guide.inner-guide.x{bottom:auto}.snap-guide.inner-guide.y{right:auto}
 @media print{.snap-guide{display:none!important}}
+/* 3.11: equal gaps of a row or column while dragging: a bar with end ticks and the gap in mm. */
+.gap-guide{position:absolute;z-index:170;pointer-events:none;border-color:#d6337a;border-style:solid;border-width:0;box-sizing:border-box}
+.gap-guide.x{height:7px;margin-top:-3.5px;border-left-width:1px;border-right-width:1px;background:linear-gradient(#d6337a,#d6337a) center/100% 1px no-repeat}
+.gap-guide.y{width:7px;margin-left:-3.5px;border-top-width:1px;border-bottom-width:1px;background:linear-gradient(#d6337a,#d6337a) center/1px 100% no-repeat}
+.gap-guide::after{content:attr(data-gap);position:absolute;font:600 9px/1 Arial,sans-serif;color:#fff;background:#d6337a;border-radius:3px;padding:1px 3px;white-space:nowrap}
+.gap-guide.x::after{left:50%;top:-12px;transform:translateX(-50%)}
+.gap-guide.y::after{top:50%;left:9px;transform:translateY(-50%)}
+@media print{.gap-guide{display:none!important}}
 /* 3.11: the snapping grid, faintly on the sheet while it is on; a darker line every 10 mm.
    Under every object (z-index 0), never printed. A 1 mm grid shows its 5 mm lines only. */
 .stage[data-grid] .page::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;

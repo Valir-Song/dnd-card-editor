@@ -1139,5 +1139,77 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': align, distribute and one size act on the selection, the sheet, locked anchors and text frames')
 
+    # 20. Smart snapping (3.11). On the sheet a dragged card keeps the spacing of
+    #     its row or column, or centres between two neighbours, with pink gap
+    #     marks; Alt turns it off. Inside a card a text frame snaps to that card
+    #     only (its inner edge, centre, other texts) — never to other objects.
+    context=browser.new_context(viewport={'width':1400,'height':1350})
+    page=open_editor(context)
+    card=lambda i,x,y,w=40,h=20,**extra:{'id':i,'kind':'card','page':1,'x':x,'y':y,'w':w,'h':h,'z':1,'title':i,'meta':'мета '+i,'detail':'описание','bg':'#ffffff',**extra}
+    # Laid out so that no object edge or centre lies where C, R and V3 should
+    # land: they can only get there by the gap.
+    import_json(page,[card('A',10,30),card('B',60,30),card('C',150,40),
+                      card('P',10,100),card('Q',124,100),card('R',170,140),
+                      card('V1',160,150),card('V2',160,175),card('V3',160,240),
+                      card('K',20,215,80,30,textFrames={'meta':{'x':4}}),card('M',30,265)])
+    data=lambda:{i['id']:i for i in saved_layout(page)}
+    k=page.locator('#page1').bounding_box()['width']/210
+    def drag_by(i,dx,dy,alt=False,check=None):
+        """Press on the card's left padding and move it by (dx, dy) mm; `check` runs before the release."""
+        box=page.locator(f'.el[data-id="{i}"]').bounding_box()
+        x,y=box['x']+4,box['y']+20
+        page.mouse.move(x,y); page.mouse.down()
+        if alt: page.keyboard.down('Alt')   # held during the drag (Alt+press in a card picks its texts)
+        page.mouse.move(x+dx*k,y+dy*k,steps=10)
+        result=check() if check else None
+        page.mouse.up()
+        if alt: page.keyboard.up('Alt')
+        return result
+    gap_marks=lambda:page.evaluate("()=>[...document.querySelectorAll('#page1 > .gap-guide')].map(g=>g.dataset.gap)")
+    # Next to a row: the 10 mm gap of A–B (C lands 1.2 mm short of it).
+    marks=drag_by('C',-41.2,-10,check=gap_marks)
+    assert data()['C']['x']==110 and data()['C']['y']==30,('C keeps the 10 mm gap of its row',data()['C'])
+    assert marks==['10','10'],('Both equal gaps are marked',marks)
+    assert gap_marks()==[],'The marks go when the drag ends'
+    # Between two neighbours: centred (10 mm on each side).
+    marks=drag_by('R',-102.4,-39.6,check=gap_marks)
+    assert data()['R']['x']==67 and data()['R']['y']==100,('R is centred between P and Q',data()['R'])
+    assert marks==['17','17'],('Centred: both gaps marked',marks)
+    # A column: the 5 mm gap of V1–V2.
+    drag_by('V3',0,-41)
+    assert data()['V3']['y']==200,('V3 keeps the 5 mm gap of its column',data()['V3'])
+    # Alt: no snapping at all.
+    page.locator('#undo').click()   # V3 back to 240
+    drag_by('V3',0,-41,alt=True)
+    assert abs(data()['V3']['y']-199)<0.3,('Alt: no snapping',data()['V3'])
+    # A text frame inside K (its meta starts 4 mm in).
+    meta=lambda:(data()['K'].get('textFrames') or {}).get('meta',{}).get('x',0)
+    def drag_frame(dx,alt=False):
+        box=page.locator('.el[data-id="K"] .meta').bounding_box()
+        page.locator('.el[data-id="K"] .meta').click(position={'x':box['width']-10,'y':box['height']-2})
+        band=page.locator('.gesture-frame.inner:not([hidden]) .gesture-edge.left').bounding_box()
+        x,y=band['x']+band['width']/2,band['y']+band['height']/2
+        page.mouse.move(x,y); page.mouse.down()
+        if alt: page.keyboard.down('Alt')
+        page.mouse.move(x+dx*k,y,steps=8)
+        guides=page.evaluate("()=>[...document.querySelectorAll('#page1 > .snap-guide.inner-guide')].map(g=>[g.className,g.style.top,g.style.height])")
+        page.mouse.up()
+        if alt: page.keyboard.up('Alt')
+        return guides
+    # 1.2 mm to the right its left edge meets M's left edge (30 mm): no snap, M is not in this card.
+    drag_frame(1.2)
+    assert abs(meta()-5.2)<0.3,('A text frame never snaps to other objects',meta())
+    page.locator('#undo').click(); assert meta()==4
+    # 3.4 mm to the left it meets the card's inner edge (where the title starts): snaps there.
+    guides=drag_frame(-3.4)
+    assert abs(meta())<0.01,('The text frame snaps to the inner edge of its card',meta())
+    assert guides and guides[0][0].endswith(' x') and abs(float(guides[0][1][:-2])-215)<0.05 and abs(float(guides[0][2][:-2])-30)<0.05,('The guide spans the card only',guides)
+    page.locator('#undo').click(); assert meta()==4
+    drag_frame(-3.4,alt=True)
+    assert abs(meta()-0.6)<0.3,('Alt: no snapping inside the card either',meta())
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': equal gaps and centring on the sheet; text frames snap to their own card only')
+
     browser.close()
 print('All regression checks passed for '+engine)
