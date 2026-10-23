@@ -209,5 +209,30 @@ with sync_playwright() as p:
   assert 'действует сейчас' in reopened.locator('[data-id="nested-card"] .title').inner_text()
   assert not reopened_errors,reopened_errors
   print('PASS '+engine+': HTML export retains ownership, relative offsets and editable text')
+
+  # A text frame stretched down shows more of its text: the field fills the
+  # frame (page-1 card descriptions used to stay capped at 9 mm).
+  tall=context.new_page()
+  tall.goto(html.as_uri(),wait_until='load'); tall.wait_for_selector('.el .tiptap-content')
+  long_text=' '.join(['Длинное описание заклинания, которое не помещается в девять миллиметров.']*6)
+  tall.locator('[data-tab="files"]').click()
+  tall.set_input_files('#import',{'name':'tall.json','mimeType':'application/json','buffer':json.dumps([
+    dict(id='tall',kind='card',page=1,z=1,x=20,y=40,w=90,h=70,title='Высокий текст',meta='м',detail=long_text,level='1',bg='#ffffff')],ensure_ascii=False).encode()})
+  wrap=tall.locator('[data-id="tall"] .text-wrap[data-field="detail"]')
+  wrap.locator('.tiptap-content').click()
+  tall.wait_for_function("[...document.querySelectorAll('.gesture-frame.inner:not([hidden]) [data-dir=\"s\"]')].some(n=>n.getBoundingClientRect().height>0)")
+  s=[n for n in tall.locator('.gesture-frame.inner:not([hidden]) [data-dir="s"]').all() if (n.bounding_box() or {}).get('height')][0].bounding_box()
+  tall.mouse.move(s['x']+s['width']/2,s['y']+s['height']/2); tall.mouse.down()
+  tall.mouse.move(s['x']+s['width']/2,s['y']+140,steps=10); tall.mouse.up()
+  sizes=lambda pg:pg.locator('[data-id="tall"] .text-wrap[data-field="detail"]').evaluate(
+    "w=>({wrap:w.getBoundingClientRect().height,field:w.firstElementChild.clientHeight,content:w.firstElementChild.scrollHeight})")
+  got=sizes(tall)
+  assert got['field']>60 and abs(got['field']-got['wrap'])<2,('The text must fill its stretched frame',got)
+  assert got['content']<=got['field']+1,('All text must be visible in the taller frame',got)
+  tall.wait_for_function("document.documentElement.dataset.saveState!=='saving'")
+  again=context.new_page(); again.goto(html.as_uri(),wait_until='load'); again.wait_for_selector('[data-id="tall"] .tiptap-content')
+  reopened=sizes(again)
+  assert abs(reopened['field']-reopened['wrap'])<2 and reopened['field']>60,('A saved frame height must still be filled',reopened)
+  print('PASS '+engine+': a text frame stretched down shows more text (no 9 mm cap)')
   browser.close()
 print('Nested text-frame checks passed in '+engine)

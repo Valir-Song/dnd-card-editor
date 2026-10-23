@@ -139,7 +139,7 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
     const p = record.position;
     record.node.style.transform = 'translate(' + mm(p.x || 0) + ', ' + mm(p.y || 0) + ')';
     if (values.w !== undefined) record.node.style.width = mm(p.w);
-    if (values.h !== undefined) record.node.style.height = mm(p.h);
+    if (values.h !== undefined) { record.node.style.height = mm(p.h); record.node.classList.add('sized'); }
   }
   function press(ev, dir) {
     if (ev.button !== 0) return;

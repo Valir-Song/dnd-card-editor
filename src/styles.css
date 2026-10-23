@@ -14,6 +14,8 @@
 /* Text frames inside cards (moved and resized on the gesture layer). */
 .text-wrap{position:relative;min-width:8mm;max-width:none;box-sizing:border-box}
 .text-wrap>.editable{min-height:1em}
+/* A frame given a height (stretched by its handles) is filled by its text: no field cap applies. */
+.text-wrap.sized>.editable{height:100%;max-height:none!important;overflow:hidden}
 .text-wrap.inner-selected{outline:1px dotted #2678bb;outline-offset:1px}
 .text-wrap:hover{outline:1px dashed #72a4cf}
 @media print{.text-wrap.inner-selected,.text-wrap:hover{outline:none!important}}
