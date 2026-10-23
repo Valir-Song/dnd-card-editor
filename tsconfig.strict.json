@@ -13,6 +13,8 @@
     "src/editor/storage.js",
     "src/editor/layouts-dialog.js",
     "src/editor/layers.js",
-    "src/editor/clipboard.js"
+    "src/editor/clipboard.js",
+    "src/editor/startup.js",
+    "src/editor/render.js"
   ]
 }
