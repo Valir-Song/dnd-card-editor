@@ -1011,6 +1011,10 @@ with sync_playwright() as p:
     # In the card's left padding: clear of its texts and of the handles of a selected card.
     pick=lambda i,shift=False:page.locator(f'.el[data-id="{i}"]').click(position={'x':4,'y':20},modifiers=['Shift'] if shift else [])
     keys=lambda *names:[page.keyboard.press(n) for n in names]
+    def into_text(selector):
+        """Click into a text and wait until the caret is there (slow CI runners lag)."""
+        page.locator(selector+' .tiptap-content').click()
+        page.wait_for_function("s=>!!document.activeElement?.closest?.(s)",arg=selector)
     pick('A'); keys('ArrowRight','ArrowRight','ArrowRight','ArrowDown')
     assert pos('A')==(23,31),pos('A')
     assert page.locator('.el[data-id="A"]').evaluate('e=>e.style.left')=='23mm'
@@ -1049,11 +1053,12 @@ with sync_playwright() as p:
     pick('L'); keys('ArrowRight','ArrowDown'); assert pos('L')==(20,100)
     # In text the arrows move the caret, not the card.
     b=pos('B')
-    page.locator('.el[data-id="B"] .title .tiptap-content').click()
+    into_text('.el[data-id="B"] .title')
     keys('End','ArrowLeft'); page.keyboard.type('Q')
-    assert pos('B')==b and page.locator('.el[data-id="B"] .title').inner_text().strip()=='QB'
+    title=page.locator('.el[data-id="B"] .title').inner_text().strip()
+    assert pos('B')==b and title=='QB',('In text the arrows move the caret',pos('B'),b,title,data()['B'].get('textFrames'))
     # Esc leaves the text; the arrows then move its frame inside the card.
-    page.locator('.el[data-id="B"] .detail .tiptap-content').click()
+    into_text('.el[data-id="B"] .detail')
     keys('Escape')
     assert page.evaluate('!document.activeElement.isContentEditable'),'Esc leaves the text'
     assert page.locator('.gesture-frame.inner:not([hidden])').count()==1,'The text frame stays selected'
