@@ -25,3 +25,34 @@ def launch(p):
             return context
         browser.new_context=throttled_context
     return browser
+
+# Saved layouts live in IndexedDB, or in localStorage when the browser refuses
+# a database (html[data-storage] says which). Autosave runs in the background,
+# so these helpers first wait until no write is in flight.
+_STORAGE_JS = """
+const idle=()=>new Promise(r=>{const check=()=>document.documentElement.dataset.saveState==='saving'?setTimeout(check,20):r();check()});
+const db=()=>new Promise((r,j)=>{const o=indexedDB.open('dnd-card-editor');o.onsuccess=()=>r(o.result);o.onerror=()=>j(o.error)});
+const tx=(stores,mode,fn)=>db().then(d=>new Promise((r,j)=>{const t=d.transaction(stores,mode);const out=fn(t);t.oncomplete=()=>r(out&&out.result);t.onerror=()=>j(t.error)}));
+const local=()=>document.documentElement.dataset.storage==='localstorage';
+"""
+
+def saved_record(page,layout_id=None):
+    """The saved record {id,name,savedAt,items} of a layout (default: the open one), or None."""
+    return page.evaluate("async id=>{"+_STORAGE_JS+"""await idle();id=id||document.documentElement.dataset.layoutId;
+      if(local()){const raw=localStorage.getItem('dnd-card-editor-layout:'+id);return raw===null?null:JSON.parse(raw)}
+      return (await tx('layouts','readonly',t=>t.objectStore('layouts').get(id)))??null}""",layout_id)
+
+def saved_layout(page,layout_id=None):
+    record=saved_record(page,layout_id)
+    return record and record['items']
+
+def put_saved(page,record):
+    """Write a record directly, as a browser holding an older save would have it."""
+    page.evaluate("async r=>{"+_STORAGE_JS+"""await idle();
+      if(local()){localStorage.setItem('dnd-card-editor-layout:'+r.id,typeof r.items==='string'?r.items:JSON.stringify(r));return}
+      await tx(['layouts','meta'],'readwrite',t=>{t.objectStore('layouts').put(r);t.objectStore('meta').put({id:r.id,name:r.name,savedAt:r.savedAt,count:0,bytes:0})})}""",record)
+
+def remove_saved(page,layout_id=None):
+    page.evaluate("async id=>{"+_STORAGE_JS+"""await idle();id=id||document.documentElement.dataset.layoutId;
+      if(local()){localStorage.removeItem('dnd-card-editor-layout:'+id);return}
+      await tx(['layouts','meta'],'readwrite',t=>{t.objectStore('layouts').delete(id);t.objectStore('meta').delete(id)})}""",layout_id)

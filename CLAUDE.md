@@ -73,15 +73,31 @@
 - `normalizeLayout` отвергает неизвестный `kind`, страницу вне 1..`PAGE_COUNT` (=2), нечисловую
   геометрию; чинит пропущенные `id/page/z` и дубликаты `id`.
 
-### Хранение
-- localStorage: `dnd-card-editor-v3` (макет), `-meta` (`savedAt`), `-previous` (вытесненный макет),
-  `-recovery` (копия повреждённого), `dnd-card-editor-snap` (настройки привязки).
-- **Chrome хранит localStorage всех локальных HTML-файлов в одном месте** → разные файлы делят
-  одно сохранение. Поэтому есть freshness: скачанный HTML несёт `#initial[data-saved-at]`, сохранение —
+### Хранение (с 3.9 — `src/editor/storage.js`)
+- **IndexedDB** `dnd-card-editor`: хранилища `layouts` (запись `{id,name,savedAt,items}`) и `meta`
+  (`{id,name,savedAt,count,bytes}` — список без картинок). Если базу открыть нельзя (или `?storage=local`
+  в адресе — так тесты проверяют запасной путь) — **localStorage**: `dnd-card-editor-layout:<id>` и индекс
+  `dnd-card-editor-layouts`; если и он недоступен — `none` (предупреждение «скачивайте HTML»).
+  Какое хранилище выбрано — `html[data-storage]`.
+- Пока один макет: `layoutId='default'` (`html[data-layout-id]`); вытесненный — `default:previous`.
+- Запись фоновая (`createSaver`): запросы во время записи схлопываются в одну запись новейшего
+  состояния; `backend.put` обязан скопировать запись **синхронно** (IndexedDB `put` и `JSON.stringify`
+  так и делают). Состояние — `html[data-save-state]` = `saved|saving|error` и значок `#saveState`.
+  `beforeunload` спрашивает «покинуть?», пока состояние не `saved`. «Сохранить» ждёт `flush()`.
+- Старое сохранение 3.2–3.8: localStorage `dnd-card-editor-v3` (+`-meta`). Читается, только если
+  в новом хранилище записи нет, переносится и **никогда не удаляется**. `-recovery` — копия
+  повреждённого (в localStorage, если помещается). `dnd-card-editor-snap` — настройки привязки.
+- В тестах сохранённое читать только через `saved_record/saved_layout/put_saved/remove_saved`
+  из `tests/browser_env.py` (они ждут конца фоновой записи); перед `page.close()` после правки —
+  дождаться `saveState!=='saving'`, иначе запись не успеет.
+- **Chrome хранит localStorage и IndexedDB всех локальных HTML-файлов в одном месте** (проверено:
+  запись из одного файла видна другому) → разные файлы делят одно сохранение. Поэтому есть freshness: скачанный HTML несёт `#initial[data-saved-at]`, сохранение —
   `savedAt`; открывается более свежий, второй доступен из предупреждения. Чистый релизный файл
   `data-saved-at` не содержит — тогда всегда побеждает браузер (работа владельца не теряется).
-- Лимит localStorage ~5 МБ; при переполнении показывается предупреждение, «Сохранить» честно
-  сообщает об ошибке. Надёжное хранение — «Скачать HTML».
+- IndexedDB вмещает сотни МБ; localStorage ~5 МБ. При ошибке записи — предупреждение и «⚠ Не сохранено».
+  Надёжное хранение — по-прежнему «Скачать HTML».
+- `editor.js` начинается с `await` (открыть хранилище и прочитать сохранение): модуль с top-level await,
+  сборка Vite это поддерживает.
 
 ### Store («секретарь»)
 - `store.change(mutate, {group, windowMs})` — правка данных → перерисовка → шаг отмены → сохранение.
@@ -123,7 +139,7 @@
 ## Команды
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
-npm test                     # Node-тесты (сейчас 41)
+npm test                     # Node-тесты (сейчас 48)
 npm run typecheck            # TypeScript по JS: обычный tsconfig.json + строгий tsconfig.strict.json
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html

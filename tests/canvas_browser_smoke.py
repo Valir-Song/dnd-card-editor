@@ -5,7 +5,7 @@ import json
 import re, os, tempfile, shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-from browser_env import launch
+from browser_env import launch, saved_layout
 
 root=Path(__file__).resolve().parents[1]
 html=root/'dist'/'index.html'
@@ -36,7 +36,7 @@ with sync_playwright() as p:
     shape=page.locator('[data-id="test-shape"]')
     img=page.locator('[data-id="test-image"]')
     def layout():
-        return page.evaluate('JSON.parse(localStorage.getItem("dnd-card-editor-v3"))')
+        return saved_layout(page)
     def current(id):
         return next(item for item in layout() if item['id']==id)
     def center(locator):

@@ -4,7 +4,7 @@ Card text frames stay inside their parent item and keep Tiptap editable.
 import json,os,shutil,tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-from browser_env import launch
+from browser_env import launch, saved_layout
 
 root=Path(__file__).resolve().parents[1]
 html=root/'dist'/'index.html'
@@ -35,7 +35,7 @@ with sync_playwright() as p:
   title=card.locator('.text-wrap[data-field="title"]')
   meta=card.locator('.text-wrap[data-field="meta"]')
   detail=card.locator('.text-wrap[data-field="detail"]')
-  def layout():return page.evaluate('JSON.parse(localStorage.getItem("dnd-card-editor-v3"))')
+  def layout():return saved_layout(page)
   def item(id='nested-card'):return next(o for o in layout() if o['id']==id)
   def center(locator):
     r=locator.bounding_box()
@@ -203,7 +203,7 @@ with sync_playwright() as p:
   reopened.on('pageerror',lambda error:reopened_errors.append(str(error)))
   reopened.goto(reopened_path.as_uri(),wait_until='load')
   reopened.wait_for_selector('[data-id="nested-card"] .tiptap-content')
-  stored=reopened.evaluate('JSON.parse(localStorage.getItem("dnd-card-editor-v3"))')
+  stored=saved_layout(reopened)
   saved=next(x for x in stored if x['id']=='nested-card')
   assert saved['textFrames']==item()['textFrames']
   assert 'действует сейчас' in reopened.locator('[data-id="nested-card"] .title').inner_text()

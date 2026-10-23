@@ -10,7 +10,7 @@ import shutil
 import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-from browser_env import launch
+from browser_env import launch, saved_record, saved_layout, put_saved, remove_saved
 
 root=Path(__file__).resolve().parents[1]
 html_path=root/'dist'/'index.html'
@@ -28,6 +28,14 @@ def open_editor(context,url=html_path.as_uri()):
     page.on('dialog',lambda dialog:(page.dialogs.append(dialog.message),dialog.accept()))
     page.goto(url,wait_until='load')
     page.wait_for_selector('.el .tiptap-content')
+    # Autosave writes in the background; a write still running when the page closes
+    # can land after the next test step and overwrite what it prepared.
+    close=page.close
+    def close_when_saved(**options):
+        try: wait_saved(page)
+        except Exception: pass  # page already gone or never saved
+        close(**options)
+    page.close=close_when_saved
     return page
 
 def import_json(page,data,name='layout.json'):
@@ -37,7 +45,34 @@ def import_json(page,data,name='layout.json'):
     page.wait_for_timeout(300)
 
 def stored(page):
-    return page.evaluate(f"()=>localStorage.getItem('{KEY}')")
+    """The saved layout as JSON text (waits for autosave to finish)."""
+    return json.dumps(saved_layout(page),ensure_ascii=False)
+
+def wait_saved(page):
+    """Autosave writes in the background: let it finish before closing a page
+    (a real browser asks «leave the page?» while it runs; page.close() does not)."""
+    page.wait_for_function("document.documentElement.dataset.saveState!=='saving'")
+
+def leaving_blocked(page):
+    """Would the page ask «leave the page?» now (its beforeunload handler cancels)?"""
+    return page.evaluate("()=>{const e=new Event('beforeunload',{cancelable:true});window.dispatchEvent(e);return e.defaultPrevented}")
+
+def wait_dialog(page,count):
+    """Message of the next alert/confirm after `count` seen so far (some appear after an async save)."""
+    for _ in range(200):
+        if len(page.dialogs)>count: return page.dialogs[-1]
+        page.wait_for_timeout(25)
+    raise AssertionError('No dialog appeared')
+
+compact=lambda data:json.dumps(data,ensure_ascii=False,separators=(',',':'))  # = JSON.stringify
+# Saves go to IndexedDB; ?storage=local forces the localStorage fallback, so the
+# storage checks run against both.
+BACKENDS=[('indexeddb',''),('localstorage','?storage=local')]
+# IndexedDB has no practical quota here: simulate a full disk for one layout.
+FAIL_HUGE_SAVES="""(()=>{const put=IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put=function(value,...rest){
+    if(this.name==='layouts'&&JSON.stringify(value).includes('"huge"'))throw new DOMException('Simulated full disk','QuotaExceededError');
+    return put.call(this,value,...rest)}})()"""
 
 def handle_offset(page,element):
     """Distance in px between the element's bottom-right corner and the selection frame's SE handle.
@@ -56,61 +91,132 @@ def handle_offset(page,element):
 with sync_playwright() as p:
     browser=launch(p)
 
-    # 1. An undrawable import is rejected before it replaces the layout or reaches storage.
-    context=browser.new_context()
-    page=open_editor(context)
-    page.locator('.el.card').first.click(position={'x':2,'y':2})
-    page.keyboard.press('Delete')  # make storage differ from the template
-    before_count=page.locator('.el').count()
-    before_storage=stored(page)
-    import_json(page,[{'id':'x','kind':'card','page':3,'x':0,'y':0,'w':10,'h':10,'title':'t'}])
-    assert page.dialogs and 'страница 3' in page.dialogs[-1] and 'не изменён' in page.dialogs[-1],page.dialogs
-    assert page.locator('.el').count()==before_count
-    assert stored(page)==before_storage,'Rejected import must not touch localStorage'
-    import_json(page,'not a layout')
-    assert 'массив' in page.dialogs[-1],page.dialogs
-    reload=open_editor(context)
-    assert reload.locator('.el').count()==before_count and not reload.errors,reload.errors
-    assert not page.errors,page.errors
-    print('PASS '+engine+': invalid JSON import is rejected and leaves layout and storage intact')
+    # Which storage does this browser give a file opened from disk? If it refuses
+    # IndexedDB the editor rightly falls back to localStorage: check that path only.
+    probe_context=browser.new_context()
+    native=open_editor(probe_context).evaluate('document.documentElement.dataset.storage')
+    probe_context.close()
+    backends=[b for b in BACKENDS if b[0]=='localstorage' or native=='indexeddb']
+    if native!='indexeddb': print('NOTE '+engine+': no IndexedDB for local files ('+native+'); checking the localStorage fallback')
 
-    # 2. A damaged save falls back to the template, with a downloadable copy of the raw data.
-    for damaged in ['{not json',json.dumps([{'id':'x','kind':'card','page':3,'x':0,'y':0,'w':10,'h':10}])]:
-        page.evaluate("([k,v])=>localStorage.setItem(k,v)",[KEY,damaged])
-        recovered=open_editor(context)
-        assert not recovered.errors,recovered.errors
-        assert recovered.locator('.el').count()==len(starter)
-        notice=recovered.locator('.notice[data-notice="damaged"]')
-        assert notice.is_visible(),'Damaged-save notice must be visible'
-        assert recovered.evaluate(f"()=>localStorage.getItem('{KEY}-recovery')")==damaged
-        assert recovered.locator('#undo').is_disabled(),'History must not offer to restore damaged data'
-        with recovered.expect_download() as downloaded:
-            notice.get_by_role('button',name='Скачать повреждённый JSON').click()
-        assert Path(downloaded.value.path()).read_text(encoding='utf-8')==damaged
-        recovered.close()
-    context.close()
-    print('PASS '+engine+': damaged localStorage opens the template and offers the raw copy')
+    for kind,query in backends:
+        url=html_path.as_uri()+query
+        # 1. An undrawable import is rejected before it replaces the layout or reaches storage.
+        context=browser.new_context()
+        page=open_editor(context,url)
+        assert page.evaluate('document.documentElement.dataset.storage')==kind
+        page.locator('.el.card').first.click(position={'x':2,'y':2})
+        page.keyboard.press('Delete')  # make storage differ from the template
+        before_count=page.locator('.el').count()
+        before_storage=stored(page)
+        assert len(json.loads(before_storage))==before_count
+        import_json(page,[{'id':'x','kind':'card','page':3,'x':0,'y':0,'w':10,'h':10,'title':'t'}])
+        assert page.dialogs and 'страница 3' in page.dialogs[-1] and 'не изменён' in page.dialogs[-1],page.dialogs
+        assert page.locator('.el').count()==before_count
+        assert stored(page)==before_storage,'Rejected import must not touch the saved layout'
+        import_json(page,'not a layout')
+        assert 'массив' in page.dialogs[-1],page.dialogs
+        reload=open_editor(context,url)
+        assert reload.locator('.el').count()==before_count and not reload.errors,reload.errors
+        assert not page.errors,page.errors
+        print('PASS '+engine+'/'+kind+': invalid JSON import is rejected and leaves layout and storage intact')
 
-    # 3. Storage quota failures are visible, honest on «Сохранить», and clear once saving works.
-    context=browser.new_context()
-    page=open_editor(context)
-    big=starter+[{'id':'huge','kind':'image','page':1,'x':10,'y':10,'w':20,'h':20,'z':99,
-                  'src':'data:image/png;base64,'+'A'*7_000_000}]
-    import_json(page,big)
-    notice=page.locator('.notice[data-notice="storage"]')
-    assert notice.is_visible(),'Quota failure must be reported to the user'
-    page.locator('#save').click()
-    assert 'Не удалось' in page.dialogs[-1],page.dialogs
-    notice.locator('.notice-close').click()
-    page.locator('#save').click()
-    assert notice.count()==0,'A dismissed notice must not reappear on every keystroke'
-    page.locator('#undo').click()
-    assert page.locator('.el[data-id="huge"]').count()==0
-    assert '"huge"' not in stored(page)
-    assert page.locator('.notice').count()==0
-    assert not page.errors,page.errors
-    context.close()
-    print('PASS '+engine+': storage quota warning, honest save message and recovery')
+        # 2. A damaged save falls back to the template, with a downloadable copy of the raw
+        #    data: a save of an editor up to 3.8 (localStorage) and one in the current storage.
+        bad=[{'id':'x','kind':'card','page':3,'x':0,'y':0,'w':10,'h':10}]
+        cases=[('legacy','{not json'),('legacy',compact(bad)),('current',compact(bad))]
+        if kind=='localstorage': cases.append(('current','{not json'))
+        for where,damaged in cases:
+            remove_saved(page)
+            page.evaluate("k=>localStorage.removeItem(k)",KEY)
+            if where=='legacy': page.evaluate("([k,v])=>localStorage.setItem(k,v)",[KEY,damaged])
+            else: put_saved(page,{'id':'default','name':'','savedAt':'2026-01-01T00:00:00Z',
+                                  'items':damaged if damaged.startswith('{') else json.loads(damaged)})
+            recovered=open_editor(context,url)
+            assert not recovered.errors,recovered.errors
+            assert recovered.locator('.el').count()==len(starter)
+            notice=recovered.locator('.notice[data-notice="damaged"]')
+            assert notice.is_visible(),('Damaged-save notice must be visible',where,damaged)
+            assert recovered.evaluate(f"()=>localStorage.getItem('{KEY}-recovery')")==damaged
+            assert recovered.locator('#undo').is_disabled(),'History must not offer to restore damaged data'
+            with recovered.expect_download() as downloaded:
+                notice.get_by_role('button',name='Скачать повреждённый JSON').click()
+            assert Path(downloaded.value.path()).read_text(encoding='utf-8')==damaged
+            recovered.close()
+        page.evaluate("k=>localStorage.removeItem(k)",KEY)
+        context.close()
+        print('PASS '+engine+'/'+kind+': a damaged save opens the template and offers the raw copy')
+
+        # 2b. The save of an editor up to 3.8 opens once, moves into the current storage
+        #     and stays in localStorage for older editor files.
+        context=browser.new_context()
+        page=open_editor(context,url)
+        old=[{'id':'a','kind':'card','page':1,'x':10,'y':10,'w':60,'h':20,'z':1,'title':'Старый'},
+             {'id':'b','kind':'shape','shape':'rect','page':1,'x':10,'y':40,'w':20,'h':20,'z':2}]
+        page.evaluate("([k,v])=>{localStorage.setItem(k,v);localStorage.setItem(k+'-meta',JSON.stringify({savedAt:'2026-10-01T10:00:00Z'}))}",[KEY,compact(old)])
+        page.close()
+        moved=open_editor(context,url)
+        assert moved.locator('.el').count()==2
+        assert [i['id'] for i in saved_layout(moved)]==['a','b'],'The old save must move into the current storage'
+        assert moved.evaluate(f"()=>localStorage.getItem('{KEY}')")==compact(old),'The old save must stay for older editors'
+        moved.locator('.el[data-id="b"]').click(); moved.keyboard.press('Delete')
+        assert [i['id'] for i in saved_layout(moved)]==['a']
+        again=open_editor(context,url)
+        assert again.locator('.el').count()==1,'Once moved, the old save must not come back'
+        assert not moved.errors and not again.errors,(moved.errors,again.errors)
+        context.close()
+        print('PASS '+engine+'/'+kind+': the save of an older editor moves into the current storage once')
+
+        big=starter+[{'id':'huge','kind':'image','page':1,'x':10,'y':10,'w':20,'h':20,'z':99,
+                      'src':'data:image/png;base64,'+'A'*7_000_000}]
+        if kind=='indexeddb':
+            # 3a. The point of IndexedDB: a 7 MB layout, far over the old ~5 MB
+            #     localStorage limit, is saved and opens again.
+            context=browser.new_context()
+            page=open_editor(context,url)
+            import_json(page,big)
+            page.wait_for_function("document.documentElement.dataset.saveState==='saved'")
+            assert page.locator('.notice[data-notice="storage"]').count()==0,'A 7 MB layout must fit'
+            assert any(i['id']=='huge' for i in saved_layout(page))
+            again=open_editor(context,url)
+            assert again.locator('.el[data-id="huge"]').count()==1,'The large layout must open again'
+            assert not page.errors and not again.errors,(page.errors,again.errors)
+            assert not leaving_blocked(again),'A saved layout must close without asking'
+            context.close()
+            print('PASS '+engine+'/'+kind+': a 7 MB layout is saved and reopens')
+
+        # 3. Storage failures (a full quota) are visible, honest on «Сохранить», and clear once saving works.
+        context=browser.new_context()
+        if kind=='indexeddb': context.add_init_script(FAIL_HUGE_SAVES)
+        page=open_editor(context,url)
+        import_json(page,big)
+        page.wait_for_function("document.documentElement.dataset.saveState==='error'")
+        notice=page.locator('.notice[data-notice="storage"]')
+        assert notice.is_visible(),'A failed save must be reported to the user'
+        assert 'не помещается' in notice.inner_text()
+        assert 'Не сохранено' in page.locator('#saveState').inner_text()
+        seen=len(page.dialogs)
+        page.locator('#save').click()
+        assert 'Не удалось' in wait_dialog(page,seen),page.dialogs
+        notice.locator('.notice-close').click()
+        seen=len(page.dialogs)
+        page.locator('#save').click()
+        wait_dialog(page,seen)
+        assert notice.count()==0,'A dismissed notice must not reappear on every keystroke'
+        page.locator('#undo').click()
+        assert page.locator('.el[data-id="huge"]').count()==0
+        assert all(i['id']!='huge' for i in saved_layout(page))
+        assert page.evaluate("document.documentElement.dataset.saveState")=='saved'
+        assert 'Сохранено' in page.locator('#saveState').inner_text()
+        assert page.locator('.notice').count()==0
+        assert not page.errors,page.errors
+        # With unsaved changes the browser asks before the tab closes.
+        assert not leaving_blocked(page),'Everything is saved: closing must not ask'
+        import_json(page,big)
+        page.wait_for_function("document.documentElement.dataset.saveState==='error'")
+        assert leaving_blocked(page),'Closing with unsaved changes must ask first'
+        context.close()
+        print('PASS '+engine+'/'+kind+': storage failure warning, honest save message, recovery, leave-page guard')
 
     # 4. Repeated export generations stay clean and reopen with a single set of handles.
     context=browser.new_context(accept_downloads=True)
@@ -178,66 +284,67 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': card and text-frame handles follow window resize and stage scrolling')
 
-    # 7. Chrome shares one localStorage between all local files: the newer of
+    # 7. Chrome shares browser storage between all local files: the newer of
     #    "layout in this file" and "layout saved in the browser" must open,
     #    the other must stay reachable, and the reset button must work.
-    context=browser.new_context(accept_downloads=True)
-    page=open_editor(context)
-    page.locator('#page2 .el.card').first.click(position={'x':2,'y':2})
-    page.keyboard.press('Delete')                       # browser save: 27 objects
-    page.locator('[data-tab="files"]').click()
-    with page.expect_download() as downloaded:
-        page.locator('#export').click()
-    exported=Path(tempfile.mkdtemp(prefix='dnd-fresh-'))/'export.html'
-    shutil.copy2(downloaded.value.path(),exported)       # file: 27 objects, dated
-    assert 'data-saved-at=' in exported.read_text(encoding='utf-8')
-    page.close()
+    for kind,query in backends:
+      context=browser.new_context(accept_downloads=True)
+      page=open_editor(context,html_path.as_uri()+query)
+      page.locator('#page2 .el.card').first.click(position={'x':2,'y':2})
+      page.keyboard.press('Delete')                       # browser save: 27 objects
+      page.locator('[data-tab="files"]').click()
+      with page.expect_download() as downloaded:
+          page.locator('#export').click()
+      exported=Path(tempfile.mkdtemp(prefix='dnd-fresh-'))/'export.html'
+      shutil.copy2(downloaded.value.path(),exported)       # file: 27 objects, dated
+      assert 'data-saved-at=' in exported.read_text(encoding='utf-8')
+      wait_saved(page); page.close()
 
-    same=open_editor(context,exported.as_uri())
-    assert same.locator('.notice').count()==0,'Identical layouts must open without a notice'
-    same.locator('#page2 .el.card').first.click(position={'x':2,'y':2})
-    same.keyboard.press('Delete')                        # browser save is now newer: 26
-    same.close()
+      same=open_editor(context,exported.as_uri()+query)
+      assert same.locator('.notice').count()==0,'Identical layouts must open without a notice'
+      same.locator('#page2 .el.card').first.click(position={'x':2,'y':2})
+      same.keyboard.press('Delete')                        # browser save is now newer: 26
+      wait_saved(same); same.close()
 
-    newer_browser=open_editor(context,exported.as_uri())
-    assert newer_browser.locator('.el').count()==len(starter)-2
-    notice=newer_browser.locator('.notice[data-notice="freshness"]')
-    assert notice.is_visible() and 'новее макета в этом файле' in notice.inner_text()
-    notice.get_by_role('button',name='Открыть макет из файла').click()
-    assert newer_browser.locator('.el').count()==len(starter)-1
-    assert newer_browser.locator('.notice').count()==0
-    newer_browser.locator('#undo').click()
-    assert newer_browser.locator('.el').count()==len(starter)-2,'Switching layouts must be undoable'
-    newer_browser.close()
+      newer_browser=open_editor(context,exported.as_uri()+query)
+      assert newer_browser.locator('.el').count()==len(starter)-2
+      notice=newer_browser.locator('.notice[data-notice="freshness"]')
+      assert notice.is_visible() and 'новее макета в этом файле' in notice.inner_text()
+      notice.get_by_role('button',name='Открыть макет из файла').click()
+      assert newer_browser.locator('.el').count()==len(starter)-1
+      assert newer_browser.locator('.notice').count()==0
+      newer_browser.locator('#undo').click()
+      assert newer_browser.locator('.el').count()==len(starter)-2,'Switching layouts must be undoable'
+      newer_browser.close()
 
-    page=context.new_page()
-    page.goto(exported.as_uri()); page.wait_for_selector('.el .tiptap-content')
-    page.evaluate(f"()=>localStorage.setItem('{KEY}-meta',JSON.stringify({{savedAt:'2000-01-01T00:00:00Z'}}))")
-    page.close()
-    newer_file=open_editor(context,exported.as_uri())
-    assert newer_file.locator('.el').count()==len(starter)-1,'A newer file must win over an older save'
-    notice=newer_file.locator('.notice[data-notice="freshness"]')
-    assert 'он новее макета, сохранённого в браузере' in notice.inner_text()
-    assert json.loads(newer_file.evaluate(f"()=>localStorage.getItem('{KEY}-previous')")).__len__()==len(starter)-2
-    with newer_file.expect_download() as backup:
-        notice.get_by_role('button',name='Скачать его JSON').click()
-    assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8')))==len(starter)-2
-    notice.get_by_role('button',name='Открыть макет из браузера').click()
-    assert newer_file.locator('.el').count()==len(starter)-2
+      page=context.new_page()
+      page.goto(exported.as_uri()+query); page.wait_for_selector('.el .tiptap-content')
+      record=saved_record(page); record['savedAt']='2000-01-01T00:00:00Z'; put_saved(page,record)
+      page.close()
+      newer_file=open_editor(context,exported.as_uri()+query)
+      assert newer_file.locator('.el').count()==len(starter)-1,'A newer file must win over an older save'
+      notice=newer_file.locator('.notice[data-notice="freshness"]')
+      assert 'он новее макета, сохранённого в браузере' in notice.inner_text()
+      assert len(saved_layout(newer_file,'default:previous'))==len(starter)-2,'The older browser save must be kept'
+      with newer_file.expect_download() as backup:
+          notice.get_by_role('button',name='Скачать его JSON').click()
+      assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8')))==len(starter)-2
+      notice.get_by_role('button',name='Открыть макет из браузера').click()
+      assert newer_file.locator('.el').count()==len(starter)-2
 
-    # Reset: back up, then show this file's layout; Ctrl+Z restores.
-    newer_file.locator('[data-tab="files"]').click()
-    with newer_file.expect_download() as backup:
-        newer_file.locator('#resetStorage').click()
-    assert newer_file.dialogs and 'Сбросить сохранение' in newer_file.dialogs[-1]
-    assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8')))==len(starter)-2
-    assert newer_file.locator('.el').count()==len(starter)-1
-    assert len(json.loads(stored(newer_file)))==len(starter)-1
-    newer_file.keyboard.press('Control+z')
-    assert newer_file.locator('.el').count()==len(starter)-2
-    assert not newer_file.errors,newer_file.errors
-    context.close()
-    print('PASS '+engine+': newer of file and browser save opens; other one stays reachable; reset button')
+      # Reset: back up, then show this file's layout; Ctrl+Z restores.
+      newer_file.locator('[data-tab="files"]').click()
+      with newer_file.expect_download() as backup:
+          newer_file.locator('#resetStorage').click()
+      assert newer_file.dialogs and 'Сбросить сохранение' in newer_file.dialogs[-1]
+      assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8')))==len(starter)-2
+      assert newer_file.locator('.el').count()==len(starter)-1
+      assert len(json.loads(stored(newer_file)))==len(starter)-1
+      newer_file.keyboard.press('Control+z')
+      assert newer_file.locator('.el').count()==len(starter)-2
+      assert not newer_file.errors,newer_file.errors
+      context.close()
+      print('PASS '+engine+'/'+kind+': newer of file and browser save opens; other one stays reachable; reset button')
 
     # 8. Press on an UNSELECTED object and drag in one motion: the whole
     #    distance must apply (3.3.x with Moveable moved ~1 mm, then threw errors).
