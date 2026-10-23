@@ -19,7 +19,7 @@
 ## Порядок работы (сложился и одобрен)
 1. Ветка от свежего `main`: `feature/…`, `fix/…`, `docs/…`, `chore/…`.
 2. Правки → `npm test`, `npm run typecheck`, `npm run standalone`, браузерные наборы
-   (обычный прогон и `CPU_THROTTLE=4`).
+   (обычный прогон, `CPU_THROTTLE=4` и Firefox, если хук его поставил).
 3. Коммит, push, PR через `gh api` (REST). Тело PR — по-русски: «что и зачем», «Проверка».
 4. Подписка на активность PR и страховочная проверка (send_later ~50 мин); удалить её, когда
    CI закончился или PR влит.
@@ -67,7 +67,7 @@
 | `tests/*.test.mjs` | Node-тесты (`npm test`) |
 | `tests/*_browser_smoke.py` | Playwright-наборы по собранному `dist/index.html` |
 | `tests/smoke.md` | ручной контрольный список перед релизом |
-| `.claude/hooks/session-start.sh` | автоподготовка облачной сессии (npm install, тесты, typecheck) |
+| `.claude/hooks/session-start.sh` | автоподготовка облачной сессии (npm install, Firefox для тестов, тесты, typecheck) |
 
 ### Данные
 - Макет — JSON-массив объектов. Поля: `id`, `kind` (`header|note|resources|section|card|shape|image|textbox`),
@@ -162,6 +162,7 @@ npm run typecheck            # TypeScript по JS: обычный tsconfig.json 
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html
 python3 tests/run_e2e.py     # все 5 браузерных наборов в Chromium (~4–5 мин)
+python3 tests/run_e2e.py firefox   # то же в Firefox (~3 мин; ставит хук сессии)
 CPU_THROTTLE=4 python3 tests/run_e2e.py   # то же с замедленным в 4 раза процессором (~6–8 мин)
 python3 tests/regression_browser_smoke.py # один набор (нужен свежий npm run build)
 ```
@@ -191,7 +192,11 @@ PNG в репозитории нет специально: шрифты здес
   зависимости. **Хук срабатывает только при старте**: после `git checkout` другой ветки делать `npm ci`
   самому (разные ветки — разные зависимости; странные ошибки сборки обычно отсюда).
 - Python Playwright закреплён на 1.56.0 под предустановленный Chromium (`/opt/pw-browsers`).
-  **Никогда не запускать `playwright install`.** Firefox локально нет — он проверяется только в CI.
+  **Chromium никогда не переустанавливать** (`playwright install` без имени браузера или с `chromium`).
+  Firefox ставит хук: `python3 -m playwright install firefox` (с 23.10.2026 владелец открыл в окружении
+  `cdn.playwright.dev` и `playwright.azureedge.net`). Хук пишет «Firefox for browser tests: ready» или
+  «not available» — во втором случае Firefox проверяется только в CI. Все наборы в Firefox:
+  `python3 tests/run_e2e.py firefox` (~3 мин); `CPU_THROTTLE` в Firefox не действует.
 - Клон неполный: для новой ветки добавлять refspec, иначе ветка «не видна» и хук git-проверки ругается:
   `git config --add remote.origin.fetch '+refs/heads/<ветка>:refs/remotes/origin/<ветка>'`.
 - GitHub: только REST через `gh api` (GraphQL закрыт). Логи заданий CI закрыты прокси — причину падения
