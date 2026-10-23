@@ -12,6 +12,7 @@
     "src/editor/freshness.js",
     "src/editor/storage.js",
     "src/editor/layouts-dialog.js",
-    "src/editor/layers.js"
+    "src/editor/layers.js",
+    "src/editor/clipboard.js"
   ]
 }
