@@ -23,7 +23,7 @@ with sync_playwright() as p:
     page.on('pageerror',lambda error:errors.append(str(error)))
     page.goto(html_path.as_uri(),wait_until='load')
     page.wait_for_selector('.el .tiptap-content')
-    assert page.locator('[role="tab"]').count()==6, errors
+    assert page.locator('[role="tab"]').count()==7, errors  # 3.11 added «Выравнивание»
     assert page.locator('.el.card').count()>10
     assert page.locator('.el .tiptap-content').count()>40
     assert page.locator('.el.textbox').count()==0

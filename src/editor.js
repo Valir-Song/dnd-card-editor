@@ -17,6 +17,7 @@ import { setupLayoutsDialog } from './editor/layouts-dialog.js';
 import { setupClipboard } from './editor/clipboard.js';
 import { setupLock, isLocked } from './editor/lock.js';
 import { setupNudge } from './editor/nudge.js';
+import { setupAlign } from './editor/align.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
@@ -189,6 +190,8 @@ const getSelectionIds=()=>innerCanvas?.hasSelection()?[]:canvas.getIds();
 let syncTextBoxTools=()=>{};
 /** @type {ReturnType<typeof setupLock> | null} */
 let lock=null;
+/** @type {ReturnType<typeof setupAlign> | null} */
+let align=null;
 let innerCanvas=null;
 const rich=createRichText({
   current,select,store,
@@ -207,7 +210,7 @@ const canvas=createCanvasControls({pages,store,mm,snapping,onSelection:(ids,prim
   if(ids.length){const c=store.find(ids[0]);activePage=c?.page||1;}
   const c=current();
   if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;
-  syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();notices.hide('locked');
+  syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();align?.sync();notices.hide('locked');
 }});
 innerCanvas=createInnerCanvas({
   pages,store,mm,
@@ -215,6 +218,7 @@ innerCanvas=createInnerCanvas({
 });
 canvas.attachInner(innerCanvas);
 setupNudge({canvas,innerCanvas,snapping});
+align=setupAlign({canvas,innerCanvas});
 {
   const toggle=document.getElementById('snapToggle'),grid=document.getElementById('snapGrid');
   // The grid is drawn faintly on the sheets while it is on (screen only, see styles.css).
@@ -228,7 +232,7 @@ setupNudge({canvas,innerCanvas,snapping});
 
 const renderer=createRenderer({pages,getItems:()=>items,store,rich,
   startDrag:(event,id)=>canvas.startDrag(event,id),startBadgeDrag,
-  afterDraw:()=>{canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools();lock?.sync()}});
+  afterDraw:()=>{canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools();lock?.sync();align?.sync()}});
 function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
 // object, or the middle of the part of the active page that is on screen.

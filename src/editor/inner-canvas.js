@@ -208,6 +208,32 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
     window.addEventListener('pointercancel', up, true);
   }, true));
 
+  // The selected text frames for the «Выравнивание» tab, in page millimetres. A
+  // single frame aligns to the card's inner area (inside its padding); frames
+  // of a locked card stay. `commit` turns new boxes into offsets and sizes.
+  function arrangeTargets() {
+    const owner = parentFor(parentId), nodes = currentTargets(), card = parentNode(parentId);
+    if (!owner || !nodes.length || !card) return null;
+    const outer = rectMm(card), style = getComputedStyle(card);
+    const k = 210 / card.closest('.page').getBoundingClientRect().width, pad = side => (parseFloat(style['padding' + side]) || 0) * k;
+    const area = {x: outer.x + pad('Left'), y: outer.y + pad('Top'), w: outer.w - pad('Left') - pad('Right'), h: outer.h - pad('Top') - pad('Bottom')};
+    const boxes = nodes.map(rectMm);
+    return {
+      boxes, area,
+      fixed: nodes.map(() => !!owner.locked),
+      commit(next) {
+        if (owner.locked) return;
+        nodes.forEach((node, i) => {
+          const position = frameData(owner, node.dataset.field), from = boxes[i], to = next[i];
+          position.x = (position.x || 0) + to.x - from.x;
+          position.y = (position.y || 0) + to.y - from.y;
+          if (Math.abs(to.w - from.w) > 1e-9) position.w = Math.max(8, to.w);
+          if (Math.abs(to.h - from.h) > 1e-9) position.h = Math.max(3, to.h);
+        });
+        store.commit();
+      }
+    };
+  }
   // Arrow keys: the selected frames move by (dx, dy) mm inside their card
   // (not in a locked one). A series of presses is one undo step.
   function nudge(dx, dy) {
@@ -230,7 +256,7 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
     sync();
   }
   return {
-    clear, setFields, selectField, toggleField, afterDraw, nudge,
+    clear, setFields, selectField, toggleField, afterDraw, nudge, arrangeTargets,
     hasSelection: selected,
     belongsTo: id => selected() && parentId === id,
     count: () => fields.length,

@@ -3,7 +3,7 @@
 // millimetres. Rich text stays Tiptap-owned: a press on editable text is never
 // a gesture. Text frames inside cards are handled by inner-canvas.js.
 import { collectLines, snapAxis, snapMove } from './snapping.js';
-import { bbox, resizeBox, scaleBoxes, marqueeHits, rectFromPoints, clampMove, gridStep } from './geometry.js';
+import { bbox, resizeBox, scaleBoxes, marqueeHits, rectFromPoints, clampMove, gridStep, PAGE_FRAME } from './geometry.js';
 
 const DIRECTIONS = {nw: [-1, -1], n: [0, -1], ne: [1, -1], w: [-1, 0], e: [1, 0], sw: [-1, 1], s: [0, 1], se: [1, 1]};
 const EDGES = ['top', 'right', 'bottom', 'left'];
@@ -287,7 +287,8 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
         }
         // The marquee passes over locked objects (a background, a section frame).
         const candidates = store.items.filter(item => (item.page || 1) === pageNumber && !item.locked).map(item => ({id: item.id, ...boxOf(item)}));
-        const hits = marqueeHits(box(e), candidates).map(b => b.id);
+        // Top-left first: «one width/height» takes the first selected one as its model.
+        const hits = marqueeHits(box(e), candidates).sort((a, b) => a.y - b.y || a.x - b.x).map(b => b.id);
         setSelection(additive ? [...before, ...hits] : hits);
       }
     });
@@ -359,6 +360,30 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
     store.commit({group: 'nudge:' + ids.join(','), windowMs: 1000});
     return true;
   }
+  // The selection for the «Выравнивание» tab: rendered boxes in selection order;
+  // `commit` writes the changed sides back as one undo step. Locked objects
+  // count (others align to them) but never change.
+  function arrangeTargets() {
+    const items = ids.map(itemFor).filter(Boolean);
+    if (!items.length) return null;
+    return {
+      boxes: items.map(item => boxOf(item)),
+      fixed: items.map(item => !!item.locked),
+      area: PAGE_FRAME,
+      commit(next) {
+        store.change(() => items.forEach((item, i) => {
+          if (item.locked) return;
+          const now = boxOf(item);
+          for (const key of ['x', 'y', 'w', 'h']) {
+            if (Math.abs(next[i][key] - now[key]) < 1e-9) continue;
+            if (key === 'h' && item.kind === 'shape' && item.shape === 'line') continue; // a line stays 2 px
+            if (key === 'h' && item.kind === 'textbox') item.autoHeight = false;
+            item[key] = next[i][key];
+          }
+        }));
+      }
+    };
+  }
   function afterDraw() {
     for (const id of ids.slice()) if (!itemFor(id)) ids = ids.filter(value => value !== id);
     if (primary && !ids.includes(primary)) primary = null;
@@ -370,7 +395,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   window.addEventListener('resize', () => { placeLayers(); renderFrame(); });
   placeLayers();
   return {
-    setSelection, afterDraw, startDrag, attachInner, nudge,
+    setSelection, afterDraw, startDrag, attachInner, nudge, arrangeTargets,
     getIds: () => ids.slice(),
     getPrimary: () => primary,
     clear: () => setSelection([])
