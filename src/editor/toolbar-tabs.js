@@ -10,7 +10,7 @@ export function setupToolbarTabs() {
     {id:'text', label:'Текст', ids:['addTextBox','bold','italic','underline','strike','fontFamily','fontSize','textAlign','textcolor','bulletList','orderedList','clearFormatting','textBoxTools']},
     {id:'figures', label:'Фигуры и изображения', ids:['rect','circle','line','upload']},
     {id:'layers', label:'Слои', ids:['front','forward','backward','back']},
-    {id:'files', label:'Файл', ids:['save','export','json','import','print','compressImages','resetStorage']}
+    {id:'files', label:'Файл', ids:['save','export','json','import','print','layoutName','layouts','compressImages','resetStorage']}
   ];
   const nodes = new Map();
   for(const id of ['undo','redo','saveState','snapTools',...groups.flatMap(group=>group.ids)]) {

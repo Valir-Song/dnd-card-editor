@@ -12,52 +12,75 @@ import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
 import { normalizeLayout } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
-import { chooseStartupLayout, formatStamp } from './editor/freshness.js';
+import { chooseStartupLayout, formatStamp, chooseLayout, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
+import { setupLayoutsDialog } from './editor/layouts-dialog.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { createStore } from './editor/store.js';
 import { openStorage, createSaver } from './editor/storage.js';
 
 // State and DOM rendering remain together to minimize v3 regressions.
-// Saves live in IndexedDB (see storage.js). Editors up to 3.8 kept one save in
-// localStorage under `legacyKey`: it is read once into the new storage and never
-// deleted, so an older editor file still opens it.
-const legacyKey='dnd-card-editor-v3',recoveryKey=legacyKey+'-recovery',legacyMetaKey=legacyKey+'-meta';
+// Saves live in IndexedDB (see storage.js), one record per layout. Editors up to
+// 3.8 kept one save in localStorage under `legacyKey`: it is moved once into the
+// record 'default' and never deleted, so an older editor file still opens it.
+const legacyKey='dnd-card-editor-v3',recoveryKey=legacyKey+'-recovery',legacyMetaKey=legacyKey+'-meta',legacyMovedKey=legacyKey+'-moved';
 /** @type {import('./types/layout').Item[]} */
 let items;
 const notices=createNotices(document.getElementById('notices'));
 const initialNode=document.getElementById('initial');
 const embedded=normalizeLayout(JSON.parse(initialNode.textContent)).items||[];
 const embeddedAt=initialNode.dataset.savedAt||null;
-const layoutId='default',layoutName='';
 // ?storage=local forces the localStorage fallback (tests cover both paths).
 const storage=await openStorage({prefer:new URLSearchParams(location.search).get('storage')});
 document.documentElement.dataset.storage=storage.kind;
-document.documentElement.dataset.layoutId=layoutId;
-function readLegacySave(){
-  try{
-    const raw=localStorage.getItem(legacyKey);
-    if(raw===null)return null;
-    let parsed=raw;try{parsed=JSON.parse(raw)}catch(e){}
-    return {id:layoutId,name:'',savedAt:JSON.parse(localStorage.getItem(legacyMetaKey)||'null')?.savedAt||'',items:parsed,raw};
-  }catch(e){console.warn('Could not read the save of an older editor',e);return null}
-}
 // A damaged save must never lock the user out: fall back to the embedded layout
 // and keep the raw data so it can be downloaded and repaired.
-let saved=null,fromLegacy=false,storedAt=null,damagedSave=null,freshness=null;
-try{saved=await storage.load(layoutId)}catch(e){console.warn('Could not read the saved layout',e)}
-if(!saved){saved=readLegacySave();fromLegacy=!!saved}
+/** @type {{raw: string, errors: string[]} | null} */
+let damagedSave=null;
+/** @param {unknown} data */
+const checkSaved=data=>typeof data==='string'?{items:null,errors:['Данные не являются корректным JSON.']}:normalizeLayout(data);
+async function moveLegacySave(){
+  let raw=null,at=null;
+  try{
+    if(localStorage.getItem(legacyMovedKey))return;
+    raw=localStorage.getItem(legacyKey);
+    at=JSON.parse(localStorage.getItem(legacyMetaKey)||'null')?.savedAt||null;
+  }catch(e){console.warn('Could not read the save of an older editor',e)}
+  if(raw===null)return;
+  const markMoved=()=>{try{localStorage.setItem(legacyMovedKey,new Date().toISOString())}catch(e){}};
+  let parsed=raw;try{parsed=JSON.parse(raw)}catch(e){}
+  const result=checkSaved(parsed);
+  if(!result.items){damagedSave={raw,errors:result.errors};markMoved();return}
+  try{
+    // 3.9.0-beta.1 moved it already, without the mark.
+    if(!await storage.load('default'))await storage.put({id:'default',name:layoutTitle(result.items),savedAt:at||new Date().toISOString(),items:result.items});
+    markMoved();
+  }catch(e){console.warn('Could not move the save of an older editor; will retry next time',e)}
+}
+await moveLegacySave();
+/** @type {import('./types/storage').LayoutMeta[]} */
+let saves=[];
+try{saves=await storage.list()}catch(e){console.warn('Could not list saved layouts',e)}
+const choice=chooseLayout({fileId:initialNode.dataset.layoutId||null,fileAt:embeddedAt,fileText:initialNode.textContent,saves,
+  newId:()=>'m-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)});
+// The layout this file stands for; «Мои макеты» can switch the editor to another one.
+const fileLayoutId=choice.layoutId;
+let layoutId=fileLayoutId,layoutName=initialNode.dataset.layoutName||'';
+/** @type {import('./types/storage').StoredLayout | null} */
+let saved=null;
+let storedAt=null,freshness=null;
+if(choice.hasSave)try{saved=await storage.load(layoutId)}catch(e){console.warn('Could not read the saved layout',e)}
 if(saved){
   storedAt=saved.savedAt||null;
-  const raw=typeof saved.items==='string'?saved.items:JSON.stringify(saved.items);
-  const result=typeof saved.items==='string'?{items:null,errors:['Данные не являются корректным JSON.']}:normalizeLayout(saved.items);
+  layoutName=saved.name||layoutName;
+  const result=checkSaved(saved.items);
   if(result.items){
     freshness={...chooseStartupLayout({storedItems:result.items,storedAt,embeddedItems:embedded,embeddedAt}),storedItems:result.items};
     if(freshness.source==='browser')items=result.items;
     // The newer file wins, but the older browser save must survive the next autosave.
-    else storage.put({id:layoutId+':previous',name:'Предыдущее сохранение',savedAt:storedAt||new Date().toISOString(),items:result.items})
+    else storage.put({id:layoutId+':previous',name:(saved.name||layoutTitle(result.items))+' — до открытия файла',savedAt:storedAt||new Date().toISOString(),items:result.items})
       .catch(e=>console.warn('Could not keep the previous browser layout',e));
   }
-  else damagedSave={raw,errors:result.errors};
+  else damagedSave={raw:typeof saved.items==='string'?saved.items:JSON.stringify(saved.items),errors:result.errors};
 }
 items ||= structuredClone(embedded);
 let selected=null, activePage=1;
@@ -69,8 +92,9 @@ for(const item of items){
     delete item.badgeX;delete item.badgeY;migratedBadges=true;
   }
 }
-// Written once the saver exists (below): badge migration, or moving an old save.
-let saveAtStart=!damagedSave&&(migratedBadges||(fromLegacy&&freshness?.source==='browser'));
+layoutName||=layoutTitle(items);
+// Written once the saver exists (below).
+let saveAtStart=!damagedSave&&migratedBadges;
 
 const pages=[document.getElementById('page1'),document.getElementById('page2')];
 const mm=v=>v+'mm',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -109,7 +133,7 @@ function reportFreshness(){
   const fileStamp=formatStamp(embeddedAt),browserStamp=formatStamp(storedAt);
   if(freshness.source==='file')notices.show('freshness','Открыт макет из этого файла (сохранён '+fileStamp+'): он новее макета, сохранённого в браузере ('+browserStamp+'). Макет из браузера не потерян.',[
     {label:'Открыть макет из браузера',onClick:()=>switchLayout(freshness.storedItems)},
-    {label:'Скачать его JSON',onClick:()=>downloadJSON('Ричард_макет_из_браузера.json',freshness.storedItems)}
+    {label:'Скачать его JSON',onClick:()=>downloadJSON(fileBase(layoutName)+'_из_браузера.json',freshness.storedItems)}
   ]);
   else notices.show('freshness','Открыт макет, сохранённый в браузере '+browserStamp+': он новее макета в этом файле ('+fileStamp+').',[
     {label:'Открыть макет из файла',onClick:()=>switchLayout(embedded)}
@@ -117,9 +141,55 @@ function reportFreshness(){
 }
 document.getElementById('resetStorage').onclick=()=>{
   if(!confirm('Сбросить сохранение браузера и открыть макет, записанный в этом файле?\n\nТекущий макет будет скачан как резервная копия JSON, а Ctrl+Z вернёт его.'))return;
-  downloadJSON('Ричард_макет_резервная_копия.json',items);
+  downloadJSON(fileBase(layoutName)+'_резервная_копия.json',items);
+  // A clean editor file opens its template as a new layout: the saved one stays in «Мои макеты».
+  const clean=!initialNode.dataset.layoutId&&!embeddedAt;
+  if(clean||layoutId!==fileLayoutId){
+    layoutId=clean?'m-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7):fileLayoutId;
+    layoutName=initialNode.dataset.layoutName||layoutTitle(embedded);syncLayoutIdentity();
+  }
   switchLayout(embedded);
 };
+// ---- which layout is open: id and name; «Мои макеты» switches to another saved one ----
+const baseTitle=document.title;
+const nameInput=document.getElementById('layoutName');
+function syncLayoutIdentity(){
+  document.documentElement.dataset.layoutId=layoutId;
+  nameInput.value=layoutName;
+  document.title=layoutName+' · '+baseTitle;
+}
+// The name is not part of the layout: no undo step, just saved with it.
+nameInput.addEventListener('input',()=>{layoutName=nameInput.value.trim()||layoutTitle(items);document.title=layoutName+' · '+baseTitle;saver.request()});
+/** @param {string} id */
+async function openSaved(id){
+  await saver.flush();
+  let record=null;
+  try{record=await storage.load(id)}catch(e){console.warn('Could not read the saved layout',e)}
+  const result=record?checkSaved(record.items):{items:null,errors:['Сохранение не найдено.']};
+  if(!record||!result.items){alert('Этот макет не открывается:\n'+result.errors.join('\n'));return}
+  // Like opening another file: its own undo history starts here.
+  layoutId=id;layoutName=record.name||layoutTitle(result.items);syncLayoutIdentity();
+  clearSelection();store.replace(result.items);history.reset();store.render();syncImageTools();syncBgTools();
+  for(const id of ['freshness','newer','layouts','damaged'])notices.hide(id);
+}
+/** @param {string} id */
+async function downloadSaved(id){
+  const record=await storage.load(id).catch(()=>null);
+  if(record)downloadJSON(fileBase(record.name||'')+'.json',record.items);
+}
+const layoutsDialog=setupLayoutsDialog({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('layoutsDialog'))),
+  storage,currentId:()=>layoutId,open:openSaved,download:downloadSaved});
+document.getElementById('layouts').onclick=()=>layoutsDialog.show();
+function reportLayoutChoice(){
+  const newer=choice.newer,others=saves.filter(save=>!isCopy(save.id)).length;
+  if(newer)notices.show('newer','В браузере есть макет «'+(newer.name||'Макет без названия')+'», сохранённый '+formatStamp(newer.savedAt)+' — позже, чем скачан этот файл ('+formatStamp(embeddedAt)+'). Возможно, там ваши последние правки.',[
+    {label:'Открыть его',onClick:()=>openSaved(newer.id)},
+    {label:'Мои макеты',onClick:()=>layoutsDialog.show()}
+  ]);
+  else if(!initialNode.dataset.layoutId&&!embeddedAt&&choice.hasSave&&others>1)notices.show('layouts','Открыт последний сохранённый макет «'+layoutName+'» ('+formatStamp(storedAt)+'). Остальные макеты этого браузера — в «Файл → Мои макеты».',[
+    {label:'Мои макеты',onClick:()=>layoutsDialog.show()}
+  ]);
+}
 function reportDamagedSave(){
   if(!damagedSave)return;
   try{localStorage.setItem(recoveryKey,damagedSave.raw)}catch(e){console.warn('Could not keep a copy of the damaged layout (it can still be downloaded from the notice)',e)}
@@ -277,7 +347,7 @@ function addCard(copy){const src=copy||{kind:'card',x:12,y:120,w:91,h:23,title:'
 setupObjects({addCard,addObject,current,getSelectionIds,clearSelection,store,syncImageTools,syncBgTools});
 ({syncTextBoxTools}=setupTextBoxes({addObject,current,store}));
 setupLayers({current,store,getSelected,select});
-setupFiles({store,getSelectionIds,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush()});
+setupFiles({store,getSelectionIds,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity:()=>({id:layoutId,name:layoutName})});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 try{draw()}catch(error){
   // Valid-looking data can still fail to render; recover the same way.
@@ -287,8 +357,10 @@ try{draw()}catch(error){
   history.reset();resetRender();draw();
 }
 setupToolbarTabs();
+syncLayoutIdentity();
 reportDamagedSave();
 reportFreshness();
+reportLayoutChoice();
 saveIndicator.textContent=storage.kind==='none'?'⚠ Без сохранения':'✓ Сохранено';saveIndicator.dataset.state=storage.kind==='none'?'error':'saved';
 if(saveAtStart)saver.request();
 if(storage.kind==='none')notices.show('storage','Браузер не даёт этой странице сохранять макет (например, в приватном окне). Изменения пропадут при закрытии вкладки: сохраняйте работу кнопкой «Скачать HTML».',[

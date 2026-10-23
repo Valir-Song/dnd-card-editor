@@ -49,7 +49,9 @@ def saved_layout(page,layout_id=None):
 def put_saved(page,record):
     """Write a record directly, as a browser holding an older save would have it."""
     page.evaluate("async r=>{"+_STORAGE_JS+"""await idle();
-      if(local()){localStorage.setItem('dnd-card-editor-layout:'+r.id,typeof r.items==='string'?r.items:JSON.stringify(r));return}
+      if(local()){localStorage.setItem('dnd-card-editor-layout:'+r.id,typeof r.items==='string'?r.items:JSON.stringify(r));
+        const index=JSON.parse(localStorage.getItem('dnd-card-editor-layouts')||'[]').filter(m=>m.id!==r.id);
+        localStorage.setItem('dnd-card-editor-layouts',JSON.stringify([...index,{id:r.id,name:r.name,savedAt:r.savedAt,count:0,bytes:0}]));return}
       await tx(['layouts','meta'],'readwrite',t=>{t.objectStore('layouts').put(r);t.objectStore('meta').put({id:r.id,name:r.name,savedAt:r.savedAt,count:0,bytes:0})})}""",record)
 
 def remove_saved(page,layout_id=None):

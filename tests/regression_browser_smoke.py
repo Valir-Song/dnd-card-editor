@@ -97,7 +97,7 @@ with sync_playwright() as p:
     native=open_editor(probe_context).evaluate('document.documentElement.dataset.storage')
     probe_context.close()
     backends=[b for b in BACKENDS if b[0]=='localstorage' or native=='indexeddb']
-    if native!='indexeddb': print('NOTE '+engine+': no IndexedDB for local files ('+native+'); checking the localStorage fallback')
+    print('NOTE '+engine+': storage for local files is '+native+('' if native=='indexeddb' else '; checking the localStorage fallback only'))
 
     for kind,query in backends:
         url=html_path.as_uri()+query
@@ -128,9 +128,10 @@ with sync_playwright() as p:
         if kind=='localstorage': cases.append(('current','{not json'))
         for where,damaged in cases:
             remove_saved(page)
-            page.evaluate("k=>localStorage.removeItem(k)",KEY)
+            # The old save is moved once (marked by KEY-moved); start each case afresh.
+            page.evaluate("k=>{localStorage.removeItem(k);localStorage.removeItem(k+'-moved')}",KEY)
             if where=='legacy': page.evaluate("([k,v])=>localStorage.setItem(k,v)",[KEY,damaged])
-            else: put_saved(page,{'id':'default','name':'','savedAt':'2026-01-01T00:00:00Z',
+            else: put_saved(page,{'id':page.evaluate('document.documentElement.dataset.layoutId'),'name':'','savedAt':'2026-01-01T00:00:00Z',
                                   'items':damaged if damaged.startswith('{') else json.loads(damaged)})
             recovered=open_editor(context,url)
             assert not recovered.errors,recovered.errors
@@ -325,7 +326,7 @@ with sync_playwright() as p:
       assert newer_file.locator('.el').count()==len(starter)-1,'A newer file must win over an older save'
       notice=newer_file.locator('.notice[data-notice="freshness"]')
       assert 'он новее макета, сохранённого в браузере' in notice.inner_text()
-      assert len(saved_layout(newer_file,'default:previous'))==len(starter)-2,'The older browser save must be kept'
+      assert len(saved_layout(newer_file,newer_file.evaluate('document.documentElement.dataset.layoutId')+':previous'))==len(starter)-2,'The older browser save must be kept'
       with newer_file.expect_download() as backup:
           notice.get_by_role('button',name='Скачать его JSON').click()
       assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8')))==len(starter)-2
@@ -630,6 +631,96 @@ with sync_playwright() as p:
     assert not page.errors,page.errors
     context.close()
     print('PASS '+engine+': pictures are shrunk on upload and on request; undo keeps its steps with large pictures')
+
+    # 13. One save per layout: two downloaded files never overwrite each other
+    #     (3.8 and earlier kept a single save, so file B opened file A's work),
+    #     «Мои макеты» lists, opens, downloads and deletes saves, a clean editor
+    #     file continues the latest layout, and a file exported by 3.3–3.8 (no id)
+    #     finds its own save every time.
+    for kind,query in backends:
+      context=browser.new_context(accept_downloads=True)
+      folder=Path(tempfile.mkdtemp(prefix='dnd-layouts-'))
+      ident=lambda pg:pg.evaluate('document.documentElement.dataset.layoutId')
+      def export(pg,name):
+          pg.locator('[data-tab="files"]').click()
+          with pg.expect_download() as downloaded:
+              pg.locator('#export').click()
+          target=folder/name; shutil.copy2(downloaded.value.path(),target)
+          return downloaded.value.suggested_filename,target
+      def delete_card(pg):
+          pg.locator('.el.card').first.click(position={'x':2,'y':2}); pg.keyboard.press('Delete')
+      page=open_editor(context,html_path.as_uri()+query)
+      page.locator('[data-tab="files"]').click(); page.locator('#layoutName').fill('Альфа')
+      assert page.title().startswith('Альфа · '),page.title()
+      delete_card(page)
+      suggested,file_a=export(page,'a.html')
+      assert suggested.startswith('Альфа_') and suggested.endswith('.html'),suggested
+      id_a=ident(page)
+      assert f'data-layout-id="{id_a}"' in file_a.read_text(encoding='utf-8')
+      # A clean editor file continues the latest layout; «Сбросить» starts a new one beside it.
+      page=open_editor(context,html_path.as_uri()+query)
+      assert ident(page)==id_a and page.locator('.el').count()==len(starter)-1
+      page.locator('[data-tab="files"]').click()
+      with page.expect_download():
+          page.locator('#resetStorage').click()
+      id_b=ident(page)
+      assert id_b!=id_a and page.locator('.el').count()==len(starter)
+      page.locator('#layoutName').fill('Бета')
+      delete_card(page); delete_card(page); delete_card(page)   # Бета: starter-3
+      _,file_b=export(page,'b.html'); wait_saved(page); page.close()
+      a=open_editor(context,file_a.as_uri()+query)
+      assert ident(a)==id_a and a.locator('.el').count()==len(starter)-1 and a.locator('#layoutName').input_value()=='Альфа'
+      delete_card(a); wait_saved(a); a.close()                      # Альфа: starter-2, saved after file B
+      b=open_editor(context,file_b.as_uri()+query)
+      assert ident(b)==id_b,'File B must open its own save'
+      assert b.locator('.el').count()==len(starter)-3 and b.locator('#layoutName').input_value()=='Бета','File B must not show the newer work of file A'
+      assert b.locator('.notice').count()==0,'Its own, identical save opens without a notice'
+      # «Мои макеты»: both saves; open the other one, download it, delete a save.
+      b.locator('[data-tab="files"]').click(); b.locator('#layouts').click()
+      b.wait_for_selector('#layoutsDialog[open] li strong')
+      rows=b.locator('#layoutsDialog li')
+      assert sorted(rows.locator('strong').all_inner_texts())==['Альфа','Бета'],rows.locator('strong').all_inner_texts()
+      assert 'открыт сейчас' in b.locator(f'#layoutsDialog li[data-id="{id_b}"]').inner_text()
+      with b.expect_download() as downloaded:
+          b.locator(f'#layoutsDialog li[data-id="{id_a}"]').get_by_role('button',name='Скачать JSON').click()
+      assert downloaded.value.suggested_filename=='Альфа.json'
+      assert len(json.loads(Path(downloaded.value.path()).read_text(encoding='utf-8')))==len(starter)-2
+      b.locator(f'#layoutsDialog li[data-id="{id_a}"]').get_by_role('button',name='Открыть').click()
+      b.wait_for_function(f"document.documentElement.dataset.layoutId==='{id_a}'")
+      assert b.locator('#layoutName').input_value()=='Альфа' and b.title().startswith('Альфа')
+      assert b.locator('#undo').is_disabled(),'Another layout starts its own undo history'
+      delete_card(b)
+      assert len(saved_layout(b,id_a))==len(starter)-3 and len(saved_layout(b,id_b))==len(starter)-3,'Edits go to the opened layout only'
+      b.locator('#layouts').click()
+      b.locator(f'#layoutsDialog li[data-id="{id_b}"]').get_by_role('button',name='Удалить').click()
+      b.wait_for_function(f"!document.querySelector('#layoutsDialog li[data-id=\"{id_b}\"]')")
+      assert 'Удалить сохранение «Бета»' in b.dialogs[-1]
+      assert saved_record(b,id_b) is None
+      b.keyboard.press('Escape')
+      # A clean editor file with several saves says which one it opened.
+      put_saved(b,{'id':'other','name':'Гамма','savedAt':'2000-01-01T00:00:00Z','items':starter})
+      clean=open_editor(context,html_path.as_uri()+query)
+      assert ident(clean)==id_a,'The most recently saved layout opens'
+      assert clean.locator('.notice[data-notice="layouts"]').is_visible(),clean.locator('.notice').all_inner_texts()
+      # A file exported by 3.3–3.8 has no id: it gets one from its content, the
+      # same every time, and points to work saved after its export.
+      old=folder/'old.html'
+      old.write_text(re.sub(r' data-layout-(id|name)="[^"]*"','',file_a.read_text(encoding='utf-8'))
+                     .replace('data-saved-at="','data-saved-at="2020-01-01T00:00:00.000Z" data-was="'),encoding='utf-8')
+      first=open_editor(context,old.as_uri()+query)
+      old_id=ident(first)
+      assert old_id.startswith('f-') and first.locator('.el').count()==len(starter)-1
+      newer=first.locator('.notice[data-notice="newer"]')
+      assert newer.is_visible() and 'Альфа' in newer.inner_text(),'Work saved after the export must be pointed out'
+      delete_card(first); wait_saved(first); first.close()
+      second=open_editor(context,old.as_uri()+query)
+      assert ident(second)==old_id and second.locator('.el').count()==len(starter)-2,'The old file must find its own save'
+      assert second.locator('.notice[data-notice="newer"]').count()==0
+      newer_link=open_editor(context,old.as_uri()+query)
+      for pg in (page,a,b,clean,first,second,newer_link):
+          assert not pg.errors,pg.errors
+      context.close()
+      print('PASS '+engine+'/'+kind+': one save per layout; «Мои макеты»; clean and old files find the right save')
 
     browser.close()
 print('All regression checks passed for '+engine)
