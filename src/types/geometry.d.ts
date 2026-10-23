@@ -7,3 +7,5 @@ export type Dir = [-1 | 0 | 1, -1 | 0 | 1];
 export interface Lines { x: number[]; y: number[] }
 export interface Snap { offset: number; line: number | null }
 export interface SnapSettings { enabled: boolean; gridMm: number }
+// An equal gap to highlight: from..to along `axis`, drawn at `at` across it (mm).
+export interface GapMark { axis: 'x' | 'y'; from: number; to: number; at: number }

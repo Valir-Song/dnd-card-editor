@@ -213,7 +213,7 @@ const canvas=createCanvasControls({pages,store,mm,snapping,onSelection:(ids,prim
   syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();align?.sync();notices.hide('locked');
 }});
 innerCanvas=createInnerCanvas({
-  pages,store,mm,
+  pages,store,mm,snapping,
   selectParent:id=>canvas.setSelection([id],id,{keepInner:true})
 });
 canvas.attachInner(innerCanvas);
