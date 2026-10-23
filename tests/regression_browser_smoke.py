@@ -28,6 +28,14 @@ def open_editor(context,url=html_path.as_uri()):
     page.on('dialog',lambda dialog:(page.dialogs.append(dialog.message),dialog.accept()))
     page.goto(url,wait_until='load')
     page.wait_for_selector('.el .tiptap-content')
+    # Autosave writes in the background; a write still running when the page closes
+    # can land after the next test step and overwrite what it prepared.
+    close=page.close
+    def close_when_saved(**options):
+        try: wait_saved(page)
+        except Exception: pass  # page already gone or never saved
+        close(**options)
+    page.close=close_when_saved
     return page
 
 def import_json(page,data,name='layout.json'):
