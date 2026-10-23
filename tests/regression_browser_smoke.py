@@ -814,7 +814,9 @@ with sync_playwright() as p:
             pg.keyboard.press('Control+'+{'copy':'c','cut':'x','paste':'v'}[action]); return
         clip['text']=pg.evaluate("""([type,text])=>{const dt=new DataTransfer();if(text)dt.setData('text/plain',text);
           const target=document.activeElement&&document.activeElement!==document.body?document.activeElement:document.body;
-          target.dispatchEvent(new ClipboardEvent(type,{clipboardData:dt,bubbles:true,cancelable:true}));return dt.getData('text/plain')}""",
+          // Firefox drops clipboardData given to the constructor of a synthetic event: attach it directly.
+          const event=new ClipboardEvent(type,{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:dt});
+          target.dispatchEvent(event);return dt.getData('text/plain')}""",
           [action,clip['text'] if action=='paste' else ''])or clip['text']
     def els(pg): return pg.evaluate("""()=>[...document.querySelectorAll('#page1 > .el')].map(e=>({id:e.dataset.id,x:parseFloat(e.style.left),y:parseFloat(e.style.top),title:e.querySelector('.title')?.innerText.trim()}))""")
     pick=lambda pg,i,shift=False:pg.locator(f'.el[data-id="{i}"]').click(position={'x':3,'y':3},modifiers=['Shift'] if shift else [])
@@ -835,7 +837,8 @@ with sync_playwright() as p:
         page.keyboard.press('Shift+Home'); keys(page,'copy')
         assert page.evaluate('navigator.clipboard.readText()')=='Карта B','Text copy must stay text'
     added=page.evaluate("""text=>{const dt=new DataTransfer();dt.setData('text/plain',text);
-      document.querySelector('.el[data-id="B"] .title .tiptap-content').dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));
+      const event=new ClipboardEvent('paste',{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:dt});
+      document.querySelector('.el[data-id="B"] .title .tiptap-content').dispatchEvent(event);
       return document.querySelectorAll('#page1 > .el').length}""",page.evaluate("()=>JSON.stringify({kind:'dnd-card-editor/objects',version:1,items:[{id:'q',kind:'shape',page:1,x:1,y:1,w:5,h:5}]})"))
     assert added==2,'Paste into a text field must not add objects'
     page.locator('#page1').click(position={'x':4,'y':4})

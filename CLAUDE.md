@@ -223,7 +223,8 @@ python3 tests/regression_browser_smoke.py # один набор (нужен св
   `getSelectionIds()` (а при выделенном тексте карточки — `current()`), иначе они молча ничего не делают.
 - Реальный Ctrl+V в Tiptap под Playwright иногда читает буфер раньше, чем легла прошлая запись
   (и без наших правок) — вставку в текстовое поле в тестах отправлять событием прямо в поле. Firefox под
-  Playwright буфер не даёт: раздел 16 там шлёт ClipboardEvent с DataTransfer; `SYNTHETIC_CLIPBOARD=1`
+  Playwright буфер не даёт: раздел 16 там шлёт ClipboardEvent, а DataTransfer крепит через
+  `Object.defineProperty(event,'clipboardData',…)` — из конструктора Firefox его выбрасывает; `SYNTHETIC_CLIPBOARD=1`
   запускает эту ветку в Chromium.
 - Строгие модули (`tsconfig.strict.json`): параметры описывать JSDoc (`@param`), пустые массивы и
   `Map`/`Set` — через `/** @type */`; `null` проверять явно, а не `?.` с последующим обращением.
