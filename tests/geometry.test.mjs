@@ -70,3 +70,23 @@ test('the spot stays inside the page frame',()=>{
   const full=[{x:0,y:0,w:210,h:297}];
   assert.deepEqual(findFreeSpot({w:40,h:20},full,{x:30,y:30}),{x:30,y:30},'a full page keeps the wish');
 });
+
+test('a move is cut so that the whole group stays on the page',async()=>{
+  const {clampMove}=await import('../src/editor/geometry.js');
+  near(clampMove([{x:5,y:10,w:20,h:20}],-1,-1),{dx:-1,dy:-1});
+  near(clampMove([{x:0.5,y:10,w:20,h:20}],-5,0),{dx:-0.5,dy:0});
+  near(clampMove([{x:5,y:270,w:20,h:20},{x:100,y:10,w:20,h:20}],0,10),{dx:0,dy:7});
+  near(clampMove([{x:185,y:10,w:20,h:20}],5,0),{dx:5,dy:0});
+  near(clampMove([{x:190,y:10,w:20,h:20}],5,0),{dx:0,dy:0},'already at the edge');
+});
+
+test('grid steps go to the next grid line in the direction of the key',async()=>{
+  const {gridStep}=await import('../src/editor/geometry.js');
+  assert.equal(gridStep(20,1,5),5,'on a line: a full step');
+  assert.equal(gridStep(23,1,5),2,'between lines: to the next one');
+  assert.equal(gridStep(23,-1,5),-3);
+  assert.equal(gridStep(20,-1,5),-5);
+  assert.equal(gridStep(7.5,1,2.5),2.5);
+  assert.ok(Math.abs(gridStep(22.4999999,1,2.5)-2.5)<1e-6,'float noise just below a line counts as on the line');
+  assert.equal(gridStep(0,-1,1),-1);
+});

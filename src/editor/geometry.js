@@ -81,3 +81,28 @@ export function findFreeSpot(size,taken,near,{page=PAGE,margin=5,gap=2,step=2.5}
   const spot=spots.find(free);
   return spot?{x:spot.x,y:spot.y}:wish;
 }
+
+/**
+ * The part of a move by (dx, dy) that keeps every box on the page (a group
+ * stops as a whole when one of its boxes reaches an edge).
+ * @param {Box[]} boxes @param {number} dx @param {number} dy @param {{w: number, h: number}} [page]
+ * @returns {{dx: number, dy: number}}
+ */
+export function clampMove(boxes,dx,dy,page=PAGE){
+  const clip=(/** @type {number} */ v,/** @type {number} */ min,/** @type {number} */ max)=>Math.max(min,Math.min(v,Math.max(min,max)));
+  return {
+    dx:clip(dx,Math.max(...boxes.map(b=>-b.x)),Math.min(...boxes.map(b=>page.w-b.x-b.w))),
+    dy:clip(dy,Math.max(...boxes.map(b=>-b.y)),Math.min(...boxes.map(b=>page.h-b.y-b.h)))
+  };
+}
+
+/**
+ * Distance from `value` to the next grid line in `direction` (1 or -1): a value
+ * between lines goes to the nearest one that way, a value on a line a full step.
+ * @param {number} value @param {number} direction @param {number} grid
+ */
+export function gridStep(value,direction,grid){
+  const k=value/grid,eps=1e-6;
+  const next=direction>0?Math.floor(k+eps)+1:Math.ceil(k-eps)-1;
+  return next*grid-value;
+}

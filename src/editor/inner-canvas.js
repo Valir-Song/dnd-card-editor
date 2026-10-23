@@ -208,6 +208,19 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
     window.addEventListener('pointercancel', up, true);
   }, true));
 
+  // Arrow keys: the selected frames move by (dx, dy) mm inside their card
+  // (not in a locked one). A series of presses is one undo step.
+  function nudge(dx, dy) {
+    const owner = parentFor(parentId);
+    if (!selected() || !owner) return false;
+    if (owner.locked) return true;
+    for (const field of fields) {
+      const position = frameData(owner, field);
+      position.x = (position.x || 0) + dx; position.y = (position.y || 0) + dy;
+    }
+    store.commit({group: 'nudge:' + parentId + ':' + fields.join(','), windowMs: 1000});
+    return true;
+  }
   function afterDraw() {
     if (parentId) {
       const valid = wraps(parentId).map(el => el.dataset.field);
@@ -217,7 +230,7 @@ export function createInnerCanvas({pages, store, mm, selectParent}) {
     sync();
   }
   return {
-    clear, setFields, selectField, toggleField, afterDraw,
+    clear, setFields, selectField, toggleField, afterDraw, nudge,
     hasSelection: selected,
     belongsTo: id => selected() && parentId === id,
     count: () => fields.length,
