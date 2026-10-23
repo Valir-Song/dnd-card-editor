@@ -118,6 +118,8 @@
 @media print{.el.selected,.el .editable:focus,.el .editable:focus-within,.text-wrap:hover{outline:none!important}}
 
 /* 3.4: snapping controls next to undo/redo; guides stay off paper. */
+.toolbar-history .save-state{font-size:12px;color:#cfc6e0;min-width:92px;white-space:nowrap}
+.toolbar-history .save-state[data-state="error"]{color:#ffb4a8;font-weight:600}
 .toolbar-history .snap-tools{display:inline-flex;gap:6px;align-items:center;margin-left:6px}
 .toolbar-history .snap-tools label{display:inline-flex;align-items:center;gap:5px;background:#ffffff14;color:#e9e3f3;border-radius:5px;padding:5px 8px;font-size:12px;cursor:pointer}
 .toolbar-history .snap-tools select{background:#fff;color:#2b2440;border:0;border-radius:4px;padding:2px 4px;font:inherit}

@@ -13,7 +13,7 @@ export function setupToolbarTabs() {
     {id:'files', label:'Файл', ids:['save','export','json','import','print','compressImages','resetStorage']}
   ];
   const nodes = new Map();
-  for(const id of ['undo','redo','snapTools',...groups.flatMap(group=>group.ids)]) {
+  for(const id of ['undo','redo','saveState','snapTools',...groups.flatMap(group=>group.ids)]) {
     const node=document.getElementById(id);
     if(!node)throw new Error('Missing toolbar control: '+id);
     nodes.set(id,node.closest('label')||node);
@@ -23,7 +23,7 @@ export function setupToolbarTabs() {
   const title=toolbar.querySelector('strong');if(title)identity.append(title);
   top.append(identity);
   const history=document.createElement('div');history.className='toolbar-history';
-  for(const id of ['undo','redo','snapTools'])history.append(nodes.get(id));
+  for(const id of ['undo','redo','saveState','snapTools'])history.append(nodes.get(id));
   top.append(history);
   const tablist=document.createElement('div');tablist.className='toolbar-tabs';
   tablist.setAttribute('role','tablist');tablist.setAttribute('aria-label','Разделы инструментов');

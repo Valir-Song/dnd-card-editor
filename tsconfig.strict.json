@@ -9,6 +9,7 @@
     "src/editor/geometry.js",
     "src/editor/snapping.js",
     "src/editor/layout.js",
-    "src/editor/freshness.js"
+    "src/editor/freshness.js",
+    "src/editor/storage.js"
   ]
 }
