@@ -543,7 +543,7 @@ with sync_playwright() as p:
     assert sorted(kept['els'])==['c1','c2','im'] and kept['editors']==6 and kept['shapes']==1,('Untouched elements were rebuilt',kept)
     assert 'Первая +' in title.inner_text()
     # Image sliders restyle the node directly; undo must restore the node too.
-    page.locator('.el[data-id="im"]').click(); page.locator('[data-tab="appearance"]').click()
+    page.locator('.el[data-id="im"]').click(); page.locator('[data-tab="figures"]').click()
     page.locator('#opacity').fill('30'); page.locator('#opacity').dispatch_event('input')
     page.wait_for_timeout(1300)  # end the slider's undo group
     op=lambda:float(page.locator('.el[data-id="im"]').evaluate('e=>getComputedStyle(e).opacity'))

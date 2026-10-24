@@ -21,7 +21,6 @@ const GROUPS = [
   {id:'appearance', label:'Оформление', sections:[
     ['Тема', 'rows', [['theme'],['themePage','bg']]],
     ['Фон листа', 'rows', [['sheetTools']]],
-    ['Картинка', 'rows', [['imageTools']], 'Выделите картинку: прозрачность, яркость, поворот'],
   ]},
   {id:'text', label:'Текст', sections:[
     ['Добавить', 'big', ['addTextBox']],
@@ -31,7 +30,8 @@ const GROUPS = [
   ]},
   {id:'figures', label:'Фигуры', sections:[
     ['Фигуры', 'big', ['rect','circle','line']],
-    ['Изображение', 'big', ['uploadLabel']],
+    ['Картинка', 'big', ['uploadLabel']],
+    ['Настройка картинки', 'rows', [['imageTools']], 'Выделите картинку: прозрачность, яркость, поворот'],
   ]},
   {id:'badges', label:'Кружочки', sections:[
     ['Кружок', 'big', ['addBadge','removeBadge']],
