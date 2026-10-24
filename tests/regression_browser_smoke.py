@@ -1258,5 +1258,63 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': themes colour the selection or the page, one undo step; shapes keep their colour')
 
+    # 22. Badges (3.11): a click puts the caret in a badge (before, it could not
+    #     be typed into at all); «+ Кружок» adds the main badge, then more beside
+    #     it; signs and colours go to the badge clicked last, or to the main badge
+    #     of every selected card; «− Кружок» removes; extra badges drag and save.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    card=lambda i,x,y,**extra:{'id':i,'kind':'card','page':1,'x':x,'y':y,'w':80,'h':25,'z':1,'title':i,'meta':'м','detail':'д','bg':'#ffffff',**extra}
+    import_json(page,[card('A',10,30),card('B',100,30,level='1'),{'id':'S','kind':'shape','shape':'rect','page':1,'x':10,'y':80,'w':30,'h':20,'z':2}])
+    data=lambda:{i['id']:i for i in saved_layout(page)}
+    badge=lambda i,n=0:page.locator(f'.el[data-id="{i}"] > .level').nth(n)
+    pick=lambda i,shift=False:page.locator(f'.el[data-id="{i}"]').click(position={'x':4,'y':20},modifiers=['Shift'] if shift else [])
+    # Typing into a badge.
+    badge('B').click(); page.keyboard.type('7')
+    assert data()['B']['level']=='7',('A click lets you type into the badge',data()['B'].get('level'))
+    # The tools are on their own tab, greyed out unless a card is selected.
+    page.locator('[data-tab="badges"]').click()
+    pick('S'); assert page.locator('#addBadge').is_disabled()
+    pick('A'); assert page.locator('#addBadge').is_enabled()
+    page.locator('#addBadge').click()
+    assert data()['A']['level']=='1' and 'badges' not in data()['A'],'The first badge is the main one'
+    page.locator('#addBadge').click()
+    assert [b['text'] for b in data()['A']['badges']]==['★'],data()['A']
+    # A sign and a colour to the badge clicked last.
+    badge('A',1).click()
+    page.locator('#badgeSymbols button',has_text='☾').click()
+    page.locator('#badgeColors .badge-color').nth(3).click()
+    extra=data()['A']['badges'][0]
+    assert extra['text']=='☾' and extra['color']=='#b23a3a' and data()['A']['level']=='1',extra
+    assert badge('A',1).evaluate('e=>getComputedStyle(e).backgroundColor')=='rgb(178, 58, 58)'
+    # A group: each card gets one more; one undo takes both back.
+    page.locator('#page1').click(position={'x':4,'y':4}); pick('A'); pick('B',True)
+    page.locator('#addBadge').click()
+    assert len(data()['A']['badges'])==2 and len(data()['B']['badges'])==1
+    page.locator('#undo').click()
+    assert len(data()['A']['badges'])==1 and 'badges' not in data()['B'],'One undo for the group'
+    # A sign with no badge clicked: the main badge of each selected card.
+    # (A click on a member of a group keeps the group: start from the blank sheet.)
+    page.locator('#page1').click(position={'x':4,'y':4}); pick('A'); pick('B',True)
+    page.locator('#badgeSymbols button',has_text='★').first.click()
+    assert data()['A']['level']=='★' and data()['B']['level']=='★',(data()['A'],data()['B'])
+    # Drag an extra badge; the main one stays.
+    pick('A')
+    box=badge('A',1).bounding_box(); x0=data()['A']['badges'][0]['x']
+    page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2); page.mouse.down()
+    page.mouse.move(box['x']+box['width']/2-60,box['y']+box['height']/2,steps=6); page.mouse.up()
+    moved=data()['A']
+    assert moved['badges'][0]['x']<x0-10 and 'badgeX' not in moved,('The extra badge moved alone',moved)
+    # «− Кружок» removes the badge clicked last.
+    badge('A',1).click(); page.locator('#removeBadge').click()
+    assert 'badges' not in data()['A'] and data()['A']['level']=='★'
+    # Saved with the layout.
+    wait_saved(page)
+    again=open_editor(context)
+    assert again.locator('.el[data-id="B"] > .level').count()==1
+    assert not page.errors and not again.errors,(page.errors,again.errors)
+    context.close()
+    print('PASS '+engine+': badges are typed into, added, signed, coloured, dragged and removed')
+
     browser.close()
 print('All regression checks passed for '+engine)
