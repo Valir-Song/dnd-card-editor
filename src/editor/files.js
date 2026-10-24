@@ -1,5 +1,5 @@
 // Persistence, import/export, and delete shortcuts.
-import { target, downloadFile as download } from './dom.js';
+import { target, downloadFile as download, setLabel } from './dom.js';
 import { compressImage } from './images.js';
 import { fileBase } from './freshness.js';
 import { normalizeLayout } from './layout.js';
@@ -41,9 +41,9 @@ compressButton.onclick=async()=>{
   const fields=['src','bgImage'],shrunk=new Map();
   const pictures=new Set(store.items.flatMap(item=>fields.map(f=>item[f]).filter(v=>typeof v==='string'&&v.startsWith('data:image/'))));
   if(!pictures.size){alert('В макете нет загруженных картинок.');return}
-  const label=compressButton.textContent;compressButton.disabled=true;compressButton.textContent='Сжимаю…';
+  const label=compressButton.textContent||'';compressButton.disabled=true;setLabel(compressButton,'Сжимаю…');
   try{for(const src of pictures)shrunk.set(src,await compressImage(src).catch(()=>src))}
-  finally{compressButton.disabled=false;compressButton.textContent=label}
+  finally{compressButton.disabled=false;setLabel(compressButton,label)}
   const mb=n=>(n*0.75/1048576).toFixed(1).replace('.',',')+' МБ'; // base64 → bytes
   const before=[...pictures].reduce((s,p)=>s+p.length,0),after=[...shrunk.values()].reduce((s,p)=>s+p.length,0);
   if(after>=before){alert('Картинки уже сжаты: '+mb(before)+'.');return}

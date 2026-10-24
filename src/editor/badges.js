@@ -96,7 +96,6 @@ export function setBadgeColor(item, index, color) {
  *   current: () => Item | undefined}} deps
  */
 export function setupBadges({store, getSelectionIds, current}) {
-  const group = /** @type {HTMLElement} */ (document.getElementById('badgeTools'));
   const symbols = /** @type {HTMLElement} */ (document.getElementById('badgeSymbols'));
   const colors = /** @type {HTMLElement} */ (document.getElementById('badgeColors'));
   /** @type {{id: string, index: number | null} | null} */
@@ -168,9 +167,10 @@ export function setupBadges({store, getSelectionIds, current}) {
     // Always shown in its own tab (showing and hiding tools would move the sheet);
     // greyed out without a card to act on.
     const none = !targets().length;
-    for (const node of group.querySelectorAll('button')) /** @type {HTMLButtonElement} */ (node).disabled = none;
-    const one = activeBadge();
-    group.dataset.target = one ? (one.index === null ? 'главный' : 'дополнительный') : '';
+    // The ribbon spreads these over its groups (toolbar-tabs.js), so they are found by id.
+    const add = document.getElementById('addBadge'), remove = document.getElementById('removeBadge');
+    for (const node of [add, remove, ...colors.querySelectorAll('button'), ...symbols.querySelectorAll('button')])
+      if (node) /** @type {HTMLButtonElement} */ (node).disabled = none;
   }
   sync();
   return {
