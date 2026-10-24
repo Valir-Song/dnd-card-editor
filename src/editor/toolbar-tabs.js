@@ -20,6 +20,7 @@ const GROUPS = [
   ]},
   {id:'appearance', label:'Оформление', sections:[
     ['Тема', 'rows', [['theme'],['themePage','bg']]],
+    ['Рамка', 'rows', [['outlineTools']]],
     ['Фон листа', 'rows', [['sheetTools']]],
   ]},
   {id:'text', label:'Текст', sections:[

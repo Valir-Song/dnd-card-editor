@@ -250,6 +250,17 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .toolbar .badge-symbols button{min-width:26px;padding:4px 5px;font:14px/1 Georgia,'DejaVu Serif',serif}
 .el .level:focus{outline:2px solid #fff;box-shadow:0 0 0 3px #2678bb;cursor:text}
 @media print{.el .level:focus{outline:none;box-shadow:none}}
+/* 3.11: borders (borders.js) — drawn over the edge by ::after, so the text inside stays put;
+   widths stay under ~2 mm (cards have about that much padding). Colour: the object's own, else the theme's border, else purple. */
+.stage .page .el[class*=" outline-"]{border-color:transparent}
+.el[class*=" outline-"]::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;box-sizing:border-box;border-radius:inherit;--o-c:var(--o-color,var(--t-border,#745193));border:var(--o-width,.5mm) solid var(--o-c)}
+.el.outline-double::after{border-style:double;border-width:max(.8mm,calc(var(--o-width,.5mm)*1.5))}
+.el.outline-dashed::after{border-style:dashed}
+.el.outline-dotted::after{border-style:dotted}
+.el.outline-ornate::after{outline:.2mm solid var(--o-c);outline-offset:calc(var(--o-width,.5mm)*-1 - .6mm)}
+.el.outline-corners::after{border:0;inset:.4mm;border-radius:0;--l:min(5mm,30%);--w:var(--o-width,.5mm);--g:linear-gradient(var(--o-c),var(--o-c));
+  background:var(--g) 0 0/var(--l) var(--w),var(--g) 0 0/var(--w) var(--l),var(--g) 100% 0/var(--l) var(--w),var(--g) 100% 0/var(--w) var(--l),
+    var(--g) 0 100%/var(--l) var(--w),var(--g) 0 100%/var(--w) var(--l),var(--g) 100% 100%/var(--l) var(--w),var(--g) 100% 100%/var(--w) var(--l);background-repeat:no-repeat}
 
 /* 3.11 beta.12: the toolbar as a ribbon (toolbar-tabs.js). Tabs in the dark top bar,
    one fixed-height ribbon of named groups under them: big buttons (icon above
@@ -317,7 +328,7 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .toolbar .toolbar-content #theme{min-width:150px}
 .toolbar .toolbar-content #fontFamily{min-width:130px}
 /* Tools shown only for a fitting selection: two rows in columns, or a hint. */
-.toolbar .toolbar-content .rb-row>:is(#sheetTools,#cardBgTools,#imageTools,#textBoxTools)[style*="inline-flex"]{display:grid!important;grid-template-rows:repeat(2,28px);grid-auto-flow:column;align-items:center;justify-items:start;gap:6px 10px!important}
+.toolbar .toolbar-content .rb-row>#outlineTools,.toolbar .toolbar-content .rb-row>:is(#sheetTools,#cardBgTools,#imageTools,#textBoxTools)[style*="inline-flex"]{display:grid!important;grid-template-rows:repeat(2,28px);grid-auto-flow:column;align-items:center;justify-items:start;gap:6px 10px!important}
 .toolbar .toolbar-content .rb-row>.tool-group .rb-small,.toolbar .toolbar-content .rb-row>.tool-group>button,.toolbar .toolbar-content .rb-row>.tool-group>select{height:28px;padding:0 8px;border:1px solid #d9d1e2;border-radius:6px;background:#fff;box-shadow:none}
 .toolbar .toolbar-content .rb-row>.tool-group>label:has(>input[type=file]){border:1px solid #d9d1e2;background:#fff;border-radius:6px;padding:0 8px;color:#352b49}
 .toolbar .rb-body[data-hint]:has(.tool-group:not([style*="inline-flex"]))::after{content:attr(data-hint);max-width:170px;font-size:11.5px;line-height:1.35;color:#9a90ab;white-space:normal}
@@ -334,7 +345,7 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 /* A card coloured, not pictured, needs only the mode and the upload. */
 .toolbar #cardBgTools:has(#bgMode option[value="color"]:checked)>:not(:has(#bgMode)):not(#bgUploadLabel){display:none}
 /* Inside a named group these selects speak for themselves: their caption text is dropped to save width. */
-.toolbar .toolbar-content label:has(>#bgMode,>#bgFit,>#sheetFit,>#sheetTheme,>#theme){font-size:0;gap:0}
-.toolbar .toolbar-content label:has(>#bgMode,>#bgFit,>#sheetFit,>#sheetTheme,>#theme)>*{font-size:13px}
+.toolbar .toolbar-content label:has(>#bgMode,>#bgFit,>#sheetFit,>#sheetTheme,>#theme,>#outlineStyle){font-size:0;gap:0}
+.toolbar .toolbar-content label:has(>#bgMode,>#bgFit,>#sheetFit,>#sheetTheme,>#theme,>#outlineStyle)>*{font-size:13px}
 .toolbar .toolbar-content label:has(>#sheetTheme) .sheet-page{margin-left:6px;font-size:12px}
 .toolbar .toolbar-content #imageTools input[type=range]{width:60px!important}

@@ -25,6 +25,8 @@ export interface Item {
   theme?: string;
   // Background of a page (kind 'sheet', see src/editor/sheet.js); src/fit/opacity are its picture.
   sheet?: string;
+  // Frame (see src/editor/borders.js): style id, colour (#rrggbb) and width in mm; absent means none.
+  outline?: string; outlineColor?: string; outlineWidth?: number;
   // Text box (kind 'textbox').
   autoHeight?: boolean; bgTransparent?: boolean; borderVisible?: boolean; borderColor?: string;
   fontFamily?: string; fontSize?: number; textAlign?: string; textColor?: string; textWeight?: string;
