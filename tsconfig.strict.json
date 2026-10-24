@@ -22,6 +22,7 @@
     "src/editor/notice.js",
     "src/editor/toolbar-tabs.js",
     "src/editor/dom.js",
-    "src/editor/interactions.js"
+    "src/editor/interactions.js",
+    "src/editor/themes.js"
   ]
 }
