@@ -59,6 +59,7 @@
 | `src/editor/lock.js` | «Закрепить»: `locked` у объекта, кнопка и Ctrl+Shift+L, «Открепить всё на странице» (`activePage`); чистые `lockState`/`setLockedFlag` (Node-тесты) |
 | `src/editor/nudge.js` | стрелки: 1 мм, Shift — до линии сетки (`gridStep`) или 5 мм; Esc выходит из текста; не трогает текст, поля, вкладки, диалоги |
 | `src/editor/align.js` | вкладка «Выравнивание»: `arrange` (чистая, Node-тесты) поверх `alignBoxes`/`distributeBoxes`/`matchSize` из geometry.js; цели — `canvas.arrangeTargets()` или `innerCanvas.arrangeTargets()` (тексты карточки) |
+| `src/editor/themes.js` | темы: `item.theme` → класс `.el.theme-<id>`, цвета в styles.css (переменные `--t-*`); `applyTheme` (Node-тесты); новая тема = строка в `THEMES` + блок в CSS |
 | `src/editor/clipboard.js` | Ctrl+C/X/V объектов: JSON с меткой `dnd-card-editor/objects` в системном буфере; в тексте не вмешивается |
 | `src/editor/files.js` | сохранить, скачать HTML/JSON, импорт, печать, «Сжать картинки», Delete |
 | `src/editor/layers.js` | слои; `reorderLayers` — чистая функция порядка для одного объекта и группы (Node-тесты) |
@@ -253,6 +254,8 @@ PNG в репозитории нет специально: шрифты здес
 - `beforeunload`-диалог Chrome под Playwright не показывает: проверять сам обработчик
   (отправить событие и смотреть `defaultPrevented`).
 - `ci_run.py` превращает строки `NOTE …` в `::notice` — так видно факты из успешного прогона.
+- Правила тем начинаются с `.stage .page`: у карточек первой страницы есть свои правила цвета
+  (`.page[data-page="1"] .card .meta`), которые перебивали тему.
 - Тест привязки доказывает что-то, только если в точке назначения нет **случайной** линии другого объекта
   (края, центра, линий листа 0/5/105/205/210): в разделе 20 три раза находились такие совпадения, и старый код
   «проходил». Проверять `collectLines` в Node и прогонять тест на старой сборке.

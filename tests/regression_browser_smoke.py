@@ -1219,5 +1219,38 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': equal gaps and centring on the sheet; text frames snap to their own card only')
 
+    # 21. Themes (3.11): the «Тема» list colours the selection (or the whole page
+    #     with nothing selected), «Тему на весь лист» the page; one undo step;
+    #     shapes keep their colour; «Без темы» brings back the default look.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    card=lambda i,x,y,**extra:{'id':i,'kind':'card','page':1,'x':x,'y':y,'w':60,'h':20,'z':1,'title':i,'meta':'мета','detail':'д','bg':'#9ebbff',**extra}
+    import_json(page,[card('A',10,30),card('B',100,30),{'id':'S','kind':'shape','shape':'rect','page':1,'x':10,'y':80,'w':30,'h':20,'z':2,'bg':'#d8c5ed'}])
+    data=lambda:{i['id']:i for i in saved_layout(page)}
+    look=lambda i,sel='':page.locator(f'.el[data-id="{i}"] {sel}'.strip()).evaluate('e=>getComputedStyle(e).backgroundColor')
+    page.locator('[data-tab="appearance"]').click()
+    page.locator('.el[data-id="A"]').click(position={'x':4,'y':20})
+    page.select_option('#theme','night')
+    assert data()['A'].get('theme')=='night' and 'bg' not in data()['A'] and 'theme' not in data()['B'],'Only the selection'
+    assert look('A')=='rgb(42, 35, 64)',look('A')
+    assert page.locator('.el[data-id="A"] .meta').evaluate('e=>getComputedStyle(e).color')=='rgb(179, 165, 216)','The meta line follows the theme'
+    page.locator('#undo').click()
+    assert 'theme' not in data()['A'] and data()['A']['bg']=='#9ebbff','One undo'
+    # Nothing selected: the whole page; shapes keep their colour.
+    page.locator('#page1').click(position={'x':4,'y':4})
+    page.select_option('#theme','forest')
+    assert data()['A'].get('theme')=='forest' and data()['B'].get('theme')=='forest' and 'theme' not in data()['S'] and data()['S']['bg']=='#d8c5ed'
+    # The list shows the theme of the selection; «Тему на весь лист» and «Без темы».
+    page.locator('.el[data-id="B"]').click(position={'x':4,'y':20})
+    assert page.locator('#theme').input_value()=='forest'
+    page.select_option('#theme','ember'); page.locator('#themePage').click()
+    assert data()['A'].get('theme')=='ember' and data()['B'].get('theme')=='ember'
+    page.select_option('#theme','')
+    assert 'theme' not in data()['B'] and data()['A'].get('theme')=='ember'
+    assert look('B')=='rgb(255, 255, 255)','No theme: the default white card'
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': themes colour the selection or the page, one undo step; shapes keep their colour')
+
     browser.close()
 print('All regression checks passed for '+engine)

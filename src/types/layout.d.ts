@@ -19,6 +19,8 @@ export interface Item {
   roles?: string;
   // Locked in place (see src/editor/lock.js); absent means unlocked.
   locked?: boolean;
+  // Look of a card or box (see src/editor/themes.js); absent means the default look.
+  theme?: string;
   // Text box (kind 'textbox').
   autoHeight?: boolean; bgTransparent?: boolean; borderVisible?: boolean; borderColor?: string;
   fontFamily?: string; fontSize?: number; textAlign?: string; textColor?: string; textWeight?: string;
