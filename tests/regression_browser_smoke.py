@@ -1378,7 +1378,66 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': Ctrl+S saves into the file picked once, Ctrl+Shift+S into another; otherwise a download')
 
-    # 24. Borders (3.11 beta.10): «Рамка» frames the selection (or, with nothing
+    # 24. Sheet background (3.11 beta.10): a ready background and the owner's
+    #     picture for the active page, kept in the layout as a 'sheet' object;
+    #     one undo step; never selected or snapped to; «Фон на оба листа»; the
+    #     downloaded HTML carries the picture.
+    context=browser.new_context(viewport={'width':1280,'height':900},accept_downloads=True)
+    page=open_editor(context)
+    import_json(page,[{'id':'A','kind':'card','page':1,'x':40,'y':40,'w':60,'h':20,'z':1,'title':'A','meta':'м','detail':'д'}])
+    sheets=lambda:[i for i in saved_layout(page) if i['kind']=='sheet']
+    page.locator('[data-tab="appearance"]').click()
+    page.locator('#page1').click(position={'x':4,'y':4})
+    assert page.locator('#sheetFit').is_disabled() and page.locator('#sheetRemove').is_disabled(),'No picture yet'
+    page.select_option('#sheetTheme','stone')
+    assert page.locator('#page1').get_attribute('data-sheet')=='stone' and page.locator('#page2').get_attribute('data-sheet') is None
+    assert [(s['page'],s.get('sheet')) for s in sheets()]==[(1,'stone')],sheets()
+    page.locator('#undo').click()
+    assert page.locator('#page1').get_attribute('data-sheet') is None and sheets()==[],'One undo'
+    # A picture (a 300×400 PNG), its opacity and fill.
+    png=page.evaluate("""()=>{const c=document.createElement('canvas');c.width=300;c.height=400;const x=c.getContext('2d');
+      x.fillStyle='#c33';x.fillRect(0,0,300,400);x.fillStyle='#33c';x.fillRect(0,200,300,200);return c.toDataURL('image/png').split(',')[1]}""")
+    page.set_input_files('#sheetUpload',{'name':'фон.png','mimeType':'image/png','buffer':base64.b64decode(png)})
+    page.wait_for_selector('#page1 > img.sheet-image')
+    assert sheets()[0]['src'].startswith('data:image/'),'The picture is in the layout'
+    page.locator('#sheetOpacity').fill('50'); page.locator('#sheetOpacity').dispatch_event('input')
+    page.select_option('#sheetFit','contain')
+    img=page.locator('#page1 > img.sheet-image')
+    assert img.evaluate('e=>[e.style.opacity,e.style.objectFit]')==['0.5','contain']
+    assert (sheets()[0].get('opacity'),sheets()[0].get('fit'))==(50,'contain'),sheets()
+    assert page.locator('.el').count()==1,'The background is no object'
+    # A marquee over the whole sheet takes the card only; dragging it does not snap to the background.
+    box=page.locator('#page1').bounding_box(); k=box['width']/210
+    page.mouse.move(box['x']+6,box['y']+85*k); page.mouse.down()
+    page.mouse.move(box['x']+box['width']-6,box['y']+30*k,steps=8); page.mouse.up()
+    page.wait_for_timeout(100)
+    assert page.evaluate("[...document.querySelectorAll('.el.selected')].map(e=>e.dataset.id)")==['A']
+    assert page.locator('#selectionCount').text_content()!='Выбрано: 2'
+    # «Фон на оба листа» (page 1 is active: the card is there).
+    page.locator('#sheetBoth').click()
+    assert sorted(s['page'] for s in sheets())==[1,2] and sheets()[1]['src']==sheets()[0]['src']
+    assert page.locator('#page2 > img.sheet-image').count()==1
+    # The downloaded editor opens with the picture.
+    page.locator('[data-tab="files"]').click()
+    with page.expect_download() as downloaded:
+        page.locator('#export').click()
+    folder=Path(tempfile.mkdtemp()); exported=folder/'sheet.html'
+    shutil.copy2(downloaded.value.path(),exported)
+    again=open_editor(context,exported.as_uri())
+    assert again.locator('#page1 > img.sheet-image').evaluate('e=>e.complete&&e.naturalWidth>0'),'The picture travels with the file'
+    assert again.locator('#page1').get_attribute('data-sheet') is None,'No ready background was left on page 1'
+    again.close(); shutil.rmtree(folder,ignore_errors=True)
+    # «Убрать картинку» keeps the ready background.
+    page.locator('[data-tab="appearance"]').click()
+    page.locator('#page1').click(position={'x':4,'y':4})
+    page.select_option('#sheetTheme','night'); page.locator('#sheetRemove').click()
+    assert page.locator('#page1 > img.sheet-image').count()==0 and page.locator('#page1').get_attribute('data-sheet')=='night'
+    assert [(s['page'],s.get('sheet'),'src' in s) for s in sheets()]==[(1,'night',False),(2,None,True)],sheets()
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': sheet backgrounds and the own picture are set, undone, never selected, copied and exported')
+
+    # 25. Borders (3.11 beta.11): «Рамка» frames the selection (or, with nothing
     #     selected, the cards and boxes of the page); drawn over the edge, so the
     #     text does not move; the colour picker recolours on screen (no rebuild)
     #     as one undo step; a themed card takes the theme's border colour.

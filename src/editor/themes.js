@@ -11,7 +11,13 @@ export const THEMES = [
   {id: 'parchment', name: 'Пергамент'},
   {id: 'forest', name: 'Лес'},
   {id: 'night', name: 'Ночь'},
-  {id: 'ember', name: 'Пламя'}
+  {id: 'ember', name: 'Пламя'},
+  {id: 'ice', name: 'Лёд'},
+  {id: 'sea', name: 'Море'},
+  {id: 'gold', name: 'Золото'},
+  {id: 'stone', name: 'Камень'},
+  {id: 'blood', name: 'Кровь'},
+  {id: 'shadow', name: 'Тень'}
 ];
 // Kinds with a box to colour; shapes, pictures and text boxes keep their own colours.
 export const THEMED_KINDS = ['card', 'note', 'resources', 'section', 'header'];
