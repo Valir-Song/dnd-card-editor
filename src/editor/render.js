@@ -13,7 +13,7 @@ const GEOMETRY=['x','y','w','h','z','textFrames','badgeX','badgeY','badgeCustomP
  *   rich: {mount: (node: HTMLElement, item: Item, field: Field) => void, rebind: (id: string, item: Item) => void,
  *     unmount: (id: string) => void, destroy: () => void},
  *   startDrag: (event: PointerEvent, id: string) => void,
- *   startBadgeDrag: (event: PointerEvent, item: Item | undefined, element: HTMLElement, badge: HTMLElement) => void,
+ *   startBadgeDrag: (event: PointerEvent, item: Item | undefined, element: HTMLElement, badge: HTMLElement, index: number | null) => void,
  *   afterDraw: () => void}} deps
  */
 export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDrag,afterDraw}){
@@ -56,7 +56,12 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
     grip.textContent='⠿';grip.title='Перетащить текстовую рамку';
     grip.addEventListener('pointerdown',ev=>startDrag(ev,item.id));
     e.append(grip);
-  }for(const f of /** @type {const} */ (['title','subtitle','meta','detail']))if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h){wrap.style.height=mm(pos.h);wrap.classList.add('sized')}const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=document.createElement('div');badge.className='level'+(item.level==='♪'?' item':'');badge.textContent=item.level;badge.contentEditable='true';badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';badge.addEventListener('input',()=>{const it=itemById(item.id);if(!it)return;it.level=badge.textContent??'';store.shown(it,{group:'badge:'+it.id})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,itemById(item.id),e,badge));e.append(badge)}return e}
+  }for(const f of /** @type {const} */ (['title','subtitle','meta','detail']))if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h){wrap.style.height=mm(pos.h);wrap.classList.add('sized')}const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=makeBadge(item.level,item.badgeColor,null);badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';e.append(badge)}
+    // More badges (3.11): placed by their own x/y; changing one rebuilds the element.
+    (Array.isArray(item.badges)?item.badges:[]).forEach((b,i)=>{if(!b||typeof b!=='object')return;const badge=makeBadge(String(b.text??''),b.color,i);badge.classList.add('extra');badge.style.left=mm(Number(b.x)||0);badge.style.top=mm(Number(b.y)||0);badge.style.right='auto';badge.style.bottom='auto';e.append(badge)});
+    /** A badge node: typing is recorded as shown, a press drags it. @param {string} text @param {string | undefined} color @param {number | null} index */
+    function makeBadge(text,color,index){const badge=document.createElement('div');badge.className='level'+(text==='♪'?' item':'');if(index!==null)badge.dataset.index=String(index);badge.textContent=text;badge.contentEditable='true';if(color)badge.style.background=color;badge.addEventListener('input',()=>{const it=itemById(item.id);if(!it)return;if(index===null)it.level=badge.textContent??'';else if(Array.isArray(it.badges)&&it.badges[index])it.badges[index].text=badge.textContent??'';store.shown(it,{group:'badge:'+it.id+':'+index})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,itemById(item.id),e,badge,index));return badge}
+    return e}
   /** @param {HTMLElement} e @param {Item} item */
   function patchGeometry(e,item){
     e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);
@@ -67,7 +72,7 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
       const pos=(item.textFrames||{})[wrap.dataset.field??'']||{};
       wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;wrap.style.width=pos.w?mm(pos.w):'';wrap.style.height=pos.h?mm(pos.h):'';wrap.classList.toggle('sized',!!pos.h);
     }
-    const badge=e.querySelector(':scope > .level');
+    const badge=e.querySelector(':scope > .level:not(.extra)');
     if(badge instanceof HTMLElement){badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':''}
   }
   function draw(){

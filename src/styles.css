@@ -214,3 +214,9 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .stage .page .el.theme-night.header,.stage .page .el.theme-night.section{--t-title:#4b3a86;--t-meta:#6a5aa6;--t-border:#4b3a86}
 /* Typing on a dark theme: a light editing highlight would hide the light text. */
 .el.theme-night .editable:focus{background:#ffffff14}
+/* 3.11: badge tools (badges.js) and the badge being edited. */
+.badge-colors,.badge-symbols{display:inline-flex;flex-wrap:wrap;gap:3px;align-items:center}
+.toolbar .badge-colors .badge-color{width:20px;height:20px;padding:0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0003;line-height:16px;font-size:12px}
+.toolbar .badge-symbols button{min-width:26px;padding:4px 5px;font:14px/1 Georgia,'DejaVu Serif',serif}
+.el .level:focus{outline:2px solid #fff;box-shadow:0 0 0 3px #2678bb;cursor:text}
+@media print{.el .level:focus{outline:none;box-shadow:none}}

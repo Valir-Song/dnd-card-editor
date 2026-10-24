@@ -19,6 +19,7 @@ import { setupLock, isLocked } from './editor/lock.js';
 import { setupNudge } from './editor/nudge.js';
 import { setupAlign } from './editor/align.js';
 import { setupThemes } from './editor/themes.js';
+import { setupBadges } from './editor/badges.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
@@ -195,6 +196,8 @@ let lock=null;
 let align=null;
 /** @type {ReturnType<typeof setupThemes> | null} */
 let themes=null;
+/** @type {ReturnType<typeof setupBadges> | null} */
+let badges=null;
 let innerCanvas=null;
 const rich=createRichText({
   current,select,store,
@@ -213,7 +216,7 @@ const canvas=createCanvasControls({pages,store,mm,snapping,onSelection:(ids,prim
   if(ids.length){const c=store.find(ids[0]);activePage=c?.page||1;}
   const c=current();
   if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;
-  syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();notices.hide('locked');
+  syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();badges?.selectionChanged();notices.hide('locked');
 }});
 innerCanvas=createInnerCanvas({
   pages,store,mm,snapping,
@@ -235,7 +238,7 @@ align=setupAlign({canvas,innerCanvas});
 
 const renderer=createRenderer({pages,getItems:()=>items,store,rich,
   startDrag:(event,id)=>canvas.startDrag(event,id),startBadgeDrag,
-  afterDraw:()=>{canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync()}});
+  afterDraw:()=>{canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();badges?.sync()}});
 function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
 // object, or the middle of the part of the active page that is on screen.
@@ -288,6 +291,7 @@ setupLayers({current,store,getSelected,getSelectionIds,select});
 setupClipboard({store,getSelectionIds,addObjects,removeObjects});
 lock=setupLock({store,getSelectionIds,current,getPage:()=>activePage});
 themes=setupThemes({store,getSelectionIds,current,getPage:()=>activePage});
+badges=setupBadges({store,getSelectionIds,current});
 setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity:()=>({id:layoutId,name:layoutName})});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 try{renderer.draw()}catch(error){

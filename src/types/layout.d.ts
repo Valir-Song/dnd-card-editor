@@ -12,6 +12,8 @@ export interface Item {
   titleHtml?: string; subtitleHtml?: string; metaHtml?: string; detailHtml?: string; textHtml?: string;
   textFrames?: Record<string, Frame>;
   level?: string; badgeX?: number; badgeY?: number; badgeCustomPosition?: boolean;
+  // Badges (see src/editor/badges.js): colour of the main one, and more badges.
+  badgeColor?: string; badges?: Array<{text: string; x: number; y: number; color?: string}>;
   bg?: string; bgImage?: string; bgFit?: string;
   bgOpacity?: number; bgZoom?: number; bgX?: number; bgY?: number; bgShade?: number;
   shape?: 'rect' | 'circle' | 'line';
