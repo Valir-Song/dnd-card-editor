@@ -45,7 +45,7 @@
 
 | Путь | Что там |
 |---|---|
-| `index.html` | разметка панели и двух страниц; `__STARTER_DATA__` → стартовый макет при сборке; `<meta name="editor-version">` |
+| `index.html` | разметка панели и двух страниц; иконка `<link rel="icon">` — SVG кубика d20 в `data:` (файл остаётся одним); `__STARTER_DATA__` → стартовый макет при сборке; `<meta name="editor-version">` |
 | `src/starter-layout.json` | стартовый макет (28 объектов) |
 | `src/editor.js` | состояние `items`, фоновая запись и предупреждения о макете, создание store, связывание модулей |
 | `src/editor/startup.js` | какой макет открыть при запуске: перенос сохранения 3.2–3.8, своя запись или макет файла, `checkSaved`, ключи `dnd-card-editor-v3*` |
@@ -69,7 +69,8 @@
 | `src/editor/themes.js` | темы: `item.theme` → класс `.el.theme-<id>`, цвета в styles.css (переменные `--t-*`); `applyTheme` (Node-тесты); новая тема = строка в `THEMES` + блок в CSS |
 | `src/editor/badges.js` | кружочки: главный (`level`, `badgeX/Y`, `badgeColor`) и дополнительные `badges[]`; знаки `SYMBOLS` (с U+FE0E — не эмодзи), `COLORS`; чистые add/remove/set (Node-тесты); вкладка «Кружочки» |
 | `src/editor/clipboard.js` | Ctrl+C/X/V объектов: JSON с меткой `dnd-card-editor/objects` в системном буфере; в тексте не вмешивается |
-| `src/editor/files.js` | сохранить, скачать HTML/JSON, импорт, печать, «Сжать картинки», Delete |
+| `src/editor/files.js` | сохранить, скачать HTML/JSON (`exportFile` — HTML с макетом), импорт, печать, «Сжать картинки», Delete |
+| `src/editor/save-file.js` | «💾 В файл» / «В другой…» (верхняя строка панели: вкладка «Файл» уже во всю ширину 1280 px) и Ctrl+S / Ctrl+Shift+S: File System Access API (Chrome/Edge), файл запоминается по номеру макета в отдельной IndexedDB `dnd-card-editor-files`; без API — скачивание; `createFileSave` (Node-тесты) |
 | `src/editor/layers.js` | слои; `reorderLayers` — чистая функция порядка для одного объекта и группы (Node-тесты) |
 | `src/editor/{objects,layers,card-background,image-tools,text-boxes,interactions}.js` | кнопки панели по темам; `interactions.js` — перетаскивание значка уровня |
 | `src/editor/toolbar-tabs.js` | раскладка панели по вкладкам (список id кнопок каждой вкладки) |
@@ -188,7 +189,7 @@
 ## Команды
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
-npm test                     # Node-тесты (сейчас 87)
+npm test                     # Node-тесты (сейчас 93)
 npm run typecheck            # TypeScript по JS: обычный tsconfig.json + строгий tsconfig.strict.json
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html
@@ -197,7 +198,7 @@ python3 tests/run_e2e.py firefox   # то же в Firefox (~3 мин; стави
 CPU_THROTTLE=4 python3 tests/run_e2e.py   # то же с замедленным в 4 раза процессором (~6–8 мин)
 python3 tests/regression_browser_smoke.py # один набор (нужен свежий npm run build)
 ```
-Браузерные наборы: `regression` (22 раздела, 17–22 — закрепление, стрелки и сетка, выравнивание, умная привязка, темы, кружочки; разделы про хранение — для обоих хранилищ: импорт, повреждённое сохранение, перенос 3.8, 7 МБ, ошибка записи, экспорт, печать,
+Браузерные наборы: `regression` (23 раздела, 17–23 — закрепление, стрелки и сетка, выравнивание, умная привязка, темы, кружочки, Ctrl+S в файл; разделы про хранение — для обоих хранилищ: импорт, повреждённое сохранение, перенос 3.8, 7 МБ, ошибка записи, экспорт, печать,
 ручки при прокрутке, свежесть, перетаскивание одним движением, привязка, слой жестов и касания,
 инкрементальная отрисовка, картинки, своё сохранение для каждого макета, свободное место для новых объектов, действия с группой, копирование и вставка), `canvas` (жесты листа), `nested` (текстовые рамки карточки),
 `tiptap` (текст и форматирование).
@@ -222,7 +223,8 @@ PNG в репозитории нет специально: шрифты здес
 - Каждая сессия начинается на чистом компьютере; хук `.claude/hooks/session-start.sh` ставит
   зависимости. **Хук срабатывает только при старте**: после `git checkout` другой ветки делать `npm ci`
   самому (разные ветки — разные зависимости; странные ошибки сборки обычно отсюда).
-- Python Playwright закреплён на 1.56.0 под предустановленный Chromium (`/opt/pw-browsers`).
+- Python Playwright закреплён на 1.56.0. С 24.10.2026 предустановленный Chromium в образе новее (`chromium-1243`), чем ждёт 1.56:
+  `tests/browser_env.py` тогда сам запускает `/opt/pw-browsers/chromium`.
   **Chromium никогда не переустанавливать** (`playwright install` без имени браузера или с `chromium`).
   Firefox ставит хук: `python3 -m playwright install firefox` (с 23.10.2026 владелец открыл в окружении
   `cdn.playwright.dev` и `playwright.azureedge.net`). Хук пишет «Firefox for browser tests: ready» или
@@ -288,6 +290,9 @@ PNG в репозитории нет специально: шрифты здес
   Playwright буфер не даёт: раздел 16 там шлёт ClipboardEvent, а DataTransfer крепит через
   `Object.defineProperty(event,'clipboardData',…)` — из конструктора Firefox его выбрасывает; `SYNTHETIC_CLIPBOARD=1`
   запускает эту ветку в Chromium.
+- File System Access API в тестах не проверить настоящим окном выбора файла: раздел 23 подменяет
+  `window.showSaveFilePicker` (поддельный файл, его не сохранить в IndexedDB — остаётся в памяти); без API —
+  `showSaveFilePicker=undefined`. Настоящий диалог и разрешение после перезапуска проверяет владелец (`tests/smoke.md`).
 - События буфера (copy/cut/paste) браузер шлёт туда, где последний раз было выделение текста, даже если
   фокус уже на листе: ProseMirror вставлял туда JSON объектов и вырезал свой текст. Поэтому clipboard.js
   слушает в фазе захвата и, забирая событие, вызывает `stopImmediatePropagation`.
