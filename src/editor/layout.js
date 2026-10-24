@@ -2,7 +2,7 @@
 // A layout is accepted only if every object can be drawn on one of the A4 pages;
 // small, unambiguous defects (missing id/page/z, duplicate ids) are repaired.
 export const PAGE_COUNT=2;
-export const KINDS=['header','note','resources','section','card','shape','image','textbox'];
+export const KINDS=['header','note','resources','section','card','shape','image','textbox','sheet'];
 const GEOMETRY=['x','y','w','h'];
 const MAX_ERRORS=5;
 

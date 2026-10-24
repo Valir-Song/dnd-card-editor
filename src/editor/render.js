@@ -5,6 +5,8 @@
 /** @typedef {import('../types/layout').Item} Item */
 /** @typedef {'title' | 'subtitle' | 'meta' | 'detail' | 'text'} Field */
 
+import { isSheet, sheetOf, paintSheet } from './sheet.js';
+
 // Geometry that gestures already applied to the node: patch styles, never rebuild.
 const GEOMETRY=['x','y','w','h','z','textFrames','badgeX','badgeY','badgeCustomPosition'];
 
@@ -82,6 +84,7 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
     /** @type {Map<HTMLElement, HTMLElement>} */
     const last=new Map(); // page -> previous node, to keep DOM order = data order
     for(const item of getItems()){
+      if(isSheet(item))continue; // drawn on the page itself, below
       seen.add(item.id);
       const page=pages[(item.page||1)-1],snap=snapOf(item),r=rendered.get(item.id);
       // Gestures move nodes directly, so geometry is re-applied even when unchanged.
@@ -96,6 +99,7 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
       if(node!==wanted)page.insertBefore(node,wanted);
       last.set(page,node);
     }
+    pages.forEach((p,i)=>paintSheet(p,sheetOf(getItems(),i+1)));
     for(const [id,r] of rendered)if(!seen.has(id)){rich.unmount(id);r.node.remove();rendered.delete(id)}
     pages.forEach((p,i)=>{if(!p.querySelector(':scope > .page-number')){const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)}});
     for(const entry of pendingEditors)rich.mount(entry.node,entry.item,entry.field);

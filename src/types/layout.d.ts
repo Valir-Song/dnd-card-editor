@@ -1,6 +1,6 @@
 // One object of the layout (a JSON array of these). Coordinates are in mm.
 // See README → «Формат макета».
-export type Kind = 'header' | 'note' | 'resources' | 'section' | 'card' | 'shape' | 'image' | 'textbox';
+export type Kind = 'header' | 'note' | 'resources' | 'section' | 'card' | 'shape' | 'image' | 'textbox' | 'sheet';
 export interface Frame { x?: number; y?: number; w?: number; h?: number }
 export interface Item {
   id: string;
@@ -23,6 +23,8 @@ export interface Item {
   locked?: boolean;
   // Look of a card or box (see src/editor/themes.js); absent means the default look.
   theme?: string;
+  // Background of a page (kind 'sheet', see src/editor/sheet.js); src/fit/opacity are its picture.
+  sheet?: string;
   // Text box (kind 'textbox').
   autoHeight?: boolean; bgTransparent?: boolean; borderVisible?: boolean; borderColor?: string;
   fontFamily?: string; fontSize?: number; textAlign?: string; textColor?: string; textWeight?: string;
