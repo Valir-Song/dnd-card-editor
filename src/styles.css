@@ -222,3 +222,87 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .toolbar .badge-symbols button{min-width:26px;padding:4px 5px;font:14px/1 Georgia,'DejaVu Serif',serif}
 .el .level:focus{outline:2px solid #fff;box-shadow:0 0 0 3px #2678bb;cursor:text}
 @media print{.el .level:focus{outline:none;box-shadow:none}}
+
+/* 3.11 beta.11: the toolbar as a ribbon (toolbar-tabs.js). Tabs in the dark top bar,
+   one fixed-height ribbon of named groups under them: big buttons (icon above
+   a label) or up to two rows of small controls. */
+.toolbar [hidden]{display:none!important}
+.toolbar{flex-wrap:nowrap;font:13px system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif}
+.toolbar button,.toolbar select,.toolbar input{font-family:inherit}
+.toolbar .rb-ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.toolbar .rb-icon-only>.rb-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.toolbar .toolbar-top{display:flex;align-items:stretch;gap:10px;height:46px;min-height:0;padding:0 10px 0 12px;flex-wrap:nowrap}
+.toolbar .toolbar-identity{display:flex;align-items:center;gap:7px;margin:0 4px 0 0;width:auto;font-size:14px;color:#fff;white-space:nowrap;cursor:default}
+.toolbar .toolbar-identity .rb-ico{width:20px;height:20px;color:#c9a8f2}
+.toolbar .toolbar-tabs{flex:1 1 auto;min-width:0;display:flex;align-items:flex-end;gap:2px;padding:0;min-height:0;border:0;overflow-x:auto;scrollbar-width:none}
+.toolbar .toolbar-tabs::-webkit-scrollbar{display:none}
+.toolbar .toolbar-tab{height:36px;padding:0 12px;border:0;border-radius:8px 8px 0 0;background:transparent;color:#cfc6e0;font-weight:500}
+.toolbar .toolbar-tab:hover{background:#ffffff14;color:#fff}
+.toolbar .toolbar-tab[aria-selected="true"]{background:#f4f1f9;color:#342344;font-weight:600}
+.toolbar .toolbar-history{flex:none;display:flex;align-items:center;gap:6px;margin-left:auto}
+.toolbar .toolbar-history>#selectionCount{margin-right:4px;white-space:nowrap}
+.toolbar .rb-top{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;min-width:32px;padding:0 8px;border:0;border-radius:7px;background:transparent;color:#e9e3f3}
+.toolbar .rb-top.rb-icon-only{padding:0}
+.toolbar .rb-top:hover:not(:disabled){background:#ffffff1c}
+.toolbar .rb-top:disabled{opacity:.35}
+.toolbar .rb-save{display:inline-flex;margin:0 2px 0 4px}
+.toolbar .rb-save #saveFile{background:#8b63c6;color:#fff;font-weight:600;border-radius:7px 0 0 7px;padding:0 11px}
+.toolbar .rb-save #saveFile .rb-ico{width:16px;height:16px}
+.toolbar .rb-save #saveFileAs{background:#8b63c6;color:#fff;border-radius:0 7px 7px 0;border-left:1px solid #ffffff45;min-width:26px}
+.toolbar .rb-save #saveFileAs .rb-ico{width:14px;height:14px}
+.toolbar .rb-save #saveFile:hover,.toolbar .rb-save #saveFileAs:hover{background:#9b74d4}
+.toolbar .rb-save:has(#saveFileAs[hidden]) #saveFile{border-radius:7px}
+.toolbar .toolbar-history .save-state{min-width:86px}
+.toolbar .toolbar-history .snap-tools{gap:4px;margin-left:2px}
+.toolbar .toolbar-history .snap-tools label{position:relative;height:32px;padding:0 8px;gap:6px;background:transparent;border-radius:7px}
+/* The snapping checkbox stays the real control, spread invisibly over its pill. */
+.toolbar .toolbar-history .snap-tools #snapToggle{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.toolbar .toolbar-history .snap-tools label:hover{background:#ffffff1c}
+.toolbar .toolbar-history .snap-tools label:has(#snapToggle:checked){background:#ffffff1a;color:#fff}
+.toolbar .toolbar-history .snap-tools label:has(#snapToggle:checked) .rb-ico{color:#c9a8f2}
+.toolbar .toolbar-help{margin:0}
+.toolbar .toolbar-help summary{display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border-radius:7px;color:#e9e3f3}
+.toolbar .toolbar-help summary::-webkit-details-marker{display:none}
+.toolbar .toolbar-help .hint{top:38px}
+.toolbar .toolbar-content{display:block;height:92px;min-height:0;min-width:0;padding:6px 6px 0;background:#f4f1f9;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;box-shadow:0 2px 10px #0002}
+.toolbar .toolbar-panel{display:flex;flex-wrap:nowrap;align-items:stretch;gap:0;height:100%;min-height:0;width:max-content}
+.toolbar .rb-group{display:flex;flex-direction:column;padding:0 8px;border-right:1px solid #dcd4e6}
+.toolbar .rb-group:last-child{border-right:0}
+.toolbar .rb-body{flex:1;display:flex;align-items:flex-start;gap:2px}
+.toolbar .rb-body.rb-rows{flex-direction:column;align-items:flex-start;justify-content:center;gap:6px}
+.toolbar .rb-row{display:flex;align-items:center;gap:4px}
+.toolbar .rb-name{padding:2px 0 5px;font-size:10.5px;color:#8a7f9c;text-align:center;white-space:nowrap}
+/* Big buttons: an icon above a label of one or two lines. */
+.toolbar .toolbar-content .rb-large{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:58px;max-width:96px;height:58px;padding:6px 6px 0;border:1px solid transparent;border-radius:8px;background:transparent;box-shadow:none;color:#352b49;font-size:11.5px;line-height:1.15;text-align:center;white-space:normal}
+.toolbar .toolbar-content .rb-large .rb-ico{width:22px;height:22px;stroke-width:1.6;color:#6a4b96}
+.toolbar .toolbar-content .rb-large:hover:not(:disabled){background:#fff;border-color:#d9d1e2}
+.toolbar .toolbar-content .rb-large:disabled .rb-ico{color:inherit}
+/* Small buttons and fields: rows of 28px. */
+.toolbar .toolbar-content .rb-small{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:28px;min-width:28px;padding:0 8px;border:1px solid #d9d1e2;border-radius:6px;background:#fff;box-shadow:none;white-space:nowrap}
+.toolbar .toolbar-content .rb-small.rb-icon-only{padding:0}
+.toolbar .toolbar-content .rb-small .rb-ico{width:16px;height:16px}
+.toolbar .toolbar-content button[aria-pressed="true"]{background:#e3d6f3;border-color:#a98bd0}
+.toolbar .toolbar-content .rb-field,.toolbar .toolbar-content .rb-row>.tool-group label{height:28px;padding:0 2px;gap:6px;border:0;background:transparent;box-shadow:none;color:#5d5270}
+.toolbar .toolbar-content .rb-field:hover,.toolbar .toolbar-content .rb-row>.tool-group label:hover{border:0}
+.toolbar .toolbar-content .rb-row select,.toolbar .toolbar-content .rb-row input[type=text],.toolbar .toolbar-content .rb-row input[type=number]{height:28px;padding:0 6px;border:1px solid #d9d1e2;border-radius:6px;background:#fff;color:#352b49;font:inherit}
+.toolbar .toolbar-content .rb-row input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #d9d1e2;border-radius:6px;background:#fff}
+.toolbar .toolbar-content #theme{min-width:150px}
+.toolbar .toolbar-content #fontFamily{min-width:130px}
+/* Tools shown only for a fitting selection: two rows in columns, or a hint. */
+.toolbar .toolbar-content .rb-row>:is(#cardBgTools,#imageTools,#textBoxTools)[style*="inline-flex"]{display:grid!important;grid-template-rows:repeat(2,28px);grid-auto-flow:column;align-items:center;justify-items:start;gap:6px 10px!important}
+.toolbar .toolbar-content .rb-row>.tool-group .rb-small,.toolbar .toolbar-content .rb-row>.tool-group>button,.toolbar .toolbar-content .rb-row>.tool-group>select{height:28px;padding:0 8px;border:1px solid #d9d1e2;border-radius:6px;background:#fff;box-shadow:none}
+.toolbar .toolbar-content .rb-row>.tool-group>label[id]{border:1px solid #d9d1e2;background:#fff;border-radius:6px;padding:0 8px;color:#352b49}
+.toolbar .rb-body[data-hint]:has(.tool-group:not([style*="inline-flex"]))::after{content:attr(data-hint);max-width:170px;font-size:11.5px;line-height:1.35;color:#9a90ab;white-space:normal}
+.toolbar .toolbar-content .rb-row>#badgeSymbols{display:grid;grid-template-rows:repeat(2,26px);grid-auto-flow:column;gap:3px}
+.toolbar .toolbar-content .rb-row>#badgeSymbols button{height:26px;min-width:26px;padding:0 4px;border:1px solid #e1d9ea;border-radius:6px;background:#fff;box-shadow:none}
+.toolbar .toolbar-content .rb-row>#badgeColors{display:grid;grid-template-columns:repeat(4,22px);gap:6px 6px}
+.toolbar .toolbar-content .rb-row>#badgeColors .badge-color{width:22px;height:22px;border-radius:50%}
+/* Narrow windows: the tabs get a line of their own. */
+@media(max-width:1180px){
+  .toolbar .toolbar-top{flex-wrap:wrap;height:auto;row-gap:0;padding-top:6px}
+  .toolbar .toolbar-identity{height:34px}
+  .toolbar .toolbar-tabs{order:3;flex-basis:100%}
+}
+/* A card and a picture are never selected together: the other's hint goes. */
+.toolbar #panel-appearance:has(#cardBgTools[style*="inline-flex"]) .rb-group:has(#imageTools:not([style*="inline-flex"])),
+.toolbar #panel-appearance:has(#imageTools[style*="inline-flex"]) .rb-group:has(#cardBgTools:not([style*="inline-flex"])){display:none}

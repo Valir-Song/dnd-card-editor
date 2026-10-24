@@ -2,6 +2,8 @@
 // marquee passes over them and Delete/cut leave them in place. Their text and
 // colours still change. `locked` is optional: layouts without it (all made
 // before 3.11) are unlocked, and unlocking removes the field again.
+import { setLabel } from './dom.js';
+
 
 /** @typedef {import('../types/layout').Item} Item */
 
@@ -52,7 +54,7 @@ export function setupLock({store, getSelectionIds, current, getPage}) {
   };
   function sync() {
     const all = lockState(targets()) === 'all';
-    button.textContent = all ? '🔓 Открепить' : '🔒 Закрепить';
+    setLabel(button, all ? 'Открепить' : 'Закрепить');
     button.setAttribute('aria-pressed', String(all));
   }
   /** @param {string[]} ids @param {boolean} lock */

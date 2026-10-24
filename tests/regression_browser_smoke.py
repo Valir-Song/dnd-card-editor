@@ -1378,5 +1378,43 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': Ctrl+S saves into the file picked once, Ctrl+Shift+S into another; otherwise a download')
 
+    # 24. The ribbon (3.11 beta.11): tabs in the top bar, named groups of icon buttons
+    #     under them, one fixed height whatever the tab or the selection (the
+    #     sheet must not jump), nothing wider than the window at 1280 px.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    import_json(page,[{'id':'A','kind':'card','page':1,'x':10,'y':30,'w':80,'h':25,'z':1,'title':'Лютня','meta':'м','detail':'д','bg':'#ffffff'}])
+    toolbar_height=lambda:page.evaluate("document.querySelector('.toolbar').getBoundingClientRect().height")
+    tabs=page.eval_on_selector_all('.toolbar-tab','e=>e.map(x=>x.dataset.tab)')
+    assert page.locator('.toolbar-top [role="tab"]').count()==8,'The tabs sit in the top bar'
+    assert page.locator('#addBadge').is_disabled(),'Badge buttons are greyed out without a card'
+    heights=set()
+    for selected in (False,True):
+        if selected: page.locator('.el[data-id="A"]').click(position={'x':4,'y':20})
+        for tab in tabs:
+            page.locator(f'[data-tab="{tab}"]').click()
+            heights.add(toolbar_height())
+            assert page.evaluate('document.documentElement.scrollWidth')<=1280,('The page scrolls sideways',tab,selected)
+    assert len(heights)==1,('The toolbar keeps one height',heights)
+    assert not page.locator('#addBadge').is_disabled(),'A selected card enables the badge buttons'
+    # Every ribbon button and the top bar buttons carry an icon and a label.
+    bare=page.evaluate("[...document.querySelectorAll('.rb-large,.rb-small,.rb-top')].filter(e=>!e.querySelector('svg.rb-ico')||!e.querySelector('.rb-label').textContent.trim()).map(e=>e.id)")
+    assert not bare,('Buttons without an icon or a label',bare)
+    names=page.eval_on_selector_all('#panel-cards .rb-name','e=>e.map(x=>x.textContent)')
+    assert names==['Добавить','Правка','Закрепление'],names
+    # Renaming a button (lock) keeps its icon.
+    page.locator('[data-tab="cards"]').click(); page.locator('#lock').click()
+    assert page.locator('#lock .rb-label').inner_text()=='Открепить' and page.locator('#lock svg.rb-ico').count()==1
+    # The snapping pill is the checkbox; the help «?» opens the hints.
+    page.locator('#snapTools label').first.click()
+    assert not page.locator('#snapToggle').is_checked(),'A click on the magnet pill turns snapping off'
+    page.locator('#snapTools label').first.click()
+    assert page.locator('#snapToggle').is_checked()
+    page.locator('.toolbar-help summary').click()
+    assert page.locator('.toolbar-help .hint').is_visible()
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': the ribbon keeps one height, icons and labels on every button, fits 1280 px')
+
     browser.close()
 print('All regression checks passed for '+engine)
