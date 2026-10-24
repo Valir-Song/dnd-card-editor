@@ -1460,7 +1460,7 @@ with sync_playwright() as p:
     bare=page.evaluate("[...document.querySelectorAll('.rb-large,.rb-small,.rb-top')].filter(e=>!e.querySelector('svg.rb-ico')||!e.querySelector('.rb-label').textContent.trim()).map(e=>e.id)")
     assert not bare,('Buttons without an icon or a label',bare)
     names=page.eval_on_selector_all('#panel-cards .rb-name','e=>e.map(x=>x.textContent)')
-    assert names==['Добавить','Правка','Закрепление'],names
+    assert names==['Добавить','Правка','Закрепление','Фон карточки'],names
     # Renaming a button (lock) keeps its icon.
     page.locator('[data-tab="cards"]').click(); page.locator('#lock').click()
     assert page.locator('#lock .rb-label').inner_text()=='Открепить' and page.locator('#lock svg.rb-ico').count()==1
