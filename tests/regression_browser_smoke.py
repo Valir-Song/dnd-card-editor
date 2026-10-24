@@ -1378,5 +1378,54 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': Ctrl+S saves into the file picked once, Ctrl+Shift+S into another; otherwise a download')
 
+    # 24. Borders (3.11 beta.10): «Рамка» frames the selection (or, with nothing
+    #     selected, the cards and boxes of the page); drawn over the edge, so the
+    #     text does not move; the colour picker recolours on screen (no rebuild)
+    #     as one undo step; a themed card takes the theme's border colour.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    card=lambda i,x,y,**extra:{'id':i,'kind':'card','page':1,'x':x,'y':y,'w':70,'h':25,'z':1,'title':i,'meta':'м','detail':'д','bg':'#ffffff',**extra}
+    import_json(page,[card('A',10,30),card('B',100,30,theme='forest'),{'id':'L','kind':'shape','shape':'line','page':1,'x':10,'y':90,'w':50,'h':2,'z':2,'bg':'#8e6eb0'}])
+    data=lambda:{i['id']:i for i in saved_layout(page)}
+    frame=lambda i,prop:page.locator(f'.el[data-id="{i}"]').evaluate(f'e=>getComputedStyle(e,"::after").{prop}')
+    title_box=lambda:page.locator('.el[data-id="A"] .title').evaluate('e=>{const r=e.getBoundingClientRect(),p=e.closest(".el").getBoundingClientRect();return [r.left-p.left,r.top-p.top]}')
+    page.locator('[data-tab="appearance"]').click()
+    before=title_box()
+    page.locator('.el[data-id="A"]').click(position={'x':4,'y':20})
+    page.select_option('#outlineStyle','dashed')
+    assert data()['A'].get('outline')=='dashed' and 'outline' not in data()['B'],'Only the selection'
+    assert frame('A','borderTopStyle')=='dashed' and frame('A','borderTopColor')=='rgb(116, 81, 147)',(frame('A','borderTopStyle'),frame('A','borderTopColor'))
+    assert title_box()==before,('The frame does not move the text',before,title_box())
+    page.select_option('#outlineWidth','1.2')
+    assert data()['A']['outlineWidth']==1.2
+    # The colour picker: the same element, recoloured; one undo step for the drag.
+    page.evaluate("window.frameNode=document.querySelector('.el[data-id=\"A\"]')")
+    for c in ('#aa0000','#b23a3a'):
+        page.locator('#outlineColor').evaluate('(e,c)=>{e.value=c;e.dispatchEvent(new Event("input",{bubbles:true}))}',c)
+    assert data()['A']['outlineColor']=='#b23a3a' and frame('A','borderTopColor')=='rgb(178, 58, 58)'
+    assert page.evaluate("window.frameNode===document.querySelector('.el[data-id=\"A\"]')"),'No rebuild while picking a colour'
+    page.locator('#undo').click()
+    assert 'outlineColor' not in data()['A'] and data()['A']['outlineWidth']==1.2,('One undo for the colour drag',data()['A'])
+    # Nothing selected: the cards of the page, not the line; the theme gives the colour.
+    page.locator('#page1').click(position={'x':4,'y':4})
+    page.select_option('#outlineStyle','double')
+    assert data()['A']['outline']=='double' and data()['B']['outline']=='double' and 'outline' not in data()['L']
+    assert frame('B','borderTopColor')=='rgb(141, 180, 135)','A themed card: the theme border colour'
+    # The tools show the selection's frame; «Рамку на весь лист»; «Без рамки».
+    page.locator('.el[data-id="A"]').click(position={'x':4,'y':20})
+    page.select_option('#outlineStyle','corners')
+    page.locator('.el[data-id="B"]').click(position={'x':4,'y':20})
+    assert page.locator('#outlineStyle').input_value()=='double'
+    page.locator('.el[data-id="A"]').click(position={'x':4,'y':20})
+    assert page.locator('#outlineStyle').input_value()=='corners' and page.locator('#outlineWidth').input_value()=='1.2'
+    page.locator('#outlinePage').click()
+    assert data()['B']['outline']=='corners' and data()['B']['outlineWidth']==1.2
+    page.select_option('#outlineStyle','')
+    assert not any(k.startswith('outline') for k in data()['A']) and data()['B']['outline']=='corners'
+    assert frame('A','content')=='none','No frame drawn'
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': borders frame the selection or the page; text stays put; colour drag is one undo step')
+
     browser.close()
 print('All regression checks passed for '+engine)

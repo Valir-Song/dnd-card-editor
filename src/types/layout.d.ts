@@ -23,6 +23,8 @@ export interface Item {
   locked?: boolean;
   // Look of a card or box (see src/editor/themes.js); absent means the default look.
   theme?: string;
+  // Frame (see src/editor/borders.js): style id, colour (#rrggbb) and width in mm; absent means none.
+  outline?: string; outlineColor?: string; outlineWidth?: number;
   // Text box (kind 'textbox').
   autoHeight?: boolean; bgTransparent?: boolean; borderVisible?: boolean; borderColor?: string;
   fontFamily?: string; fontSize?: number; textAlign?: string; textColor?: string; textWeight?: string;

@@ -222,3 +222,14 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .toolbar .badge-symbols button{min-width:26px;padding:4px 5px;font:14px/1 Georgia,'DejaVu Serif',serif}
 .el .level:focus{outline:2px solid #fff;box-shadow:0 0 0 3px #2678bb;cursor:text}
 @media print{.el .level:focus{outline:none;box-shadow:none}}
+/* 3.11: borders (borders.js) — drawn over the edge by ::after, so the text inside stays put;
+   widths stay under ~2 mm (cards have about that much padding). Colour: the object's own, else the theme's border, else purple. */
+.stage .page .el[class*=" outline-"]{border-color:transparent}
+.el[class*=" outline-"]::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;box-sizing:border-box;border-radius:inherit;--o-c:var(--o-color,var(--t-border,#745193));border:var(--o-width,.5mm) solid var(--o-c)}
+.el.outline-double::after{border-style:double;border-width:max(.8mm,calc(var(--o-width,.5mm)*1.5))}
+.el.outline-dashed::after{border-style:dashed}
+.el.outline-dotted::after{border-style:dotted}
+.el.outline-ornate::after{outline:.2mm solid var(--o-c);outline-offset:calc(var(--o-width,.5mm)*-1 - .6mm)}
+.el.outline-corners::after{border:0;inset:.4mm;border-radius:0;--l:min(5mm,30%);--w:var(--o-width,.5mm);--g:linear-gradient(var(--o-c),var(--o-c));
+  background:var(--g) 0 0/var(--l) var(--w),var(--g) 0 0/var(--w) var(--l),var(--g) 100% 0/var(--l) var(--w),var(--g) 100% 0/var(--w) var(--l),
+    var(--g) 0 100%/var(--l) var(--w),var(--g) 0 100%/var(--w) var(--l),var(--g) 100% 100%/var(--l) var(--w),var(--g) 100% 100%/var(--w) var(--l);background-repeat:no-repeat}
