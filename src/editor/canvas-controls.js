@@ -3,6 +3,7 @@
 // millimetres. Rich text stays Tiptap-owned: a press on editable text is never
 // a gesture. Text frames inside cards are handled by inner-canvas.js.
 import { collectLines, snapAxis, snapMove } from './snapping.js';
+import { isSheet } from './sheet.js';
 import { bbox, resizeBox, scaleBoxes, marqueeHits, rectFromPoints, clampMove, gridStep, PAGE_FRAME } from './geometry.js';
 
 const DIRECTIONS = {nw: [-1, -1], n: [0, -1], ne: [1, -1], w: [-1, 0], e: [1, 0], sw: [-1, 1], s: [0, 1], se: [1, 1]};
@@ -21,6 +22,8 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   const elements = () => ids.map(nodeFor).filter(Boolean);
   const mmPerPx = page => 210 / page.getBoundingClientRect().width;
   const itemFor = id => store.find(id);
+  // Objects of the layout, without the page backgrounds.
+  const objects = () => store.items.filter(item => !isSheet(item));
   const locked = id => !!itemFor(id)?.locked;
   const clip = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
   /** @returns {import('../types/geometry').Point} */
@@ -135,9 +138,10 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
     gesture = {
       scale, page, records, frame: bbox(records),
       // Snap lines are fixed for the gesture: everything that is not moving.
-      lines: settings?.enabled ? collectLines(store.items, pageNumber, moving) : null,
+      // (A page background is not an object: nothing snaps to it.)
+      lines: settings?.enabled ? collectLines(objects(), pageNumber, moving) : null,
       // The objects that stay, for equal gaps in a row or column (rendered sizes).
-      others: settings?.enabled ? store.items.filter(item => (item.page || 1) === pageNumber && !moving.has(item.id)).map(item => boxOf(item)) : null,
+      others: settings?.enabled ? objects().filter(item => (item.page || 1) === pageNumber && !moving.has(item.id)).map(item => boxOf(item)) : null,
       grid: settings?.enabled ? settings.gridMm : 0,
       threshold: 6 * scale // 6 screen pixels, whatever the zoom
     };
@@ -303,7 +307,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
           return;
         }
         // The marquee passes over locked objects (a background, a section frame).
-        const candidates = store.items.filter(item => (item.page || 1) === pageNumber && !item.locked).map(item => ({id: item.id, ...boxOf(item)}));
+        const candidates = objects().filter(item => (item.page || 1) === pageNumber && !item.locked).map(item => ({id: item.id, ...boxOf(item)}));
         // Top-left first: «one width/height» takes the first selected one as its model.
         const hits = marqueeHits(box(e), candidates).sort((a, b) => a.y - b.y || a.x - b.x).map(b => b.id);
         setSelection(additive ? [...before, ...hits] : hits);

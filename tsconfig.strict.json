@@ -26,6 +26,7 @@
     "src/editor/interactions.js",
     "src/editor/themes.js",
     "src/editor/badges.js",
-    "src/editor/save-file.js"
+    "src/editor/save-file.js",
+    "src/editor/sheet.js"
   ]
 }

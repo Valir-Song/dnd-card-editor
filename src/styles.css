@@ -144,8 +144,8 @@
 .gap-guide.y::after{top:50%;left:9px;transform:translateY(-50%)}
 @media print{.gap-guide{display:none!important}}
 /* 3.11: the snapping grid, faintly on the sheet while it is on; a darker line every 10 mm.
-   Under every object (z-index 0), never printed. A 1 mm grid shows its 5 mm lines only. */
-.stage[data-grid] .page::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+   Under every object (z-index 1, over the sheet picture), never printed. A 1 mm grid shows its 5 mm lines only. */
+.stage[data-grid] .page::before{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
   --minor:#74519314;--major:#74519326;--step:5mm;
   background-image:linear-gradient(to right,var(--major) 1px,transparent 1px),linear-gradient(to bottom,var(--major) 1px,transparent 1px),
     linear-gradient(to right,var(--minor) 1px,transparent 1px),linear-gradient(to bottom,var(--minor) 1px,transparent 1px);
@@ -206,6 +206,12 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .el.theme-forest{--t-bg:#ebf3e6;--t-border:#8db487;--t-title:#2e5a2a;--t-meta:#5d7d4d;--t-text:#25351f;--t-badge:#3d7a37;--t-tex:linear-gradient(160deg,#f7fbf3,transparent 60%)}
 .el.theme-night{--t-bg:#2a2340;--t-border:#6a58a0;--t-title:#dccbff;--t-meta:#b3a5d8;--t-text:#ece7f7;--t-badge:#8a6cd1;--t-tex:radial-gradient(ellipse at 80% 0%,#3d3360,transparent 70%)}
 .el.theme-ember{--t-bg:#fff0e3;--t-border:#e09a6c;--t-title:#93300f;--t-meta:#b5562a;--t-text:#3f2416;--t-badge:#c4410f;--t-tex:linear-gradient(170deg,#fff8f0,transparent 55%)}
+.el.theme-ice{--t-bg:#eef6fb;--t-border:#9cc4dc;--t-title:#1f5878;--t-meta:#4f84a3;--t-text:#1d3442;--t-badge:#3f8fbf;--t-tex:linear-gradient(160deg,#ffffff,transparent 55%)}
+.el.theme-sea{--t-bg:#e2eff0;--t-border:#6fa6a8;--t-title:#16575c;--t-meta:#3d7c80;--t-text:#16302f;--t-badge:#1f7a80;--t-tex:radial-gradient(ellipse at 50% 120%,#c6e1e2,transparent 70%)}
+.el.theme-gold{--t-bg:#fdf6dc;--t-border:#d4af37;--t-title:#7a5a00;--t-meta:#a07c1c;--t-text:#3a2d06;--t-badge:#b8901a;--t-tex:linear-gradient(135deg,#fffbea,transparent 50%,#f6e7ad)}
+.el.theme-stone{--t-bg:#ecebe7;--t-border:#a19e96;--t-title:#3e3c37;--t-meta:#6d6a62;--t-text:#2b2a27;--t-badge:#6b675e;--t-tex:repeating-linear-gradient(45deg,#00000006 0 1px,transparent 1px 5px)}
+.el.theme-blood{--t-bg:#fbeaea;--t-border:#b54848;--t-title:#7d1313;--t-meta:#a33a3a;--t-text:#3a1616;--t-badge:#9c1c1c;--t-tex:radial-gradient(ellipse at 0% 0%,#fff6f6,transparent 65%)}
+.el.theme-shadow{--t-bg:#26272b;--t-border:#5b5d66;--t-title:#e9e4d6;--t-meta:#b0aca0;--t-text:#e4e2dc;--t-badge:#55575f;--t-tex:radial-gradient(ellipse at 20% 0%,#3a3b41,transparent 70%)}
 /* `.stage .page` outweighs the per-page card rules above (e.g. the meta colour on page 1). */
 .stage .page .el[class*=" theme-"]{background-color:var(--t-bg);background-image:var(--t-tex);border-color:var(--t-border);color:var(--t-text)}
 .stage .page .el[class*=" theme-"] .title{color:var(--t-title)}
@@ -214,8 +220,30 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 /* The sheet header and section titles are lines of text, not boxes: colours only, no fill. */
 .stage .page .el.header[class*=" theme-"],.stage .page .el.section[class*=" theme-"]{background:none;color:inherit}
 .stage .page .el.theme-night.header,.stage .page .el.theme-night.section{--t-title:#4b3a86;--t-meta:#6a5aa6;--t-border:#4b3a86}
+.stage .page .el.theme-shadow.header,.stage .page .el.theme-shadow.section{--t-title:#34353b;--t-meta:#5b5d66;--t-border:#34353b}
 /* Typing on a dark theme: a light editing highlight would hide the light text. */
-.el.theme-night .editable:focus{background:#ffffff14}
+.el.theme-night .editable:focus,.el.theme-shadow .editable:focus{background:#ffffff14}
+/* 3.11: sheet backgrounds (sheet.js) — a ready one per `data-sheet`, the owner's picture under every object. */
+.stage .page[data-sheet]{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.stage .page[data-sheet="paper"]{background:#fff;--sheet-frame:#e6e2ea}
+.stage .page[data-sheet="oldpaper"]{background:radial-gradient(ellipse at 50% 45%,#f4e4c1 35%,#e3c793 85%,#d2ae72);--sheet-frame:#bf9b62}
+.stage .page[data-sheet="stone"]{background:repeating-linear-gradient(45deg,#00000007 0 1px,transparent 1px 7px),radial-gradient(ellipse at 30% 10%,#f0efeb,#d3d1cb 80%);--sheet-frame:#a5a29a}
+.stage .page[data-sheet="wood"]{background:radial-gradient(ellipse at 50% 30%,#ffffff40,transparent 70%),repeating-linear-gradient(90deg,#ecd5b3 0 9mm,#e3c79f 9mm 9.6mm,#efdabb 9.6mm 17mm,#e6cca6 17mm 17.4mm);--sheet-frame:#b88d5c}
+.stage .page[data-sheet="forest"]{background:radial-gradient(ellipse at 20% 0%,#f6fbf1,transparent 60%),radial-gradient(ellipse at 50% 110%,#c7dcb9,transparent 65%),#e7f0df;--sheet-frame:#93b385}
+.stage .page[data-sheet="sea"]{background:radial-gradient(ellipse at 80% 0%,#f5fafd,transparent 55%),radial-gradient(ellipse at 50% 115%,#b8d4e4,transparent 65%),#e2edf3;--sheet-frame:#86abc2}
+.stage .page[data-sheet="ember"]{background:radial-gradient(ellipse at 30% 0%,#fff9f1,transparent 55%),radial-gradient(ellipse at 50% 115%,#f4c19a,transparent 65%),#fbeadb;--sheet-frame:#dd9a6a}
+.stage .page[data-sheet="night"]{--sheet-frame:#4c4f80;
+  background:radial-gradient(circle at 12% 18%,#fff 0 .35mm,transparent .5mm) 0 0/37mm 41mm,radial-gradient(circle at 63% 71%,#ffffffc0 0 .3mm,transparent .45mm) 0 0/29mm 33mm,
+    radial-gradient(circle at 40% 40%,#ffffff80 0 .25mm,transparent .4mm) 0 0/17mm 19mm,radial-gradient(ellipse at 70% 0%,#3a3f74,transparent 65%),#1d2040}
+.stage .page[data-sheet]::after{border-color:var(--sheet-frame)}
+/* On the dark sheet, the header, section titles and page number are light (unless themed). */
+.stage .page[data-sheet="night"] .el.header:not([class*=" theme-"]),.stage .page[data-sheet="night"] .el.section:not([class*=" theme-"]){color:#e7e3f5;border-color:#8a80c0}
+.stage .page[data-sheet="night"] .el.header:not([class*=" theme-"]) .title,.stage .page[data-sheet="night"] .el.section:not([class*=" theme-"]) .title{color:#e2d6ff}
+.stage .page[data-sheet="night"] .el.header:not([class*=" theme-"]) .subtitle{color:#c3b8e6}
+.stage .page[data-sheet="night"] .page-number{color:#c3b8e6}
+.stage .page[data-sheet="night"] .el.header .editable:focus,.stage .page[data-sheet="night"] .el.section .editable:focus{background:#ffffff14}
+.page>.sheet-image{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none}
+.page.has-sheet-image::after{display:none}
 /* 3.11: badge tools (badges.js) and the badge being edited. */
 .badge-colors,.badge-symbols{display:inline-flex;flex-wrap:wrap;gap:3px;align-items:center}
 .toolbar .badge-colors .badge-color{width:20px;height:20px;padding:0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0003;line-height:16px;font-size:12px}
@@ -223,7 +251,7 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .el .level:focus{outline:2px solid #fff;box-shadow:0 0 0 3px #2678bb;cursor:text}
 @media print{.el .level:focus{outline:none;box-shadow:none}}
 
-/* 3.11 beta.11: the toolbar as a ribbon (toolbar-tabs.js). Tabs in the dark top bar,
+/* 3.11 beta.12: the toolbar as a ribbon (toolbar-tabs.js). Tabs in the dark top bar,
    one fixed-height ribbon of named groups under them: big buttons (icon above
    a label) or up to two rows of small controls. */
 .toolbar [hidden]{display:none!important}
@@ -289,9 +317,9 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .toolbar .toolbar-content #theme{min-width:150px}
 .toolbar .toolbar-content #fontFamily{min-width:130px}
 /* Tools shown only for a fitting selection: two rows in columns, or a hint. */
-.toolbar .toolbar-content .rb-row>:is(#cardBgTools,#imageTools,#textBoxTools)[style*="inline-flex"]{display:grid!important;grid-template-rows:repeat(2,28px);grid-auto-flow:column;align-items:center;justify-items:start;gap:6px 10px!important}
+.toolbar .toolbar-content .rb-row>:is(#sheetTools,#cardBgTools,#imageTools,#textBoxTools)[style*="inline-flex"]{display:grid!important;grid-template-rows:repeat(2,28px);grid-auto-flow:column;align-items:center;justify-items:start;gap:6px 10px!important}
 .toolbar .toolbar-content .rb-row>.tool-group .rb-small,.toolbar .toolbar-content .rb-row>.tool-group>button,.toolbar .toolbar-content .rb-row>.tool-group>select{height:28px;padding:0 8px;border:1px solid #d9d1e2;border-radius:6px;background:#fff;box-shadow:none}
-.toolbar .toolbar-content .rb-row>.tool-group>label[id]{border:1px solid #d9d1e2;background:#fff;border-radius:6px;padding:0 8px;color:#352b49}
+.toolbar .toolbar-content .rb-row>.tool-group>label:has(>input[type=file]){border:1px solid #d9d1e2;background:#fff;border-radius:6px;padding:0 8px;color:#352b49}
 .toolbar .rb-body[data-hint]:has(.tool-group:not([style*="inline-flex"]))::after{content:attr(data-hint);max-width:170px;font-size:11.5px;line-height:1.35;color:#9a90ab;white-space:normal}
 .toolbar .toolbar-content .rb-row>#badgeSymbols{display:grid;grid-template-rows:repeat(2,26px);grid-auto-flow:column;gap:3px}
 .toolbar .toolbar-content .rb-row>#badgeSymbols button{height:26px;min-width:26px;padding:0 4px;border:1px solid #e1d9ea;border-radius:6px;background:#fff;box-shadow:none}
@@ -303,6 +331,10 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
   .toolbar .toolbar-identity{height:34px}
   .toolbar .toolbar-tabs{order:3;flex-basis:100%}
 }
-/* A card and a picture are never selected together: the other's hint goes. */
-.toolbar #panel-appearance:has(#cardBgTools[style*="inline-flex"]) .rb-group:has(#imageTools:not([style*="inline-flex"])),
-.toolbar #panel-appearance:has(#imageTools[style*="inline-flex"]) .rb-group:has(#cardBgTools:not([style*="inline-flex"])){display:none}
+/* A card coloured, not pictured, needs only the mode and the upload. */
+.toolbar #cardBgTools:has(#bgMode option[value="color"]:checked)>:not(:has(#bgMode)):not(#bgUploadLabel){display:none}
+/* Inside a named group these selects speak for themselves: their caption text is dropped to save width. */
+.toolbar .toolbar-content label:has(>#bgMode,>#bgFit,>#sheetFit,>#sheetTheme,>#theme){font-size:0;gap:0}
+.toolbar .toolbar-content label:has(>#bgMode,>#bgFit,>#sheetFit,>#sheetTheme,>#theme)>*{font-size:13px}
+.toolbar .toolbar-content label:has(>#sheetTheme) .sheet-page{margin-left:6px;font-size:12px}
+.toolbar .toolbar-content #imageTools input[type=range]{width:60px!important}

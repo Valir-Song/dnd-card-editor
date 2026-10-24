@@ -1,6 +1,6 @@
-import { icon } from './icons.js';
+import { icon, ICONS } from './icons.js';
 
-// The toolbar as a ribbon (3.11 beta.11): tabs sit in the dark top bar next to undo and
+// The toolbar as a ribbon (3.11 beta.12): tabs sit in the dark top bar next to undo and
 // saving; under them every tab is a row of named groups. A group is either big
 // buttons (icon above a short label) or up to two rows of small controls.
 // Moving original DOM nodes keeps existing listeners and input IDs.
@@ -16,10 +16,11 @@ const GROUPS = [
     ['Добавить', 'big', ['add']],
     ['Правка', 'big', ['duplicate','delete']],
     ['Закрепление', 'big', ['lock','unlockPage']],
+    ['Фон карточки', 'rows', [['cardBgTools']], 'Выделите карточку, чтобы поставить ей картинку на фон'],
   ]},
   {id:'appearance', label:'Оформление', sections:[
     ['Тема', 'rows', [['theme'],['themePage','bg']]],
-    ['Фон карточки', 'rows', [['cardBgTools']], 'Выделите карточку, чтобы поставить ей картинку на фон'],
+    ['Фон листа', 'rows', [['sheetTools']]],
     ['Картинка', 'rows', [['imageTools']], 'Выделите картинку: прозрачность, яркость, поворот'],
   ]},
   {id:'text', label:'Текст', sections:[
@@ -53,7 +54,7 @@ const GROUPS = [
   ]},
 ];
 // Small buttons shown by their icon only; the label stays for screen readers.
-const ICON_ONLY = new Set(['undo','redo','saveFileAs','bold','italic','underline','strike','bulletList','orderedList','clearFormatting']);
+const ICON_ONLY = new Set(['undo','redo','saveFileAs','bgRemove','resetImage','bold','italic','underline','strike','bulletList','orderedList','clearFormatting']);
 const TOP = ['undo','redo','saveFile','saveFileAs','saveState','fileState','snapTools'];
 
 // Put the control's own text into one <span class="rb-label"> after its icon,
@@ -137,6 +138,8 @@ export function setupToolbarTabs() {
           const plain = node.tagName === 'BUTTON' || (node.tagName === 'LABEL' && !!node.querySelector('input[type=file]'));
           if (plain) { decorate(node, id); node.classList.add(kind === 'big' ? 'rb-large' : 'rb-small'); }
           else if (node.tagName === 'LABEL') node.classList.add('rb-field');
+          // Buttons inside a tool group get their icon too (when there is one).
+          else for (const button of node.querySelectorAll('button[id]')) if (ICONS[button.id]) decorate(/** @type {HTMLElement} */ (button), button.id);
           line.append(node);
         }
       }
