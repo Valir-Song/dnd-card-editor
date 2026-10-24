@@ -6,7 +6,7 @@ export function setupToolbarTabs() {
   toolbar.dataset.tabsReady = 'true';
   const groups = [
     {id:'cards', label:'Карточки', ids:['add','duplicate','delete','lock','unlockPage']},
-    {id:'appearance', label:'Оформление', ids:['bg','theme','themePage','cardBgTools','imageTools']},
+    {id:'appearance', label:'Оформление', ids:['bg','theme','themePage','sheetTools','cardBgTools','imageTools']},
     {id:'text', label:'Текст', ids:['addTextBox','bold','italic','underline','strike','fontFamily','fontSize','textAlign','textcolor','bulletList','orderedList','clearFormatting','textBoxTools']},
     {id:'figures', label:'Фигуры и изображения', ids:['rect','circle','line','upload']},
     {id:'badges', label:'Кружочки', ids:['badgeTools']},

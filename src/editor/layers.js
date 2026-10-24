@@ -1,4 +1,5 @@
 // Stack order within pages.
+import { isSheet } from './sheet.js';
 /**
  * New bottom-to-top order after moving the chosen objects one step or all the
  * way up or down. A group keeps its own internal order; «forward»/«backward»
@@ -22,6 +23,6 @@ export function reorderLayers(order,chosen,mode){
 export function setupLayers({ current, store, getSelected, getSelectionIds, select }) {
 // The whole selection moves; a lone selected text frame still means its card.
 /** @param {'front' | 'back' | 'forward' | 'backward'} mode */
-function changeLayer(mode){const c=current();const ids=getSelectionIds().length?getSelectionIds():c?[c.id]:[];const first=ids.length?store.find(ids[0]):undefined;if(!first)return;const page=first.page;const order=store.items.filter(v=>v.page===page).sort((a,b)=>(a.z||0)-(b.z||0));const chosen=new Set(order.filter(v=>ids.includes(v.id)));store.change(()=>reorderLayers(order,chosen,mode).forEach((v,i)=>v.z=i+1));if(ids.length===1)select(document.querySelector('.el[data-id="'+getSelected()+'"]'))}
+function changeLayer(mode){const c=current();const ids=getSelectionIds().length?getSelectionIds():c?[c.id]:[];const first=ids.length?store.find(ids[0]):undefined;if(!first)return;const page=first.page;const order=store.items.filter(v=>v.page===page&&!isSheet(v)).sort((a,b)=>(a.z||0)-(b.z||0));const chosen=new Set(order.filter(v=>ids.includes(v.id)));store.change(()=>reorderLayers(order,chosen,mode).forEach((v,i)=>v.z=i+1));if(ids.length===1)select(document.querySelector('.el[data-id="'+getSelected()+'"]'))}
 for(const k of ['front','forward','backward','back'])document.getElementById(k).onclick=()=>changeLayer(/** @type {'front'|'forward'|'backward'|'back'} */ (k));
 }
