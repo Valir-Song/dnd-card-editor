@@ -1316,5 +1316,67 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': badges are typed into, added, signed, coloured, dragged and removed')
 
+    # 23. Save to a file (3.11 beta.9): Ctrl+S writes the editor with its layout
+    #     into a file picked once (File System Access API; stubbed, since a real
+    #     file dialog cannot be driven), later presses and «Сохранить в файл» reuse
+    #     it, Ctrl+Shift+S picks another; in any keyboard layout and while typing.
+    #     A failed write is reported; without the API Ctrl+S downloads a copy.
+    context=browser.new_context(viewport={'width':1280,'height':900},accept_downloads=True)
+    page=open_editor(context)
+    import_json(page,[{'id':'A','kind':'card','page':1,'x':10,'y':30,'w':80,'h':25,'z':1,'title':'Лютня','meta':'м','detail':'д','bg':'#ffffff'}])
+    page.evaluate("""()=>{window.files=[];window.picks=[];window.failWrite=false;
+      const file=name=>({name,createWritable:async()=>{if(window.failWrite)throw new Error('диск полон');let text='';
+        return {write:async data=>{text+=data},close:async()=>{window.files.push({name,html:text})}}}});
+      window.showSaveFilePicker=async options=>{window.picks.push(options.suggestedName);return file('picked'+window.picks.length+'.html')}}""")
+    written=lambda n:page.wait_for_function('n=>window.files.length>=n',arg=n)
+    last=lambda:page.evaluate('()=>window.files.at(-1)')
+    page.keyboard.press('Control+s'); written(1)
+    picks=page.evaluate('window.picks')
+    assert len(picks)==1 and re.fullmatch(r'[\w]+\.html',picks[0]),('The dialog suggests the layout name as a file name',picks)
+    assert last()['name']=='picked1.html' and '"title":"Лютня"' in last()['html'] and 'data-layout-id' in last()['html']
+    assert 'picked1.html' in page.locator('#fileState').inner_text()
+    # While typing: the text does not get an «s», the same file is written.
+    page.locator('.el[data-id="A"] .title').click()
+    page.wait_for_function('document.activeElement?.isContentEditable')
+    page.keyboard.press('End'); page.keyboard.type('Б')
+    page.keyboard.press('Control+s'); written(2)
+    assert len(page.evaluate('window.picks'))==1,'No dialog the second time'
+    assert last()['name']=='picked1.html' and '"title":"ЛютняБ"' in last()['html'],last()['name']
+    assert page.locator('.el[data-id="A"] .title').inner_text().strip()=='ЛютняБ'
+    # A Russian keyboard layout: the key is «ы», its place is KeyS.
+    prevented=page.evaluate("()=>{const e=new KeyboardEvent('keydown',{key:'ы',code:'KeyS',ctrlKey:true,bubbles:true,cancelable:true});document.body.dispatchEvent(e);return e.defaultPrevented}")
+    written(3); assert prevented and last()['name']=='picked1.html'
+    # The button does the same; Ctrl+Shift+S picks another file.
+    page.locator('[data-tab="files"]').click(); page.locator('#saveFile').click(); written(4)
+    assert len(page.evaluate('window.picks'))==1 and last()['name']=='picked1.html'
+    page.keyboard.press('Control+Shift+S'); written(5)
+    assert len(page.evaluate('window.picks'))==2 and last()['name']=='picked2.html'
+    assert 'picked2.html' in page.locator('#fileState').inner_text()
+    # The written file is the editor with the layout.
+    target_file=Path(tempfile.mkdtemp())/'saved.html'
+    target_file.write_text(last()['html'],encoding='utf-8')
+    again=open_editor(context,target_file.as_uri())
+    assert again.locator('.el[data-id="A"] .title').inner_text().strip()=='ЛютняБ'
+    assert again.evaluate("document.querySelector('link[rel=icon]').href.startsWith('data:image/svg+xml,')"),'The icon travels with the file'
+    again.close()
+    # A failed write is reported and offers a download.
+    page.evaluate('window.failWrite=true')
+    page.keyboard.press('Control+s')
+    page.wait_for_selector('[data-notice="file"]')
+    notice=page.locator('[data-notice="file"]').inner_text()
+    assert 'Не удалось сохранить в файл «picked2.html»' in notice and 'диск полон' in notice and 'Скачать HTML' in notice,notice
+    page.evaluate('window.failWrite=false'); page.keyboard.press('Control+s'); written(6)
+    assert page.locator('[data-notice="file"]').count()==0,'A successful save clears the warning'
+    # Without the API (Firefox): a download, and a note why.
+    page.evaluate('window.showSaveFilePicker=undefined')
+    with page.expect_download() as download:
+        page.keyboard.press('Control+s')
+    assert download.value.suggested_filename.endswith('.html'),download.value.suggested_filename
+    assert 'Chrome и Edge' in page.locator('[data-notice="file"]').inner_text()
+    assert page.evaluate('window.files.length')==6
+    assert not page.errors and not again.errors,(page.errors,again.errors)
+    context.close()
+    print('PASS '+engine+': Ctrl+S saves into the file picked once, Ctrl+Shift+S into another; otherwise a download')
+
     browser.close()
 print('All regression checks passed for '+engine)

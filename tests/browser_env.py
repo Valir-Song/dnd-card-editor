@@ -9,9 +9,15 @@ import os
 engine=os.environ.get('EDITOR_BROWSER','chromium')
 assert engine in ('chromium','firefox')
 throttle=float(os.environ.get('CPU_THROTTLE') or 0)
+PREINSTALLED_CHROMIUM='/opt/pw-browsers/chromium'
 
 def launch(p):
-    browser=getattr(p,engine).launch(headless=True,args=['--no-sandbox'] if engine=='chromium' else [])
+    options={'headless':True,'args':['--no-sandbox'] if engine=='chromium' else []}
+    # The cloud image's Chromium can be newer than the build this Playwright expects:
+    # then use the preinstalled browser instead of downloading another one.
+    if engine=='chromium' and not os.path.exists(p.chromium.executable_path) and os.path.exists(PREINSTALLED_CHROMIUM):
+        options['executable_path']=PREINSTALLED_CHROMIUM
+    browser=getattr(p,engine).launch(**options)
     if throttle>1 and engine=='chromium':
         new_context=browser.new_context
         def throttled_context(**options):

@@ -8,6 +8,7 @@ import { setupLayers } from './editor/layers.js';
 import { createRichText } from './editor/rich-text.js';
 import { setupObjects } from './editor/objects.js';
 import { setupFiles } from './editor/files.js';
+import { setupFileSave } from './editor/save-file.js';
 import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
 import { normalizeLayout } from './editor/layout.js';
@@ -292,7 +293,9 @@ setupClipboard({store,getSelectionIds,addObjects,removeObjects});
 lock=setupLock({store,getSelectionIds,current,getPage:()=>activePage});
 themes=setupThemes({store,getSelectionIds,current,getPage:()=>activePage});
 badges=setupBadges({store,getSelectionIds,current});
-setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity:()=>({id:layoutId,name:layoutName})});
+const identity=()=>({id:layoutId,name:layoutName});
+const {exportFile}=setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity});
+setupFileSave({store,notices,exportFile,identity});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p)activePage=i+1}));
 try{renderer.draw()}catch(error){
   // Valid-looking data can still fail to render; recover the same way.

@@ -7,4 +7,6 @@ assert.ok(html.includes('РИЧАРД СЭДСОНГ'));
 assert.ok(!html.includes('__STARTER_DATA__'));
 assert.ok(!/<script[^>]+\bsrc=/.test(html));
 assert.ok(!/<link[^>]+\brel=["']stylesheet["']/.test(html));
+// The tab and shortcut icon is inside the file too.
+assert.ok(/<link rel="icon"[^>]+href="data:image\/svg\+xml,/.test(html));
 console.log('Standalone offline build validated');
