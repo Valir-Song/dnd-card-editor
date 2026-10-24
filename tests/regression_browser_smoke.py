@@ -1062,7 +1062,13 @@ with sync_playwright() as p:
     # In text the arrows move the caret, not the card.
     b=pos('B')
     into_text('.el[data-id="B"] .title')
-    keys('End','ArrowLeft'); page.keyboard.type('Q')
+    # Characters before the caret in B's title. On a slow runner the editor reads
+    # the caret moved by a key a moment later: wait for it before the next key.
+    caret="()=>{const t=document.querySelector('.el[data-id=\"B\"] .title'),s=getSelection();if(!s.rangeCount||!t.contains(s.anchorNode))return -1;const r=s.getRangeAt(0).cloneRange();r.setStart(t,0);return r.toString().length}"
+    keys('End'); page.wait_for_function("("+caret+")()===1")
+    keys('ArrowLeft'); page.wait_for_function("("+caret+")()===0")
+    page.evaluate("()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
+    page.keyboard.type('Q')
     title=page.locator('.el[data-id="B"] .title').inner_text().strip()
     assert pos('B')==b and title=='QB',('In text the arrows move the caret',pos('B'),b,title,data()['B'].get('textFrames'))
     # Esc leaves the text; the arrows then move its frame inside the card.
