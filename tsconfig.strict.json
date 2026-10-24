@@ -24,6 +24,7 @@
     "src/editor/dom.js",
     "src/editor/interactions.js",
     "src/editor/themes.js",
+    "src/editor/borders.js",
     "src/editor/badges.js",
     "src/editor/save-file.js",
     "src/editor/sheet.js"
