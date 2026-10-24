@@ -29,7 +29,10 @@ export function setupToolbarTabs() {
   const tablist=document.createElement('div');tablist.className='toolbar-tabs';
   tablist.setAttribute('role','tablist');tablist.setAttribute('aria-label','Разделы инструментов');
   const content=document.createElement('div');content.className='toolbar-content';
-  const buttons=[],panels=[];
+  /** @type {HTMLButtonElement[]} */
+  const buttons=[];
+  /** @type {HTMLElement[]} */
+  const panels=[];
   for(const group of groups){
     const tab=document.createElement('button');
     tab.type='button';tab.className='toolbar-tab';tab.id='tab-'+group.id;
@@ -53,6 +56,7 @@ export function setupToolbarTabs() {
   // Warnings live under the tabs so they stay visible with the sticky toolbar.
   const notices=toolbar.querySelector('#notices');
   toolbar.replaceChildren(top,tablist,content,...(notices?[notices]:[]));
+  /** @param {number} index */
   function activate(index,focus=false){
     buttons.forEach((button,i)=>{
       const active=i===index;

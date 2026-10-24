@@ -1,8 +1,14 @@
 // Persistent, non-blocking warnings under the toolbar (storage full, damaged save).
 // Each notice has an id, so repeated failures update one message instead of stacking.
 // A notice the user closed stays hidden until the code clears it (problem resolved).
+/** @typedef {{label: string, onClick: () => void}} NoticeAction */
+/** @param {HTMLElement} container */
 export function createNotices(container){
-  const shown=new Map(),dismissed=new Set();
+  /** @type {Map<string, HTMLElement>} */
+  const shown=new Map();
+  /** @type {Set<string>} */
+  const dismissed=new Set();
+  /** @param {string} id @param {string} message @param {NoticeAction[]} [actions] */
   function show(id,message,actions=[]){
     if(dismissed.has(id))return;
     let node=shown.get(id);
@@ -25,7 +31,9 @@ export function createNotices(container){
     node.dataset.message=message;
     node.replaceChildren(text,...buttons,close);
   }
+  /** @param {string} id */
   function remove(id){shown.get(id)?.remove();shown.delete(id)}
+  /** @param {string} id */
   function hide(id){remove(id);dismissed.delete(id)}
-  return {show,hide,has:id=>shown.has(id)};
+  return {show,hide,has:(/** @type {string} */ id)=>shown.has(id)};
 }

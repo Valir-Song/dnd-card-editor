@@ -18,6 +18,10 @@
     "src/editor/render.js",
     "src/editor/lock.js",
     "src/editor/nudge.js",
-    "src/editor/align.js"
+    "src/editor/align.js",
+    "src/editor/notice.js",
+    "src/editor/toolbar-tabs.js",
+    "src/editor/dom.js",
+    "src/editor/interactions.js"
   ]
 }
