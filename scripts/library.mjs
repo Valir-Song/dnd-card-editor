@@ -5,9 +5,12 @@
 import { readLayoutFile, LAYOUT_EXTENSION } from '../src/editor/layout-file.js';
 import { normalizeLayout } from '../src/editor/layout.js';
 import { layoutTitle } from '../src/editor/freshness.js';
+import { SPELLS_NAME } from '../src/editor/spells.js';
 
 export const LIBRARY_FOLDER = 'library';
 export const INDEX_NAME = 'index.json';
+// The spell reference lives in the same folder (src/editor/spells.js); it is not a sheet.
+export { SPELLS_NAME };
 
 /**
  * One sheet of the list, or why the file cannot be a ready sheet.
@@ -39,7 +42,7 @@ export function libraryEntry(file, text) {
 export function libraryIndex(files) {
   const sheets = [], errors = [];
   for (const {file, text} of files) {
-    if (file === INDEX_NAME || file.startsWith('.') || file.toLowerCase() === 'readme.md') continue;
+    if (file === INDEX_NAME || file === SPELLS_NAME || file.startsWith('.') || file.toLowerCase() === 'readme.md') continue;
     const result = libraryEntry(file, text);
     if ('error' in result) errors.push(result.error); else sheets.push(result.entry);
   }

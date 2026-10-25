@@ -387,3 +387,30 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .pools .pool-tools button{min-width:18px;height:18px;padding:0 3px;border-radius:3px;background:#eee9f7;color:#2b2440;font:bold 11px/18px Arial,sans-serif;text-align:center}
 .pools .pool-tools button:hover{background:#d8ccef}
 @media print{.pools .pool-tools{display:none!important}.pools .pool-label:empty::before{content:none}}
+/* Spell reference (spell-picker.js): the dialog, «📖» on a card and its full text. */
+.spell-dialog{width:min(680px,calc(100vw - 32px))}
+.spell-dialog[open]{display:flex;flex-direction:column}
+.spell-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.spell-search{flex:1;min-width:160px;padding:6px 8px;border:1px solid #d8cde8;border-radius:6px;font:inherit}
+.spell-level,.spell-dc{padding:5px 6px;border:1px solid #d8cde8;border-radius:6px;font:inherit}
+.spell-dc{width:56px}
+.spell-body{overflow:auto;min-height:120px;flex:1}
+.spell-list li{padding:0}
+.spell-row{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;cursor:pointer;width:100%}
+.spell-row input{margin-top:3px}
+.spell-row small{display:block;color:#5d536b}
+.spell-row .spell-meta{color:#755a81}
+.spell-actions{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:10px}
+.spell-status{color:#a2322b;margin-right:auto}
+.spell-insert{background:#745193;color:#fff;border:0;border-radius:6px;padding:7px 14px;cursor:pointer;font:inherit}
+.spell-insert:disabled{opacity:.45;cursor:default}
+.spell-source{margin:8px 0 0;font-size:11px;color:#7a7186}
+.el.card>.spell-info{position:absolute;top:1.2mm;right:1.2mm;width:5.5mm;height:5.5mm;padding:0;border:0;border-radius:50%;background:transparent;font-size:9pt;line-height:5.5mm;text-align:center;cursor:pointer;opacity:.55;z-index:3}
+.el.card>.spell-info:hover,.el.card>.spell-info:focus-visible{opacity:1;background:#eee9f7}
+.spell-info-dialog{width:min(620px,calc(100vw - 32px))}
+.spell-info-text{font:14px/1.5 Georgia,serif}
+.spell-info-text p{margin:0 0 9px}
+.spell-info-text p:last-child{font:11px Arial,sans-serif;color:#7a7186}
+@media print{.el.card>.spell-info{display:none!important}}
+.spell-actions .layouts-close{margin:0;float:none;padding:7px 12px;font-size:14px}
+.spell-row .spell-en{font-weight:normal;color:#7a7186;font-size:12px}

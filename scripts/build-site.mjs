@@ -1,9 +1,9 @@
 // Build the hosted editor from dist/index.html: node scripts/build-site.mjs [stable|beta] [out-folder]
-// Writes index.html, sw.js, the manifest, the icons and the ready sheets (library/) into the folder (default: site/ or site/beta/).
+// Writes index.html, sw.js, the manifest, the icons, the ready sheets and the spell reference (library/) into the folder (default: site/ or site/beta/).
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CHANNELS, appHtml, assetNames, manifest, serviceWorker } from './site.mjs';
-import { INDEX_NAME, LIBRARY_FOLDER, libraryIndex } from './library.mjs';
+import { INDEX_NAME, LIBRARY_FOLDER, SPELLS_NAME, libraryIndex } from './library.mjs';
 
 const channel = process.argv[2] || 'stable';
 if (!CHANNELS[channel]) throw Error('Channel must be one of: ' + Object.keys(CHANNELS).join(', '));
@@ -22,6 +22,8 @@ if (errors.length) throw Error('Not a ready sheet:\n' + errors.join('\n'));
 mkdirSync(join(out, LIBRARY_FOLDER), {recursive: true});
 for (const sheet of sheets) copyFileSync(join(LIBRARY_FOLDER, sheet.file), join(out, LIBRARY_FOLDER, sheet.file));
 writeFileSync(join(out, LIBRARY_FOLDER, INDEX_NAME), JSON.stringify({sheets}, null, 2) + '\n');
+// The spell reference («Заклинание…»), fetched the same way.
+copyFileSync(join(LIBRARY_FOLDER, SPELLS_NAME), join(out, LIBRARY_FOLDER, SPELLS_NAME));
 // GitHub Pages must serve the files as they are, without its Jekyll step.
 if (channel === 'stable') writeFileSync(join(out, '.nojekyll'), '');
 console.log('Hosted editor ' + version + ' (' + channel + ') written to ' + out);

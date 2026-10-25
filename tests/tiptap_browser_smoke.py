@@ -77,7 +77,9 @@ with sync_playwright() as p:
     focus_editor(title)
     title.press('Home')
     title.press('Control+Shift+ArrowRight')
-    assert float(size.input_value())>=22.5, ('Displayed size not restored',size.input_value())
+    # The toolbar follows the selection a frame later: wait instead of reading once (CI once read it too early).
+    try: page.wait_for_function("Number(document.querySelector('#fontSize').value)>=22.5",timeout=3000)
+    except Exception: raise AssertionError(('Displayed size not restored',size.input_value()))
     # Track undo/redo including Cyrillic physical keyboard shortcuts.
     page.evaluate("""() => document.dispatchEvent(new KeyboardEvent('keydown',
       {key:'я',code:'KeyZ',ctrlKey:true,bubbles:true,cancelable:true}))""")

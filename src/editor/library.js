@@ -4,6 +4,8 @@
 // file stays small however many sheets there are. The app's service worker keeps what was
 // fetched for offline use; an editor file from disk reads the site, so it needs the internet.
 
+import { SPELLS_NAME } from './spells.js';
+
 /** @typedef {{file: string, name: string, summary: string, count: number, bytes: number}} LibrarySheet */
 /** @typedef {(url: string) => Promise<{ok: boolean, status: number, text: () => Promise<string>}>} Fetch */
 
@@ -51,5 +53,7 @@ export function createLibrary(base, fetchText) {
     },
     /** The sheet's file, as «Открыть» reads it. @param {LibrarySheet} sheet */
     sheet: (/** @type {LibrarySheet} */ sheet) => text(sheet.file),
+    /** The spell reference (spells.js). @returns {Promise<unknown>} */
+    spells: async () => JSON.parse(await text(SPELLS_NAME)),
   };
 }

@@ -14,6 +14,7 @@ export const ICONS = {
   d20: '<path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 2 7 13h10zM7 13l-4 4M17 13l4 4M7 13l5 9 5-9"/>',
 
   add: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 9v6M9 12h6"/>',
+  addSpell: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/><path d="m12 6.5.9 1.9 2.1.3-1.5 1.5.4 2.1-1.9-1-1.9 1 .4-2.1-1.5-1.5 2.1-.3z"/>',
   addResources: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h3M7 14h3M13 8.5h2v2h-2zM17 8.5h0M13 13.5h2v2h-2z"/>',
   addSpellRow: '<path d="M12 3 14.5 9 21 9.5 16 14l1.5 6.5L12 17l-5.5 3.5L8 14 3 9.5 9.5 9z"/>',
   addExtraRow: '<rect x="3" y="9" width="5" height="5" rx="1"/><rect x="10" y="9" width="5" height="5" rx="1"/><path d="M19.5 9v5M17 11.5h5"/>',
