@@ -20,7 +20,7 @@ assert engine in ('chromium','firefox')
 KEY='dnd-card-editor-v3'
 starter=json.loads((root/'src'/'starter-layout.json').read_text(encoding='utf-8'))
 
-def open_editor(context,url=html_path.as_uri()):
+def open_editor(context,url=html_path.as_uri(),welcome=False):
     page=context.new_page()
     page.errors=[]
     page.dialogs=[]
@@ -28,6 +28,10 @@ def open_editor(context,url=html_path.as_uri()):
     page.on('dialog',lambda dialog:(page.dialogs.append(dialog.message),dialog.accept()))
     page.goto(url,wait_until='load')
     page.wait_for_selector('.el .tiptap-content')
+    # A first start shows the welcome notice (section 29); it makes the toolbar taller,
+    # and the other sections measure the pages under it.
+    if not welcome and page.locator('.notice[data-notice="welcome"]').count():
+        page.locator('.notice[data-notice="welcome"] .notice-close').click()
     # Autosave writes in the background; a write still running when the page closes
     # can land after the next test step and overwrite what it prepared.
     close=page.close
@@ -64,6 +68,8 @@ def wait_dialog(page,count):
         page.wait_for_timeout(25)
     raise AssertionError('No dialog appeared')
 
+# The welcome notice of a first start (section 29) stays out of checks for other notices.
+OTHER_NOTICES='.notice:not([data-notice="welcome"])'
 compact=lambda data:json.dumps(data,ensure_ascii=False,separators=(',',':'))  # = JSON.stringify
 # Saves go to IndexedDB; ?storage=local forces the localStorage fallback, so the
 # storage checks run against both.
@@ -209,7 +215,7 @@ with sync_playwright() as p:
         assert all(i['id']!='huge' for i in saved_layout(page))
         assert page.evaluate("document.documentElement.dataset.saveState")=='saved'
         assert 'Сохранено' in page.locator('#saveState').inner_text()
-        assert page.locator('.notice').count()==0
+        assert page.locator(OTHER_NOTICES).count()==0
         assert not page.errors,page.errors
         # With unsaved changes the browser asks before the tab closes.
         assert not leaving_blocked(page),'Everything is saved: closing must not ask'
@@ -302,7 +308,7 @@ with sync_playwright() as p:
       wait_saved(page); page.close()
 
       same=open_editor(context,exported.as_uri()+query)
-      assert same.locator('.notice').count()==0,'Identical layouts must open without a notice'
+      assert same.locator(OTHER_NOTICES).count()==0,'Identical layouts must open without a notice'
       same.locator('#page2 .el.card').first.click(position={'x':2,'y':2})
       same.keyboard.press('Delete')                        # browser save is now newer: 26
       wait_saved(same); same.close()
@@ -313,7 +319,7 @@ with sync_playwright() as p:
       assert notice.is_visible() and 'новее макета в этом файле' in notice.inner_text()
       notice.get_by_role('button',name='Открыть макет из файла').click()
       assert newer_browser.locator('.el').count()==len(starter)-1
-      assert newer_browser.locator('.notice').count()==0
+      assert newer_browser.locator(OTHER_NOTICES).count()==0
       newer_browser.locator('#undo').click()
       assert newer_browser.locator('.el').count()==len(starter)-2,'Switching layouts must be undoable'
       newer_browser.close()
@@ -674,7 +680,7 @@ with sync_playwright() as p:
       b=open_editor(context,file_b.as_uri()+query)
       assert ident(b)==id_b,'File B must open its own save'
       assert b.locator('.el').count()==len(starter)-3 and b.locator('#layoutName').input_value()=='Бета','File B must not show the newer work of file A'
-      assert b.locator('.notice').count()==0,'Its own, identical save opens without a notice'
+      assert b.locator(OTHER_NOTICES).count()==0,'Its own, identical save opens without a notice'
       # «Мои макеты»: both saves; open the other one, download it, delete a save.
       b.locator('[data-tab="files"]').click(); b.locator('#layouts').click()
       b.wait_for_selector('#layoutsDialog[open] li strong')
@@ -1676,6 +1682,87 @@ with sync_playwright() as p:
     assert not page.errors,page.errors
     context.close()
     print('PASS '+engine+': «Открыть» opens .dnd, HTML and JSON as their own layout; Ctrl+S writes back into the opened file; recent files')
+
+    # 29. «Новый лист» and ready sheets (3.11 beta.17): a first-time visitor gets the empty
+    #     template with a notice; the layout name follows the heading until it is typed; the
+    #     ready sheets come from the site (here: routed to library/), a copy opens as a new
+    #     layout and the previous one stays in «Мои макеты»; without the site the template
+    #     still works and the dialog says why the list is missing.
+    from library_site import library_index
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    online={'on':False}
+    def serve_library(route):
+        if not online['on']: return route.abort()
+        name=route.request.url.split('/library/')[1].split('?')[0]
+        from urllib.parse import unquote
+        name=unquote(name)
+        body=json.dumps(library_index(),ensure_ascii=False) if name=='index.json' else (root/'library'/name).read_text(encoding='utf-8')
+        route.fulfill(status=200,content_type='application/json',body=body,headers={'Access-Control-Allow-Origin':'*'})
+    context.route('https://valir-song.github.io/dnd-editor/library/**',serve_library)
+    page=open_editor(context,welcome=True)
+    page.wait_for_selector('.notice[data-notice="welcome"]')
+    assert 'ИМЯ ПЕРСОНАЖА' in page.locator('#page1').inner_text() and 'РИЧАРД' not in page.locator('.stage').inner_text()
+    assert page.locator('#layoutName').input_value()=='ИМЯ ПЕРСОНАЖА'
+    first=page.evaluate('document.documentElement.dataset.layoutId')
+    # The player writes the character's name on the sheet: the layout name follows.
+    page.locator('.el.header[data-id="e1"] .title .tiptap-content').click()
+    page.wait_for_function('document.activeElement?.isContentEditable')
+    page.keyboard.press('Control+a'); page.keyboard.type('ГРОМ')
+    page.wait_for_function("document.querySelector('#layoutName').value==='ГРОМ'")
+    wait_saved(page)
+    assert saved_record(page,first)['name']=='ГРОМ'
+    page.keyboard.press('Escape')
+    # No site: the list says so, the template still starts.
+    page.locator('[data-tab="files"]').click()
+    page.locator('#newSheet').click()
+    page.wait_for_selector('#newSheetDialog[open] .layouts-empty')
+    assert 'интернет' in page.locator('#newSheetDialog .layouts-empty').inner_text()
+    assert 'ГРОМ' in page.locator('#newSheetDialog .layouts-hint').inner_text()
+    # The site answers: «Попробовать ещё раз» shows Richard; a copy opens as a new layout.
+    online['on']=True
+    page.locator('#newSheetDialog').get_by_role('button',name='Попробовать ещё раз').click()
+    row=page.locator('#newSheetDialog li[data-file="richard-sadsong.dnd"]')
+    row.wait_for()
+    assert 'Бард — Ричард Сэдсонг' in row.inner_text() and 'Бард 6' in row.inner_text()
+    row.get_by_role('button',name='Взять за основу').click()
+    page.wait_for_function("!document.querySelector('#newSheetDialog').open")
+    second=page.evaluate('document.documentElement.dataset.layoutId')
+    assert second!=first and 'РИЧАРД СЭДСОНГ' in page.locator('#page1').inner_text()
+    assert page.locator('.el').count()==28 and page.locator('#layoutName').input_value()=='Бард — Ричард Сэдсонг'
+    assert page.locator('#undo').is_disabled(),'A new sheet starts its own undo history'
+    assert page.locator('.notice[data-notice="welcome"]').count()==0
+    wait_saved(page)
+    assert saved_record(page,second)['name']=='Бард — Ричард Сэдсонг' and len(saved_record(page,second)['items'])==28
+    assert saved_record(page,first)['name']=='ГРОМ','The previous sheet stays saved'
+    # A typed name stays when the heading changes.
+    page.locator('#layoutName').fill('Мой бард')
+    page.locator('.el.header[data-id="e1"] .title .tiptap-content').click()
+    page.wait_for_function('document.activeElement?.isContentEditable')
+    page.keyboard.press('End'); page.keyboard.type(' II')
+    page.keyboard.press('Escape')
+    wait_saved(page)
+    assert saved_record(page,second)['name']=='Мой бард'
+    # «Начать с нуля»: the template again, as a third layout.
+    page.locator('#newSheet').click()
+    page.locator('#newSheetDialog').get_by_role('button',name='Начать с нуля').click()
+    page.wait_for_function("!document.querySelector('#newSheetDialog').open")
+    third=page.evaluate('document.documentElement.dataset.layoutId')
+    assert third not in (first,second) and page.locator('.el').count()==len(starter)
+    assert page.locator('#layoutName').input_value()=='ИМЯ ПЕРСОНАЖА'
+    # All three are in «Мои макеты»; the first opens again with its name.
+    page.locator('#layouts').click()
+    page.wait_for_selector('#layoutsDialog[open] li[data-id="'+first+'"]')
+    for id in (first,second):
+        assert page.locator('#layoutsDialog li[data-id="'+id+'"]').count()==1
+    page.locator('#layoutsDialog li[data-id="'+first+'"]').get_by_role('button',name='Открыть').click()
+    page.wait_for_function('document.documentElement.dataset.layoutId===%s'%json.dumps(first))
+    assert page.locator('#layoutName').input_value()=='ГРОМ' and 'ГРОМ' in page.locator('#page1').inner_text()
+    # A returning player opens the last sheet, without the welcome notice.
+    again=open_editor(context,welcome=True)
+    assert again.locator('.notice[data-notice="welcome"]').count()==0
+    assert not page.errors and not again.errors,(page.errors,again.errors)
+    context.close()
+    print('PASS '+engine+': empty template for newcomers, «Новый лист» from the template or a ready sheet, the name follows the heading')
 
     browser.close()
 print('All regression checks passed for '+engine)
