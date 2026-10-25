@@ -19,6 +19,7 @@ import { createNotices } from './editor/notice.js';
 import { formatStamp, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
 import { setupNewSheet } from './editor/new-sheet.js';
+import { setupSpellPicker } from './editor/spell-picker.js';
 import { createLibrary, libraryBase } from './editor/library.js';
 import { HOSTED } from './editor/channel.js';
 import templateLayout from './starter-layout.json';
@@ -228,9 +229,10 @@ async function startLayout(next,name){
   return true;
 }
 const template=()=>normalizeLayout(templateLayout).items||[];
+const library=createLibrary(libraryBase(HOSTED,location.href),url=>fetch(url,{cache:'no-cache'}));
 const newSheet=setupNewSheet({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('newSheetDialog'))),
   button:/** @type {HTMLElement} */ (document.getElementById('newSheet')),template,currentName:()=>layoutName,create:startLayout,
-  library:createLibrary(libraryBase(HOSTED,location.href),url=>fetch(url,{cache:'no-cache'}))});
+  library});
 const layoutsDialog=setupLayoutsDialog({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('layoutsDialog'))),
   storage,currentId:()=>layoutId,open:openSaved,download:downloadSaved});
 document.getElementById('layouts').onclick=()=>layoutsDialog.show();
@@ -416,6 +418,9 @@ function removeObjects(ids){
 }
 function addCard(){addObject({kind:'card',w:91,h:23,title:'Новая способность',meta:'Тип · дистанция · длительность',detail:'Кликни, чтобы изменить описание.',level:'1',roles:'support',bg:'#ffffff'})}
 setupObjects({addCard,addObject,addObjects,current,getSelectionIds,removeObjects,store});
+setupSpellPicker({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('spellDialog'))),
+  infoDialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('spellInfoDialog'))),
+  button:/** @type {HTMLElement} */ (document.getElementById('addSpell')),library,addObjects,store});
 ({syncTextBoxTools}=setupTextBoxes({addObject,current,store}));
 setupLayers({current,store,getSelected,getSelectionIds,select});
 setupClipboard({store,getSelectionIds,addObjects,removeObjects});

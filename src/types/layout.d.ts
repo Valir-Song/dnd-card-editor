@@ -34,6 +34,8 @@ export interface Item {
   sheet?: string;
   // Frame (see src/editor/borders.js): style id, colour (#rrggbb) and width in mm; absent means none.
   outline?: string; outlineColor?: string; outlineWidth?: number;
+  // Card made from the spell reference (see src/editor/spells.js): its id and full text for «📖».
+  spellId?: string; spellText?: string;
   // Text box (kind 'textbox').
   autoHeight?: boolean; bgTransparent?: boolean; borderVisible?: boolean; borderColor?: string;
   fontFamily?: string; fontSize?: number; textAlign?: string; textColor?: string; textWeight?: string;

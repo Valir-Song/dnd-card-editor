@@ -13,7 +13,7 @@ import { icon, ICONS } from './icons.js';
 /** @type {{id: string, label: string, sections: Section[]}[]} */
 const GROUPS = [
   {id:'cards', label:'Карточки', sections:[
-    ['Добавить', 'big', ['add','addResources']],
+    ['Добавить', 'big', ['add','addSpell','addResources']],
     ['Правка', 'big', ['duplicate','delete']],
     ['Ресурсы', 'big', ['addSpellRow','addExtraRow','shortRest','longRest']],
     ['Закрепление', 'big', ['lock','unlockPage']],

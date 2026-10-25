@@ -1836,5 +1836,79 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': resources — rows from typed boxes, spend/give back, +/− boxes, names, rests, new box and rows')
 
+    # 31. Spell reference (3.11 beta.19): «Заклинание…» loads library/spells.json from the site
+    #     (here: routed); without the site the dialog says why. Search, circle, «Моя СЛ» and
+    #     ticks make cards in one undo step: badge = circle, «1 круг · 60 фт.», the summary with
+    #     the DC, the full text inside the card; «📖» shows it, does not drag, never prints.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    online={'on':False}
+    def serve_spells(route):
+        if not online['on']: return route.abort()
+        name=route.request.url.split('/library/')[1].split('?')[0]
+        route.fulfill(status=200,content_type='application/json',body=(root/'library'/name).read_text(encoding='utf-8'),headers={'Access-Control-Allow-Origin':'*'})
+    context.route('https://valir-song.github.io/dnd-editor/library/**',serve_spells)
+    page=open_editor(context)
+    page.evaluate("localStorage.removeItem('dnd-card-editor-spell-dc')")
+    before=page.locator('.el').count()
+    page.locator('[data-tab="cards"]').click()
+    page.locator('#addSpell').click()
+    page.wait_for_selector('#spellDialog[open] .layouts-empty')
+    assert 'интернет' in page.locator('#spellDialog .layouts-empty').inner_text()
+    online['on']=True
+    page.locator('#spellDialog').get_by_role('button',name='Попробовать ещё раз').click()
+    page.wait_for_selector('#spellDialog li[data-spell]')
+    assert page.locator('#spellDialog li[data-spell]').count()==130
+    assert page.locator('.spell-insert').is_disabled()
+    page.fill('.spell-search','шепот')
+    page.wait_for_function("document.querySelectorAll('#spellDialog li[data-spell]').length===1")
+    page.fill('.spell-dc','14')
+    whisper=page.locator('#spellDialog li[data-spell="dissonant-whispers"]')
+    assert 'Мудрость СЛ 14.' in whisper.inner_text() and '1 круг · 60 фт.' in whisper.inner_text()
+    whisper.locator('input').check()
+    # A tick survives a new search; the circle filter narrows the list.
+    page.fill('.spell-search','')
+    page.select_option('.spell-level','0')
+    page.wait_for_function("document.querySelectorAll('#spellDialog li[data-spell]').length===10")
+    page.locator('#spellDialog li[data-spell="vicious-mockery"] input').check()
+    assert page.locator('.spell-insert').inner_text()=='Вставить (2)'
+    page.locator('.spell-insert').click()
+    page.wait_for_function("!document.querySelector('#spellDialog').open")
+    page.wait_for_function('document.querySelectorAll(".el.card .spell-info").length===2')
+    wait_saved(page)
+    cards=[item for item in saved_layout(page) if item.get('spellId')]
+    assert [c['spellId'] for c in cards]==['vicious-mockery','dissonant-whispers'],cards
+    whisper_card=cards[1]
+    assert whisper_card['title']=='Диссонирующий шёпот' and whisper_card['level']=='1' and whisper_card['meta']=='1 круг · 60 фт.',whisper_card
+    assert whisper_card['detail'].startswith('Мудрость СЛ 14. 3к6'),whisper_card['detail']
+    assert 'Ячейкой выше' in whisper_card['spellText'] and cards[0]['level']=='0'
+    assert page.locator('.el.selected').count()==2,'the new cards are selected'
+    # «📖»: the full text, without moving the card.
+    node=page.locator('.el[data-id="'+whisper_card['id']+'"]')
+    left=node.evaluate('e=>e.style.left')
+    node.locator('.spell-info').click()
+    page.wait_for_selector('#spellInfoDialog[open]')
+    info=page.locator('#spellInfoDialog').inner_text()
+    assert 'Диссонирующий шёпот — 1-й круг, очарование' in info and 'Время:' in info and 'CC-BY 4.0' in info,info
+    assert page.locator('#spellInfoDialog b').count()>=4,'bold labels'
+    page.keyboard.press('Escape')
+    page.wait_for_function("!document.querySelector('#spellInfoDialog').open")
+    assert node.evaluate('e=>e.style.left')==left
+    # The DC is remembered for the next time; the reference is loaded once.
+    page.locator('#addSpell').click()
+    page.wait_for_selector('#spellDialog li[data-spell]')
+    assert page.locator('.spell-dc').input_value()=='14'
+    page.locator('#spellDialog').get_by_role('button',name='Закрыть').click()
+    # Print: no «📖»; one Ctrl+Z takes both cards back.
+    page.emulate_media(media='print')
+    assert page.evaluate("[...document.querySelectorAll('.spell-info')].every(x=>getComputedStyle(x).display==='none')")
+    page.emulate_media(media='screen')
+    page.locator('#page1').click(position={'x':5,'y':5})
+    page.keyboard.press('Control+z')
+    page.wait_for_function('n=>document.querySelectorAll(".el").length===n',arg=before)
+    assert not page.errors,page.errors
+    page.wait_for_function("document.documentElement.dataset.saveState!=='saving'")
+    context.close()
+    print('PASS '+engine+': spell reference — load from the site, search, circle, «Моя СЛ», cards in one step, «📖» full text')
+
     browser.close()
 print('All regression checks passed for '+engine)
