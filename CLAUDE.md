@@ -48,7 +48,7 @@
 | `index.html` | разметка панели и двух страниц; иконка `<link rel="icon">` — SVG кубика d20 в `data:` (файл остаётся одним); `__STARTER_DATA__` → стартовый макет при сборке; `<meta name="editor-version">` |
 | `src/starter-layout.json` | стартовый макет (28 объектов) |
 | `src/editor.js` | состояние `items`, фоновая запись и предупреждения о макете, создание store, связывание модулей |
-| `src/editor/startup.js` | какой макет открыть при запуске: перенос сохранения 3.2–3.8, своя запись или макет файла, `checkSaved`, ключи `dnd-card-editor-v3*` |
+| `src/editor/startup.js` | какой макет открыть при запуске: перенос сохранения 3.2–3.8, своя запись или макет файла, `checkSaved`/`savedData`, запись из более новой версии (`tooNew`), ключи `dnd-card-editor-v3*` |
 | `src/editor/render.js` | отрисовка по `id`: `buildElement`, `patchGeometry`, `draw`, `markRendered`; вызывает её только store |
 | `src/editor/store.js` | **«секретарь»: единственный путь изменения макета** (см. ниже) |
 | `src/editor/history.js` | отмена/повтор на снимках-строках; картинки в пуле по одному разу |
@@ -59,7 +59,7 @@
 | `removeObjects` (editor.js) | единый путь удаления (Delete, «Удалить», Ctrl+X): закреплённые остаются выделенными, предупреждение `locked` с «Открепить» |
 | `src/editor/rich-text.js` | Tiptap для всех текстовых полей и общая панель текста |
 | `src/editor/images.js` | сжатие картинок (1600 px, JPEG 0.85, прозрачные — WebP/PNG) |
-| `src/editor/layout.js` | `normalizeLayout`: проверка и починка макета (импорт, старт, тесты) |
+| `src/editor/layout.js` | `normalizeLayout`: проверка, миграции (`MIGRATIONS`, `FORMAT_VERSION`) и починка макета (импорт, старт, буфер, тесты); `wrapLayout` — JSON-файл с номером формата |
 | `src/editor/storage.js` | хранение: IndexedDB или запасной localStorage, фоновая запись (`createSaver`) |
 | `src/editor/freshness.js` | какой макет открыть (`chooseLayout`), свежее — файл или своя запись, имена файлов |
 | `src/editor/layouts-dialog.js` | окно «Мои макеты» |
@@ -78,9 +78,9 @@
 | `src/editor/toolbar-tabs.js` | панель-лента: вкладки в верхней тёмной строке, под ними группы (`GROUPS`: вкладка → `[название, 'big'|'rows', id, подсказка]`); кнопки получают иконку и `<span class="rb-label">`. Переименовывать кнопку только через `setLabel` (dom.js), иначе пропадёт иконка |
 | `src/editor/icons.js` | линейные SVG-иконки панели по id кнопки (в коде, чтобы файл оставался одним) |
 | `src/editor/notice.js` | жёлтые предупреждения под панелью |
-| `src/editor/dom.js` | `target(event)` для проверки типов |
-| `src/types/*.d.ts` | типы: `Item`, `Store`, `Deps`, `CommitOptions`; геометрия (`Box`, `Point`, `Dir`, `Lines`); DOM-поиск как поля ввода |
-| `tsconfig.strict.json` | строгий режим TypeScript для модулей из списка `include`; новый модуль — сразу туда |
+| `src/editor/dom.js` | помощники для типов: `target(event)`, `entries` (ключи записи без расширения до string), `errorText` (что бы ни бросили); `setLabel`, `downloadFile` |
+| `src/types/*.d.ts` | типы: `Item`, `TextField`, `NewItem`, `Store`, `Editor` (помощники editor.js) и `Deps<…>`, `CommitOptions`; геометрия (`Box`, `Point`, `Dir`, `Lines`); DOM-поиск как поля ввода |
+| `tsconfig.json` | TypeScript по всему `src/` в строгом режиме (`strict`, с 3.11.0 beta.13); Node-тест не даёт его выключить или обойти (`@ts-ignore`, `@type {any}`) |
 | `tests/*.test.mjs` | Node-тесты (`npm test`) |
 | `tests/*_browser_smoke.py` | Playwright-наборы по собранному `dist/index.html` |
 | `tests/smoke.md` | ручной контрольный список перед релизом |
@@ -96,6 +96,13 @@
 - Картинки — `data:` URL прямо в объекте (`src` у `image`, `bgImage` у `card`).
 - Формат совместим с 3.2: старые макеты импортируются как есть. **Ломать совместимость нельзя**;
   если нужно новое поле — делать его необязательным со значением по умолчанию.
+- **Версия формата** (с 3.11.0 beta.13, `FORMAT_VERSION`=2 в `layout.js`): JSON-файл — `{format, formatVersion, name,
+  editor, savedAt, items}` (`wrapLayout`), запись браузера — поле `formatVersion`, скачанный HTML — `#initial[data-format-version]`,
+  буфер — `formatVersion` рядом с `version` (версия обёртки буфера). Голый массив и запись без поля — формат 1.
+  `normalizeLayout` принимает оба вида, гонит объекты через `MIGRATIONS[n]` (n→n+1, на копиях, `migrated` = что-то
+  поменялось → запись при старте) и только потом проверяет. 1→2 — перенос значка 3.4 (81.5/1.1), раньше жил в startup.js.
+  Новый смысл поля = шаг в `MIGRATIONS` + `FORMAT_VERSION`+1 + Node-тест. Формат новее известного: файл не открывается,
+  запись браузера не открывается **и не перезаписывается** (startup берёт новый номер макета, предупреждение `tooNew`).
 - `normalizeLayout` отвергает неизвестный `kind`, страницу вне 1..`PAGE_COUNT` (=2), нечисловую
   геометрию; чинит пропущенные `id/page/z` и дубликаты `id`.
 
@@ -146,7 +153,8 @@
 - `store.replace` + `store.render` — без шага (откат импорта, восстановление при отмене).
 - Тест в `source.test.mjs` запрещает модулям (кроме `store`, `history`, `render`) вызывать
   `persist/draw/setItems/markRendered/saveToStorage` и `history.commit` напрямую. Новые модули получают `store` через параметры и описывают их
-  JSDoc-типом `import('../types/layout').Deps`.
+  JSDoc-типом `import('../types/layout').Deps<'current' | 'getSelectionIds'>` (только нужные помощники из интерфейса
+  `Editor`; новый помощник — сначала в `Editor`).
 
 ### Отрисовка (инкрементальная, `render.js`)
 - `rendered: Map(id → {node, snap})`, `snap = JSON.stringify(item)`.
@@ -194,8 +202,8 @@
 ## Команды
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
-npm test                     # Node-тесты (сейчас 102)
-npm run typecheck            # TypeScript по JS: обычный tsconfig.json + строгий tsconfig.strict.json
+npm test                     # Node-тесты (сейчас 109)
+npm run typecheck            # TypeScript по всему JS в строгом режиме (tsconfig.json)
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html
 python3 tests/run_e2e.py     # все 5 браузерных наборов в Chromium (~4–5 мин)
@@ -203,7 +211,7 @@ python3 tests/run_e2e.py firefox   # то же в Firefox (~3 мин; стави
 CPU_THROTTLE=4 python3 tests/run_e2e.py   # то же с замедленным в 4 раза процессором (~6–8 мин)
 python3 tests/regression_browser_smoke.py # один набор (нужен свежий npm run build)
 ```
-Браузерные наборы: `regression` (26 разделов, 17–26 — закрепление, стрелки и сетка, выравнивание, умная привязка, темы, кружочки, Ctrl+S в файл, фон листа, рамки, лента панели; разделы про хранение — для обоих хранилищ: импорт, повреждённое сохранение, перенос 3.8, 7 МБ, ошибка записи, экспорт, печать,
+Браузерные наборы: `regression` (27 разделов, 17–27 — закрепление, стрелки и сетка, выравнивание, умная привязка, темы, кружочки, Ctrl+S в файл, фон листа, рамки, лента панели, версия формата; разделы про хранение — для обоих хранилищ: импорт, повреждённое сохранение, перенос 3.8, 7 МБ, ошибка записи, экспорт, печать,
 ручки при прокрутке, свежесть, перетаскивание одним движением, привязка, слой жестов и касания,
 инкрементальная отрисовка, картинки, своё сохранение для каждого макета, свободное место для новых объектов, действия с группой, копирование и вставка), `canvas` (жесты листа), `nested` (текстовые рамки карточки),
 `tiptap` (текст и форматирование).
@@ -310,10 +318,12 @@ PNG в репозитории нет специально: шрифты здес
 - События буфера (copy/cut/paste) браузер шлёт туда, где последний раз было выделение текста, даже если
   фокус уже на листе: ProseMirror вставлял туда JSON объектов и вырезал свой текст. Поэтому clipboard.js
   слушает в фазе захвата и, забирая событие, вызывает `stopImmediatePropagation`.
-- Строгие модули (`tsconfig.strict.json`): параметры описывать JSDoc (`@param`), пустые массивы и
+- Строгий режим (весь код с 3.11.0 beta.13): параметры описывать JSDoc (`@param`), пустые массивы и
   `Map`/`Set` — через `/** @type */`; `null` проверять явно, а не `?.` с последующим обращением.
   Строгий режим уже нашёл: `canvas.getContext('2d')` может вернуть `null` (теперь картинка остаётся
-  несжатой, а не падает); перетаскивание значка карточки, которой уже нет (3.11.0 beta.6).
+  несжатой, а не падает); перетаскивание значка карточки, которой уже нет (3.11.0 beta.6). Приёмы: `.filter(/** @returns {x is Item} */ x => !!x)`
+  вместо `filter(Boolean)`; ключи полей — кортежем `/** @type {const} */ ([...])`; `item[htmlKey(field)]` (rich-text.js)
+  для `titleHtml` и т. п.; `catch (err)` — `errorText(err)`.
 
 ## Стиль кода
 - Подражать окружающему коду. Старые модули (`editor.js`, `render.js`, `objects.js`, `files.js`, `layers.js` …) —

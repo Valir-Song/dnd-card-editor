@@ -3,8 +3,9 @@ import type { Item } from './layout';
 
 // What is read back: `items` is unchecked (may be damaged or, from a broken
 // localStorage entry, the raw text) until normalizeLayout accepts it.
-export interface StoredLayout { id: string; name: string; savedAt: string; items: unknown }
-export interface LayoutRecord { id: string; name: string; savedAt: string; items: Item[] }
+// `formatVersion` (see src/editor/layout.js) is missing in records written before 3.11.0 beta.13 (format 1).
+export interface StoredLayout { id: string; name: string; savedAt: string; formatVersion?: unknown; items: unknown }
+export interface LayoutRecord { id: string; name: string; savedAt: string; formatVersion?: number; items: Item[] }
 // Small per-layout summary, so the list of saves loads without the pictures.
 export interface LayoutMeta { id: string; name: string; savedAt: string; count: number; bytes: number }
 

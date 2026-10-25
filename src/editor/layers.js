@@ -19,7 +19,7 @@ export function reorderLayers(order,chosen,mode){
   else for(let i=1;i<next.length;i++)if(chosen.has(next[i])&&!chosen.has(next[i-1]))[next[i],next[i-1]]=[next[i-1],next[i]];
   return next;
 }
-/** @param {import('../types/layout').Deps & {current: () => import('../types/layout').Item | undefined, getSelectionIds: () => string[]}} deps */
+/** @param {import('../types/layout').Deps<'current' | 'getSelected' | 'getSelectionIds' | 'select'>} deps */
 export function setupLayers({ current, store, getSelected, getSelectionIds, select }) {
 // The whole selection moves; a lone selected text frame still means its card.
 /** @param {'front' | 'back' | 'forward' | 'backward'} mode */

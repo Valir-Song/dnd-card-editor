@@ -11,7 +11,7 @@ import { setupFiles } from './editor/files.js';
 import { setupFileSave } from './editor/save-file.js';
 import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
-import { normalizeLayout } from './editor/layout.js';
+import { normalizeLayout, wrapLayout, FORMAT_VERSION } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
 import { formatStamp, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
@@ -22,40 +22,47 @@ import { setupAlign } from './editor/align.js';
 import { setupThemes } from './editor/themes.js';
 import { setupSheet, isSheet } from './editor/sheet.js';
 import { readCompressed } from './editor/images.js';
+import { errorText } from './editor/dom.js';
 import { setupBorders } from './editor/borders.js';
 import { setupBadges } from './editor/badges.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
 import { openStorage, createSaver } from './editor/storage.js';
-import { loadStartupLayout, checkSaved, newLayoutId, RECOVERY_KEY } from './editor/startup.js';
+import { loadStartupLayout, checkSaved, savedData, newLayoutId, RECOVERY_KEY } from './editor/startup.js';
 import { createRenderer } from './editor/render.js';
 
 // Saves live in IndexedDB (see storage.js), one record per layout; startup.js
 // picks the one this file opens with.
 const notices=createNotices(document.getElementById('notices'));
 const initialNode=document.getElementById('initial');
-const embedded=normalizeLayout(JSON.parse(initialNode.textContent)).items||[];
+// Exports since 3.11.0 beta.13 name their format version; the template and older exports are format 1.
+const embeddedFormat=Number(initialNode.dataset.formatVersion)||1;
+const embeddedLayout=normalizeLayout({formatVersion:embeddedFormat,items:JSON.parse(initialNode.textContent||'[]')});
+const embedded=embeddedLayout.items||[];
 const embeddedAt=initialNode.dataset.savedAt||null;
 // ?storage=local forces the localStorage fallback (tests cover both paths).
 const storage=await openStorage({prefer:new URLSearchParams(location.search).get('storage')});
 document.documentElement.dataset.storage=storage.kind;
-const startup=await loadStartupLayout({storage,initialNode,embedded,embeddedAt});
-const {choice,saves,saved,storedAt,freshness}=startup;
+const startup=await loadStartupLayout({storage,initialNode,embedded,embeddedAt,embeddedMigrated:embeddedLayout.migrated});
+const {choice,saves,saved,storedAt,freshness,tooNew}=startup;
 /** @type {import('./types/layout').Item[]} */
 let items=startup.items;
 let {damagedSave,saveAtStart}=startup;
 // The layout this file stands for; «Мои макеты» can switch the editor to another one.
-const fileLayoutId=choice.layoutId;
+const fileLayoutId=startup.layoutId;
 let layoutId=fileLayoutId,layoutName=startup.layoutName;
-let selected=null, activePage=1;
+/** @typedef {import('./types/layout').Item} Item */
+/** @type {string | null} */
+let selected=null;
+let activePage=1;
 
 const pages=[document.getElementById('page1'),document.getElementById('page2')];
-const mm=v=>v+'mm',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const mm=(/** @type {number} */ v)=>v+'mm';
 // Autosave runs in the background; the indicator next to undo/redo shows its state.
 const saveIndicator=document.getElementById('saveState');
 saveIndicator.title=storage.kind==='indexeddb'?'Макет сохраняется в базе браузера (IndexedDB)':storage.kind==='localstorage'?'Макет сохраняется в localStorage браузера (до ~5 МБ на все файлы)':'Браузер не даёт этой странице сохранять: скачивайте HTML';
-const saver=createSaver({backend:storage,describe:()=>({id:layoutId,name:layoutName,items}),onState:(state,error)=>{
+const saver=createSaver({backend:storage,describe:()=>({id:layoutId,name:layoutName,formatVersion:FORMAT_VERSION,items}),onState:(state,error)=>{
   document.documentElement.dataset.saveState=state;
   saveIndicator.dataset.state=state;
   saveIndicator.textContent=state==='saved'?'✓ Сохранено':state==='saving'?'Сохраняю…':'⚠ Не сохранено';
@@ -72,12 +79,18 @@ document.documentElement.dataset.saveState=saver.state;
 function saveToStorage(){saver.request();return true}
 // Closing the tab while a write is running (or after one failed) would lose edits.
 window.addEventListener('beforeunload',event=>{if(saver.state!=='saved'){event.preventDefault();event.returnValue=''}});
-function downloadJSON(name,data){
+// A layout file names its format version (see layout.js), so a later editor knows how to read it.
+const editorVersion=document.querySelector('meta[name="editor-version"]')?.getAttribute('content')||'';
+/** @param {string} name @param {import('./types/layout').Item[]} layout @param {string} [title] */
+function downloadJSON(name,layout,title=layoutName){downloadData(name,wrapLayout(layout,{name:title,editor:editorVersion,savedAt:new Date().toISOString()}))}
+/** @param {string} name @param {unknown} data */
+function downloadData(name,data){
   const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   const a=document.createElement('a');a.href=url;a.download=name;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
 // Replace the whole layout as one undoable step (Ctrl+Z brings the old one back).
+/** @param {Item[]} next */
 function switchLayout(next){
   clearSelection();store.change(()=>structuredClone(next));syncImageTools();syncBgTools();
   notices.hide('freshness');
@@ -119,7 +132,7 @@ async function openSaved(id){
   await saver.flush();
   let record=null;
   try{record=await storage.load(id)}catch(e){console.warn('Could not read the saved layout',e)}
-  const result=record?checkSaved(record.items):{items:null,errors:['Сохранение не найдено.']};
+  const result=record?checkSaved(savedData(record)):{items:null,errors:['Сохранение не найдено.']};
   if(!record||!result.items){alert('Этот макет не открывается:\n'+result.errors.join('\n'));return}
   // Like opening another file: its own undo history starts here.
   layoutId=id;layoutName=record.name||layoutTitle(result.items);syncLayoutIdentity();
@@ -129,7 +142,10 @@ async function openSaved(id){
 /** @param {string} id */
 async function downloadSaved(id){
   const record=await storage.load(id).catch(()=>null);
-  if(record)downloadJSON(fileBase(record.name||'')+'.json',record.items);
+  if(!record)return;
+  // A record this editor cannot read (damaged, or from a newer editor) is downloaded as it is.
+  const {items:layout}=checkSaved(savedData(record));
+  if(layout)downloadJSON(fileBase(record.name||'')+'.json',layout,record.name);else downloadData(fileBase(record.name||'')+'.json',savedData(record));
 }
 const layoutsDialog=setupLayoutsDialog({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('layoutsDialog'))),
   storage,currentId:()=>layoutId,open:openSaved,download:downloadSaved});
@@ -144,13 +160,19 @@ function reportLayoutChoice(){
     {label:'Мои макеты',onClick:()=>layoutsDialog.show()}
   ]);
 }
+function reportTooNew(){
+  if(!tooNew)return;
+  notices.show('tooNew','Сохранённый в браузере макет «'+(tooNew.name||'Макет без названия')+'» записан более новой версией редактора (формат '+tooNew.version+'), и этот редактор его не откроет. Он не тронут: откройте его в новой версии. Сейчас открыт макет из этого файла, он сохранится отдельно.',[
+    {label:'Мои макеты',onClick:()=>layoutsDialog.show()}
+  ]);
+}
 function reportDamagedSave(){
   if(!damagedSave)return;
   try{localStorage.setItem(RECOVERY_KEY,damagedSave.raw)}catch(e){console.warn('Could not keep a copy of the damaged layout (it can still be downloaded from the notice)',e)}
   console.warn('Damaged saved layout replaced by the template',damagedSave.errors);
   notices.show('damaged','Сохранённый в браузере макет повреждён и не открывается, поэтому загружен исходный шаблон. Скачайте копию повреждённых данных, прежде чем вносить изменения: при следующем сохранении она будет заменена.',[
     {label:'Скачать повреждённый JSON',onClick:()=>{
-      const url=URL.createObjectURL(new Blob([damagedSave.raw],{type:'application/json'}));
+      const url=URL.createObjectURL(new Blob([damagedSave?.raw??''],{type:'application/json'}));
       const a=document.createElement('a');a.href=url;a.download='Ричард_макет_повреждённый.json';a.click();
       setTimeout(()=>URL.revokeObjectURL(url),3000);
     }}
@@ -172,6 +194,7 @@ const history=createHistory({read:()=>items,restore:restored=>{
 }});
 // Every layout edit goes through the store: redraw, undo step, save — see store.js.
 const store=createStore({get:()=>items,set:value=>{items=value},history,save:saveToStorage,render:()=>renderer.draw(),mark:item=>renderer.markRendered(item)});
+/** @param {'undo' | 'redo'} direction */
 function navigateHistory(direction){
   // Edits are already saved on every input event; no pending DOM changes.
   return direction==='undo'?history.undo():history.redo();
@@ -199,16 +222,19 @@ let lock=null;
 /** @type {ReturnType<typeof setupAlign> | null} */
 let align=null;
 /** @type {ReturnType<typeof setupThemes> | null} */
-let themes=null,sheet=null;
+let themes=null;
+/** @type {ReturnType<typeof setupSheet> | null} */
+let sheet=null;
 /** @type {ReturnType<typeof setupBorders> | null} */
 let borders=null;
 /** @type {ReturnType<typeof setupBadges> | null} */
 let badges=null;
+/** @type {ReturnType<typeof createInnerCanvas> | null} */
 let innerCanvas=null;
 const rich=createRichText({
-  current,select,store,
+  select,store,
   selectText:(element,field)=>{
-    const item=store.find(element?.dataset.id);
+    const item=store.find(element.dataset.id||'');
     if(item?.kind==='textbox')select(element);
     else if(item)innerCanvas?.selectField(item.id,field);
   }
@@ -234,7 +260,7 @@ align=setupAlign({canvas,innerCanvas});
 {
   const toggle=document.getElementById('snapToggle'),grid=document.getElementById('snapGrid');
   // The grid is drawn faintly on the sheets while it is on (screen only, see styles.css).
-  const stage=document.querySelector('.stage');
+  const stage=/** @type {HTMLElement} */ (document.querySelector('.stage'));
   const show=()=>{const s=snapping.get();toggle.checked=s.enabled;grid.value=String(s.gridMm);grid.disabled=!s.enabled;
     if(s.enabled&&s.gridMm>0)stage.dataset.grid=String(s.gridMm);else delete stage.dataset.grid};
   toggle.onchange=()=>snapping.set({enabled:toggle.checked});
@@ -244,17 +270,20 @@ align=setupAlign({canvas,innerCanvas});
 
 const renderer=createRenderer({pages,getItems:()=>items,store,rich,
   startDrag:(event,id)=>canvas.startDrag(event,id),startBadgeDrag,
-  afterDraw:()=>{canvas.afterDraw();innerCanvas.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync()}});
-function select(e){canvas.setSelection(e?[e.dataset.id]:[],e?.dataset.id||null)}
+  afterDraw:()=>{canvas.afterDraw();innerCanvas?.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync()}});
+/** @param {HTMLElement | null} e */
+function select(e){canvas.setSelection(e?[e.dataset.id||'']:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
 // object, or the middle of the part of the active page that is on screen.
+/** @param {{w: number, h: number}} size */
 function visibleMiddle(size){
   const page=pages[activePage-1],r=page.getBoundingClientRect(),k=210/r.width;
   const top=Math.max(r.top,document.querySelector('.toolbar')?.getBoundingClientRect().bottom||0),bottom=Math.min(r.bottom,innerHeight);
   const y=bottom>top?((top+bottom)/2-r.top)*k:148.5;
-  const half=v=>Math.round(v*2)/2; // tidy numbers in the layout
+  const half=(/** @type {number} */ v)=>Math.round(v*2)/2; // tidy numbers in the layout
   return {x:half(105-size.w/2),y:half(y-size.h/2)};
 }
+/** @param {{w: number, h: number}} size @param {{x: number, y: number}} [wish] */
 function placeNew(size,wish){
   const anchor=current();
   wish||=anchor&&anchor.page===activePage?{x:anchor.x,y:anchor.y+anchor.h+2}:visibleMiddle(size);
@@ -265,24 +294,25 @@ const newId=()=>'e'+Date.now()+String(++idSeq).padStart(3,'0');
 // Add objects to the active page as one undoable step, keeping their layout among
 // themselves: the group goes to the free spot nearest the wish, on top of the
 // page, and becomes the selection.
-/** @param {object[]} list @param {{x: number, y: number}} [wish] */
+/** @param {import('./types/layout').NewItem[]} list @param {{x: number, y: number}} [wish] @returns {Item[]} */
 function addObjects(list,wish){
   // Copies start unlocked, so they can be put in place.
   const sources=list.map(o=>{const c={x:0,y:0,...structuredClone(o)};delete c.locked;return c}).sort((a,b)=>(a.z||0)-(b.z||0));
   const box=bbox(sources),spot=placeNew({w:box.w,h:box.h},wish);
   let z=Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0));
-  const added=sources.map(o=>({...o,x:o.x-box.x+spot.x,y:o.y-box.y+spot.y,z:++z,id:newId(),page:activePage}));
+  const page=/** @type {1 | 2} */ (activePage);
+  const added=sources.map(o=>({...o,x:o.x-box.x+spot.x,y:o.y-box.y+spot.y,z:++z,id:newId(),page}));
   store.change(items=>{items.push(...added)});
   canvas.setSelection(added.map(o=>o.id),added[0].id);
   return added;
 }
-/** @param {object} o @param {{x: number, y: number}} [wish] */
+/** @param {import('./types/layout').NewItem} o @param {{x: number, y: number}} [wish] */
 function addObject(o,wish){addObjects([o],wish)}
 // Delete objects as one undo step. Locked ones stay, selected, with a notice
 // that offers to unlock them (Delete, «Удалить» and cut all come here).
 /** @param {string[]} ids */
 function removeObjects(ids){
-  const list=ids.map(id=>store.find(id)).filter(Boolean),kept=list.filter(isLocked).map(x=>x.id);
+  const list=ids.map(id=>store.find(id)).filter(/** @returns {x is Item} */ x=>!!x),kept=list.filter(isLocked).map(x=>x.id);
   const gone=new Set(list.filter(x=>!isLocked(x)).map(x=>x.id));
   if(gone.size){canvas.setSelection(kept);store.change(items=>items.filter(x=>!gone.has(x.id)));syncImageTools();syncBgTools()}
   if(kept.length)notices.show('locked',(kept.length>1?'Закреплённые объекты не удалены':'Закреплённый объект не удалён')+': закрепление защищает от случайного удаления и сдвига.',[
@@ -307,13 +337,14 @@ pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p){activ
 try{renderer.draw()}catch(error){
   // Valid-looking data can still fail to render; recover the same way.
   if(!saved||freshness?.source!=='browser'||damagedSave)throw error;
-  damagedSave={raw:JSON.stringify(saved.items),errors:[error.message]};saveAtStart=false;
+  damagedSave={raw:JSON.stringify(saved.items),errors:[errorText(error)]};saveAtStart=false;
   items=structuredClone(embedded);selected=null;
   history.reset();renderer.resetRender();renderer.draw();
 }
 setupToolbarTabs();
 syncLayoutIdentity();
 reportDamagedSave();
+reportTooNew();
 reportFreshness();
 reportLayoutChoice();
 saveIndicator.textContent=storage.kind==='none'?'⚠ Без сохранения':'✓ Сохранено';saveIndicator.dataset.state=storage.kind==='none'?'error':'saved';

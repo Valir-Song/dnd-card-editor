@@ -164,7 +164,7 @@ function noneBackend() {
  * Writes the current layout in the background: requests made while a write is
  * running collapse into one more write of the newest state, so typing never
  * queues dozens of copies of a layout full of pictures.
- * @param {{backend: Backend, describe: () => {id: string, name: string, items: import('../types/layout').Item[]},
+ * @param {{backend: Backend, describe: () => {id: string, name: string, formatVersion?: number, items: import('../types/layout').Item[]},
  *   onState?: (state: SaveState, error?: unknown) => void, now?: () => string}} options
  * @returns {import('../types/storage').Saver}
  */
