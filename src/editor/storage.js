@@ -5,15 +5,17 @@
 // windows). Each layout is one record {id, name, savedAt, items}; a small
 // `meta` entry per layout lets the list of saves load without the pictures.
 
+import { STORAGE_SUFFIX } from './channel.js';
+
 /** @typedef {import('../types/storage').Backend} Backend */
 /** @typedef {import('../types/storage').LayoutRecord} LayoutRecord */
 /** @typedef {import('../types/storage').LayoutMeta} LayoutMeta */
 /** @typedef {import('../types/storage').StoredLayout} StoredLayout */
 /** @typedef {import('../types/storage').SaveState} SaveState */
 
-export const DB_NAME = 'dnd-card-editor';
-export const LS_PREFIX = 'dnd-card-editor-layout:';
-export const LS_INDEX = 'dnd-card-editor-layouts';
+export const DB_NAME = 'dnd-card-editor' + STORAGE_SUFFIX;
+export const LS_PREFIX = 'dnd-card-editor' + STORAGE_SUFFIX + '-layout:';
+export const LS_INDEX = 'dnd-card-editor' + STORAGE_SUFFIX + '-layouts';
 
 /**
  * Pick the best storage this page can use.

@@ -1,7 +1,7 @@
 {
   "name": "dnd-card-editor",
   "private": true,
-  "version": "3.11.0-beta.13",
+  "version": "3.11.0-beta.14",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -12,7 +12,8 @@
     "test:e2e": "npm run build && python tests/run_e2e.py chromium",
     "check:build": "node tests/validate-build.mjs",
     "standalone": "npm run build && npm run check:build && node -e \"require('fs').copyFileSync('dist/index.html','DND_Card_Editor_standalone.html')\"",
-    "test:e2e:firefox": "npm run build && python tests/run_e2e.py firefox"
+    "test:e2e:firefox": "npm run build && python tests/run_e2e.py firefox",
+    "site": "npm run build && npm run check:build && node scripts/build-site.mjs stable && node scripts/build-site.mjs beta"
   },
   "devDependencies": {
     "typescript": "5.6.3",

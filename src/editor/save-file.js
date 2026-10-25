@@ -5,6 +5,7 @@
 // The chosen file is remembered per layout in a small IndexedDB of its own, so
 // after the editor is reopened the browser only asks for permission again.
 
+import { STORAGE_SUFFIX } from './channel.js';
 import { downloadFile } from './dom.js';
 import { fileBase } from './freshness.js';
 
@@ -125,7 +126,7 @@ export function openHandleStore() {
   let opening = null;
   const db = () => opening ??= new Promise(resolve => {
     try {
-      const request = indexedDB.open('dnd-card-editor-files', 1);
+      const request = indexedDB.open('dnd-card-editor' + STORAGE_SUFFIX + '-files', 1);
       request.onupgradeneeded = () => request.result.createObjectStore('handles');
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => resolve(null);
