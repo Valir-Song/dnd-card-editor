@@ -1513,16 +1513,26 @@ with sync_playwright() as p:
     # Renaming a button (lock) keeps its icon.
     page.locator('[data-tab="cards"]').click(); page.locator('#lock').click()
     assert page.locator('#lock .rb-label').inner_text()=='Открепить' and page.locator('#lock svg.rb-ico').count()==1
-    # The snapping pill is the checkbox; the help «?» opens the hints.
+    # The snapping pill is the checkbox.
     page.locator('#snapTools label').first.click()
     assert not page.locator('#snapToggle').is_checked(),'A click on the magnet pill turns snapping off'
     page.locator('#snapTools label').first.click()
     assert page.locator('#snapToggle').is_checked()
-    page.locator('.toolbar-help summary').click()
-    assert page.locator('.toolbar-help .hint').is_visible()
+    # «Справка» (beta.16): the guide is a dialog of short sections, not a paragraph under the pages.
+    assert page.locator('.stage .help').count()==0,'The long paragraph under the pages is gone'
+    page.locator('#help').click()
+    assert page.locator('#helpDialog').is_visible()
+    titles=page.eval_on_selector_all('#helpDialog h3','e=>e.map(x=>x.textContent)')
+    assert len(titles)>=8 and 'Клавиши' in titles,titles
+    page.keyboard.press('Escape')
+    page.wait_for_function("!document.getElementById('helpDialog').open")
+    page.keyboard.press('F1')
+    page.wait_for_function("document.getElementById('helpDialog').open")
+    page.locator('#helpClose').click()
+    page.wait_for_function("!document.getElementById('helpDialog').open")
     assert not page.errors,page.errors
     context.close()
-    print('PASS '+engine+': the ribbon keeps one height, icons and labels on every button, fits 1280 px')
+    print('PASS '+engine+': the ribbon keeps one height, icons and labels on every button, fits 1280 px, help dialog opens and closes')
 
     # 27. Layout format version (3.11 beta.13): the JSON file says {formatVersion, items}
     #     and reads back; an old bare array still opens and is moved to the current

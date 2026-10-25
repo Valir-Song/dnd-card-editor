@@ -57,7 +57,7 @@ const GROUPS = [
 ];
 // Small buttons shown by their icon only; the label stays for screen readers.
 const ICON_ONLY = new Set(['undo','redo','saveFileAs','bgRemove','resetImage','bold','italic','underline','strike','bulletList','orderedList','clearFormatting']);
-const TOP = ['undo','redo','saveFile','saveFileAs','saveState','fileState','snapTools'];
+const TOP = ['undo','redo','saveFile','saveFileAs','saveState','fileState','snapTools','help'];
 
 // Put the control's own text into one <span class="rb-label"> after its icon,
 // so code that renames a button (see setLabel in dom.js) keeps the icon.
@@ -101,7 +101,7 @@ export function setupToolbarTabs() {
   tablist.setAttribute('role', 'tablist'); tablist.setAttribute('aria-label', 'Разделы инструментов');
   top.append(identity, tablist);
   const history = document.createElement('div'); history.className = 'toolbar-history';
-  for (const id of ['undo','redo','saveFile','saveFileAs']) {
+  for (const id of ['undo','redo','saveFile','saveFileAs','help']) {
     const node = /** @type {HTMLElement} */ (nodes.get(id));
     decorate(node, id); node.classList.add('rb-top');
   }
@@ -112,6 +112,7 @@ export function setupToolbarTabs() {
   // Snapping and the grid: icon pills; the checkbox stays the real control.
   const snapTools = /** @type {HTMLElement} */ (nodes.get('snapTools'));
   snapTools.querySelectorAll('label').forEach((label, i) => { decorate(label, i ? 'grid' : 'snap'); label.classList.add('rb-icon-only'); });
+  history.append(/** @type {HTMLElement} */ (nodes.get('help')));
   top.append(history);
   const content = document.createElement('div'); content.className = 'toolbar-content';
   /** @type {HTMLButtonElement[]} */
@@ -149,15 +150,6 @@ export function setupToolbarTabs() {
       panel.append(section);
     }
     tablist.append(tab); content.append(panel); buttons.push(tab); panels.push(panel);
-  }
-  const hint = toolbar.querySelector('.hint');
-  if (hint) {
-    const help = document.createElement('details'); help.className = 'toolbar-help';
-    const summary = document.createElement('summary'); summary.title = 'Подсказки: горячие клавиши и жесты';
-    summary.setAttribute('aria-label', 'Подсказки');
-    const svg = icon('help');
-    if (svg) summary.append(svg);
-    help.append(summary, hint); history.append(help);
   }
   // Keep live multi-selection status when rebuilding the toolbar into tabs.
   const selectionCount = toolbar.querySelector('#selectionCount');
