@@ -414,3 +414,24 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 @media print{.el.card>.spell-info{display:none!important}}
 .spell-actions .layouts-close{margin:0;float:none;padding:7px 12px;font-size:14px}
 .spell-row .spell-en{font-weight:normal;color:#7a7186;font-size:12px}
+
+/* 4.1: sheet zoom. The stage is zoomed (CSS zoom); it grows to fit wide pages and
+   centres them only while they fit, so a zoomed page never hides off the left edge. */
+.stage{width:max-content;min-width:100%;align-items:safe center}
+/* Narrow windows keep the stage itself as the sideways scroller (3.5). */
+@media(max-width:900px){.stage{width:auto;min-width:0}}
+.toolbar{left:0}
+/* Zoom sits in the bottom-right corner like Word's status bar: the top bar has no room left. */
+.zoom-tools{position:fixed;right:14px;bottom:14px;z-index:190;display:flex;align-items:center;gap:1px;padding:3px;background:#29253aeb;border-radius:10px;box-shadow:0 4px 16px #0004;font:13px system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif}
+.zoom-tools button{height:30px;min-width:30px;padding:0 7px;border:0;background:transparent;color:#e9e3f3;border-radius:7px;font:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+.zoom-tools button:hover:not(:disabled){background:#ffffff1c;color:#fff}
+.zoom-tools button:disabled{opacity:.4;cursor:default}
+.zoom-tools #zoomOut,.zoom-tools #zoomIn{font-size:19px;line-height:1}
+.zoom-tools #zoomValue{min-width:54px;font-variant-numeric:tabular-nums}
+@media(max-width:650px){.zoom-tools .zoom-fit-label{display:none}}
+@media print{.zoom-tools{display:none!important}}
+/* Handles and drag bands keep their screen size whatever the zoom. */
+.gesture-handle{width:calc(10px / var(--zoom,1));height:calc(10px / var(--zoom,1));margin:calc(-5px / var(--zoom,1)) 0 0 calc(-5px / var(--zoom,1))}
+.gesture-edge.top{top:calc(-7px / var(--zoom,1));height:calc(6px / var(--zoom,1))}.gesture-edge.bottom{bottom:calc(-7px / var(--zoom,1));height:calc(6px / var(--zoom,1))}
+.gesture-edge.left{left:calc(-7px / var(--zoom,1));width:calc(6px / var(--zoom,1))}.gesture-edge.right{right:calc(-7px / var(--zoom,1));width:calc(6px / var(--zoom,1))}
+@media print{.stage{zoom:1!important;width:auto;min-width:0}}

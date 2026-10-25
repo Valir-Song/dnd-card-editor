@@ -1927,5 +1927,89 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': spell reference — load from the site, search, circle, «Моя СЛ», cards in one step, «📖» full text')
 
+
+    # 32. Sheet zoom (4.1): buttons in the corner, Ctrl+wheel keeps the point under the cursor,
+    #     Ctrl+0; drag, resize and handles measure millimetres at any zoom; text still takes
+    #     a click and keys; the zoom is remembered per browser, never printed or exported.
+    context=browser.new_context(viewport={'width':1280,'height':900},accept_downloads=True)
+    page=open_editor(context)
+    page.evaluate("localStorage.removeItem('dnd-card-editor-zoom')")
+    page.reload(); page.wait_for_selector('.el .tiptap-content')
+    if page.locator('.notice[data-notice="welcome"]').count(): page.locator('.notice[data-notice="welcome"] .notice-close').click()
+    zoom=lambda: int(page.evaluate('document.documentElement.dataset.zoom'))
+    width=lambda: page.locator('#page1').evaluate('e=>e.getBoundingClientRect().width')
+    assert zoom()==100 and page.locator('#zoomValue').inner_text()=='100 %'
+    base=width()
+    for _ in range(3): page.locator('#zoomIn').click()
+    assert zoom()==150 and abs(width()-base*1.5)<1,(zoom(),width(),base)
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),'150 % still fits 1280 px without a sideways scroll'
+    # Drag 60×30 screen px without snapping: the card moves 60×30 px of the zoomed page in mm.
+    card=page.locator('.page[data-page="1"] .el.card').first
+    card.scroll_into_view_if_needed()
+    card_id=card.get_attribute('data-id')
+    geometry=lambda: card.evaluate("e=>({x:parseFloat(e.style.left),y:parseFloat(e.style.top),w:parseFloat(e.style.width)})")
+    before=geometry()
+    box=card.bounding_box()
+    page.mouse.move(box['x']+6,box['y']+30); page.mouse.down(); page.keyboard.down('Alt')
+    page.mouse.move(box['x']+36,box['y']+45,steps=4); page.mouse.move(box['x']+66,box['y']+60,steps=4)
+    page.mouse.up(); page.keyboard.up('Alt')
+    after=geometry()
+    k=210/width()
+    assert abs(after['x']-before['x']-60*k)<0.4 and abs(after['y']-before['y']-30*k)<0.4,(before,after,k)
+    # Handles keep their screen size and sit on the card's corner.
+    assert handle_offset(page,card)<2
+    size=page.evaluate("""()=>{const h=[...document.querySelectorAll('.gesture-frame:not([hidden]) [data-dir="se"]')].map(n=>n.getBoundingClientRect()).find(r=>r.width>0);return h.width}""")
+    assert abs(size-10)<1,size
+    # Resize by the corner: 45 screen px wider.
+    h=page.locator('.gesture-frame:not([hidden]) [data-dir="se"]').first.bounding_box()
+    page.mouse.move(h['x']+h['width']/2,h['y']+h['height']/2); page.mouse.down(); page.keyboard.down('Alt')
+    page.mouse.move(h['x']+h['width']/2+45,h['y']+h['height']/2,steps=5); page.mouse.up(); page.keyboard.up('Alt')
+    resized=geometry()
+    assert abs(resized['w']-after['w']-45*k)<0.4,(after,resized,k)
+    # Ctrl+wheel: smaller, and the sheet point under the cursor stays under it (vertically:
+    # a page narrower than the window is centred, there is nothing to scroll sideways).
+    r=page.locator('#page1').bounding_box()
+    point=(r['x']+300,min(r['y']+r['height']-50,500))
+    mm=page.evaluate('([x,y])=>{const r=document.querySelector("#page1").getBoundingClientRect();return [(x-r.left)*210/r.width,(y-r.top)*210/r.width]}',list(point))
+    page.mouse.move(*point); page.keyboard.down('Control'); page.mouse.wheel(0,200); page.keyboard.up('Control')
+    page.wait_for_function('document.documentElement.dataset.zoom!=="150"')
+    page.evaluate("()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
+    assert zoom()<150
+    back=page.evaluate('([x,y])=>{const r=document.querySelector("#page1").getBoundingClientRect();return [r.left+x*r.width/210,r.top+y*r.width/210]}',mm)
+    assert abs(back[1]-point[1])<3,(point,back)
+    assert handle_offset(page,card)<2,'the frame follows the zoom'
+    # 50 %: the minus button stops; a click in text still edits it.
+    for _ in range(9):
+        if page.locator('#zoomOut').is_enabled(): page.locator('#zoomOut').click()
+    assert zoom()==50 and page.locator('#zoomOut').is_disabled()
+    title=page.locator('.page[data-page="1"] .el.card').nth(1).locator('.title .tiptap-content')
+    title.click()
+    page.wait_for_function('document.activeElement && document.activeElement.closest(".title")')
+    page.keyboard.press('End'); page.keyboard.type('Ж')
+    page.wait_for_function('t=>t.textContent.endsWith("Ж")',arg=title.element_handle())
+    # Remembered after a reload; Ctrl+0 is 100 %.
+    page.locator('#page1').click(position={'x':5,'y':5})
+    page.reload(); page.wait_for_selector('.el .tiptap-content')
+    assert zoom()==50 and page.locator('#zoomValue').inner_text()=='50 %'
+    page.keyboard.press('Control+0')
+    assert zoom()==100
+    page.locator('#zoomFit').click()
+    assert zoom()>100 and page.evaluate('document.documentElement.scrollWidth<=innerWidth'),'«по ширине» fills the window, no sideways scroll'
+    # Not printed: the paper is always A4 at 100 %.
+    page.emulate_media(media='print')
+    assert page.evaluate("getComputedStyle(document.querySelector('.stage')).zoom")=='1'
+    assert page.locator('#zoomTools').evaluate('e=>getComputedStyle(e).display')=='none'
+    page.emulate_media(media='screen')
+    # Not exported: the downloaded file opens at the reader's own zoom.
+    page.locator('[data-tab="files"]').click()
+    with page.expect_download() as downloaded:
+        page.locator('#export').click()
+    text=Path(downloaded.value.path()).read_text(encoding='utf-8')
+    assert re.search(r'<main class="stage">',text),'no zoom on the exported stage'
+    assert not page.errors,page.errors
+    page.evaluate("localStorage.removeItem('dnd-card-editor-zoom')")
+    context.close()
+    print('PASS '+engine+': zoom — corner buttons, Ctrl+wheel around the cursor, Ctrl+0, gestures and text at any zoom, remembered, not printed or exported')
+
     browser.close()
 print('All regression checks passed for '+engine)

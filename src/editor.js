@@ -35,6 +35,7 @@ import { setupBorders } from './editor/borders.js';
 import { setupBadges } from './editor/badges.js';
 import { setupResources } from './editor/resources.js';
 import { createSnapSettings } from './editor/snapping.js';
+import { createZoom } from './editor/zoom.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
 import { openStorage, createSaver } from './editor/storage.js';
@@ -443,6 +444,7 @@ try{renderer.draw()}catch(error){
   history.reset();renderer.resetRender();renderer.draw();
 }
 setupToolbarTabs();
+createZoom({stage:/** @type {HTMLElement} */ (document.querySelector('.stage')),pages:()=>pages,onChange:()=>{canvas.afterDraw();innerCanvas?.afterDraw()}});
 setupHelp({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('helpDialog'))),button:/** @type {HTMLElement} */ (document.getElementById('help'))});
 syncLayoutIdentity();
 reportDamagedSave();
