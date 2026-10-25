@@ -85,7 +85,7 @@ export function spellText(spell) {
   const kind = (spell.level ? spell.level + '-й круг' : 'Заговор') + ', ' + spell.school.toLowerCase()
     + (spell.concentration ? ', концентрация' : '') + (spell.ritual ? ', ритуал' : '');
   return [
-    spell.name + ' — ' + kind,
+    spell.name + ' [' + spell.nameEn + '] — ' + kind,
     '**Время:** ' + spell.castingTime + ' · **Дистанция:** ' + spell.range + ' · **Компоненты:** ' + spell.components
       + ' · **Длительность:** ' + (spell.concentration ? 'Концентрация, ' : '') + spell.duration,
     ...spell.text,

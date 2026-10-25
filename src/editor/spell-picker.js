@@ -63,7 +63,9 @@ export function setupSpellPicker({dialog, infoDialog, button, library, addObject
       box.onchange = () => { if (box.checked) chosen.add(spell.id); else chosen.delete(spell.id); syncInsert(); };
       const label = el('label', 'spell-row');
       const info = el('div', 'layouts-info');
-      info.append(el('strong', '', spell.name), el('small', 'spell-meta', spellMeta(spell)), el('small', '', withDc(spell.short, number)));
+      const title = el('strong', '', spell.name);
+      title.append(' ', el('span', 'spell-en', spell.nameEn));
+      info.append(title, el('small', 'spell-meta', spellMeta(spell)), el('small', '', withDc(spell.short, number)));
       label.append(box, info);
       row.append(label);
       return row;

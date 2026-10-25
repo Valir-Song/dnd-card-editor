@@ -413,3 +413,4 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .spell-info-text p:last-child{font:11px Arial,sans-serif;color:#7a7186}
 @media print{.el.card>.spell-info{display:none!important}}
 .spell-actions .layouts-close{margin:0;float:none;padding:7px 12px;font-size:14px}
+.spell-row .spell-en{font-weight:normal;color:#7a7186;font-size:12px}

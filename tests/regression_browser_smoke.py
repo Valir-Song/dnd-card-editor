@@ -1863,7 +1863,13 @@ with sync_playwright() as p:
     page.wait_for_function("document.querySelectorAll('#spellDialog li[data-spell]').length===1")
     page.fill('.spell-dc','14')
     whisper=page.locator('#spellDialog li[data-spell="dissonant-whispers"]')
-    assert 'Мудрость СЛ 14.' in whisper.inner_text() and '1 круг · 60 фт.' in whisper.inner_text()
+    assert 'Мудрость СЛ 14.' in whisper.inner_text() and '1 круг · 60 фт.' in whisper.inner_text() and 'Dissonant Whispers' in whisper.inner_text()
+    # The original name is shown and searched: a translation that differs is still found.
+    page.fill('.spell-search','shatter')
+    page.wait_for_function("document.querySelectorAll('#spellDialog li[data-spell]').length===1")
+    assert 'Разбивающий звук' in page.locator('#spellDialog li[data-spell="shatter"]').inner_text()
+    page.fill('.spell-search','шепот')
+    page.wait_for_function("document.querySelectorAll('#spellDialog li[data-spell]').length===1")
     whisper.locator('input').check()
     # A tick survives a new search; the circle filter narrows the list.
     page.fill('.spell-search','')
@@ -1888,7 +1894,7 @@ with sync_playwright() as p:
     node.locator('.spell-info').click()
     page.wait_for_selector('#spellInfoDialog[open]')
     info=page.locator('#spellInfoDialog').inner_text()
-    assert 'Диссонирующий шёпот — 1-й круг, очарование' in info and 'Время:' in info and 'CC-BY 4.0' in info,info
+    assert 'Диссонирующий шёпот [Dissonant Whispers] — 1-й круг, очарование' in info and 'Время:' in info and 'CC-BY 4.0' in info,info
     assert page.locator('#spellInfoDialog b').count()>=4,'bold labels'
     page.keyboard.press('Escape')
     page.wait_for_function("!document.querySelector('#spellInfoDialog').open")

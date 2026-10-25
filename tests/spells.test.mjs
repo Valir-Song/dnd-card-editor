@@ -69,7 +69,7 @@ test('a spell becomes a card like the owner’s: badge = circle, meta, summary, 
   assert.equal(card.w,91);
   assert.equal(card.spellId,'dissonant-whispers');
   const [heading,first]=(card.spellText||'').split('\n\n');
-  assert.equal(heading,'Диссонирующий шёпот — 1-й круг, очарование');
+  assert.equal(heading,'Диссонирующий шёпот [Dissonant Whispers] — 1-й круг, очарование');
   assert.match(first,/^\*\*Время:\*\* Действие · \*\*Дистанция:\*\* 60 футов/);
   assert.match(card.spellText||'',/Ячейкой выше/);
   assert.match(card.spellText||'',/CC-BY 4\.0/);
@@ -109,7 +109,7 @@ test('the list filters by circle and by a Russian or English word',()=>{
 
 test('**bold** is cut into pieces, never parsed as HTML',()=>{
   assert.deepEqual(boldPieces('**Звук.** Громкость <b>любая</b>'),[{text:'Звук.',bold:true},{text:' Громкость <b>любая</b>',bold:false}]);
-  assert.deepEqual(boldPieces(spellText(byId('light')).split('\n\n')[0]),[{text:'Свет — Заговор, воплощение',bold:false}]);
+  assert.deepEqual(boldPieces(spellText(byId('light')).split('\n\n')[0]),[{text:'Свет [Light] — Заговор, воплощение',bold:false}]);
 });
 
 test('the library fetches the reference from its folder',async()=>{
