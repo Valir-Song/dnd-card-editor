@@ -2,12 +2,13 @@
 // cards in the style of the owner's sheet. The reference is fetched from the editor's site
 // when the dialog opens (library.js); the cards keep their full text, so «📖» on a card works
 // offline and in a file from disk.
-import { readSpells, spellCards, filterSpells, readDc, spellMeta, withDc, boldPieces, MAX_AT_ONCE } from './spells.js';
+import { readSpells, spellCards, filterSpells, readDc, spellMeta, withDc, boldPieces, MAX_AT_ONCE, CLASSES } from './spells.js';
 import { errorText, target } from './dom.js';
 
 /** @typedef {import('./spells.js').Spell} Spell */
 
 const DC_KEY = 'dnd-card-editor-spell-dc';
+const CLASS_KEY = 'dnd-card-editor-spell-class';
 
 /**
  * @param {import('../types/layout').Deps<'addObjects'> & {dialog: HTMLDialogElement, infoDialog: HTMLDialogElement,
@@ -33,13 +34,20 @@ export function setupSpellPicker({dialog, infoDialog, button, library, addObject
   const chosen = new Set();
   let query = '', level = /** @type {number | null} */ (null);
   let dcText = '';
-  try { dcText = localStorage.getItem(DC_KEY) || ''; } catch { /* storage may be off: no remembered DC */ }
+  let cls = '';
+  try { dcText = localStorage.getItem(DC_KEY) || ''; cls = localStorage.getItem(CLASS_KEY) || ''; } catch { /* storage may be off: nothing remembered */ }
+  if (!CLASSES.some(c => c.id === cls)) cls = '';
 
   const search = /** @type {HTMLInputElement} */ (el('input'));
   search.type = 'search'; search.placeholder = 'Поиск по названию'; search.className = 'spell-search';
   const levels = /** @type {HTMLSelectElement} */ (el('select'));
   levels.className = 'spell-level';
   levels.append(new Option('Все круги', ''), new Option('Заговоры', '0'), ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => new Option(n + ' круг', String(n))));
+  const classes = /** @type {HTMLSelectElement} */ (el('select'));
+  classes.className = 'spell-class';
+  classes.title = 'Список заклинаний класса. Мистический рыцарь и Мистический ловкач берут заклинания из списка волшебника (до 4 круга).';
+  classes.append(new Option('Все классы', ''), ...CLASSES.map(c => new Option(c.label, c.id)));
+  classes.value = cls;
   const dc = /** @type {HTMLInputElement} */ (el('input'));
   dc.type = 'number'; dc.min = '1'; dc.max = '30'; dc.className = 'spell-dc'; dc.placeholder = '—';
   dc.title = 'Сложность спасброска ваших заклинаний: на карточку попадёт «Мудрость СЛ 14» вместо «Спасбросок Мудрости». Пусто — без числа.';
@@ -52,7 +60,7 @@ export function setupSpellPicker({dialog, infoDialog, button, library, addObject
 
   function renderList() {
     if (!reference) return;
-    const shown = filterSpells(reference.spells, {query, level});
+    const shown = filterSpells(reference.spells, {query, level, cls});
     const number = readDc(dcText);
     list.replaceChildren(...shown.map(spell => {
       const row = el('li');
@@ -104,6 +112,11 @@ export function setupSpellPicker({dialog, infoDialog, button, library, addObject
   }
   search.oninput = () => { query = search.value; renderList(); };
   levels.onchange = () => { level = levels.value === '' ? null : Number(levels.value); renderList(); };
+  classes.onchange = () => {
+    cls = classes.value;
+    try { localStorage.setItem(CLASS_KEY, cls); } catch { /* not remembered: fine */ }
+    renderList();
+  };
   dc.value = dcText;
   dc.oninput = () => {
     dcText = dc.value;
@@ -113,7 +126,7 @@ export function setupSpellPicker({dialog, infoDialog, button, library, addObject
   const dcLabel = el('label', 'spell-dc-label', 'Моя СЛ ');
   dcLabel.append(dc);
   const filters = el('div', 'spell-filters');
-  filters.append(search, levels, dcLabel);
+  filters.append(search, classes, levels, dcLabel);
   body.append(list);
   const close = action('Закрыть', () => dialog.close());
   close.className = 'layouts-close';

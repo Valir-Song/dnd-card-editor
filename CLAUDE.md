@@ -71,7 +71,7 @@
 | `src/editor/themes.js` | темы: `item.theme` → класс `.el.theme-<id>`, цвета в styles.css (переменные `--t-*`); `applyTheme` (Node-тесты); новая тема = строка в `THEMES` + блок в CSS |
 | `src/editor/sheet.js` | фон листа: объект `kind:'sheet'` (один на страницу, весь лист) — готовый фон `sheet` → `.page[data-sheet]` в CSS, своя картинка `src/fit/opacity` → `img.sheet-image` под объектами; рисует `render.js` (`paintSheet`), не `.el`; чистые `setSheet`/`sheetOf` (Node-тесты); жесты, рамка-выделение, привязка, слои и свободное место его пропускают |
 | `src/editor/resources.js` | окно ресурсов: `pools: [{label,count,used,rest,col}]` у `kind:'resources'` — строки квадратиков (ячейки «N круг» слева, свои ресурсы справа), `rest` = `long`/`short`/`none` (пометка ДО/КО); `buildPools` рисует (вызывает render.js, щелчки — через `store.change`, название — `store.shown`); `migrateResources` — шаг формата 2→3 (текст «□ □ □» → строки); кнопки «Ресурсы», «Круг», «Ресурс», «Короткий/Длинный отдых» на вкладке «Карточки»; чистые функции — Node-тесты |
-| `src/editor/spells.js`, `spell-picker.js` | справочник заклинаний «Карточки → Заклинание…»: `library/spells.json` (наш перевод SRD 5.2, CC-BY 4.0; формат `dnd-card-editor/spells`, у заклинания `short` — строка на карточку, `text[]` — полный текст) скачивается как готовые листы (`createLibrary().spells()`, кэш `app/sw.js`); `spellCard` — карточка как у Ричарда (`level` = круг, `meta` «1 круг · основное · 60 фт. · К, 1 мин · ритуал», `detail` = суть, «Моя СЛ» — `withDc`) с необязательными `spellId`/`spellText` — полный текст в самой карточке, кнопка `.spell-info` 📖 (render.js, в `NATIVE` жестов, не печатается); чистые функции — Node-тесты |
+| `src/editor/spells.js`, `spell-picker.js` | справочник заклинаний «Карточки → Заклинание…»: `library/spells.json` (наш перевод всех 339 заклинаний SRD 5.2, CC-BY 4.0; формат `dnd-card-editor/spells`, у заклинания `short` — строка на карточку, `text[]` — полный текст) скачивается как готовые листы (`createLibrary().spells()`, кэш `app/sw.js`); `spellCard` — карточка как у Ричарда (`level` = круг, `meta` «1 круг · основное · 60 фт. · К, 1 мин · ритуал», `detail` = суть, «Моя СЛ» — `withDc`; фильтр по классу — `CLASSES`: подкласс со списком чужого класса — `list` и `maxLevel`) с необязательными `spellId`/`spellText` — полный текст в самой карточке, кнопка `.spell-info` 📖 (render.js, в `NATIVE` жестов, не печатается); чистые функции — Node-тесты |
 | `src/editor/borders.js` | рамки: `outline` (стиль), `outlineColor`, `outlineWidth` (мм); рисуются `::after` поверх края (текст не сдвигается); `outlineLook` для render.js, чистая `applyOutline` (Node-тесты); на вкладке «Оформление» |
 | `src/editor/badges.js` | кружочки: главный (`level`, `badgeX/Y`, `badgeColor`) и дополнительные `badges[]`; знаки `SYMBOLS` (с U+FE0E — не эмодзи), `COLORS`; чистые add/remove/set (Node-тесты); вкладка «Кружочки» |
 | `src/editor/clipboard.js` | Ctrl+C/X/V объектов: JSON с меткой `dnd-card-editor/objects` в системном буфере; в тексте не вмешивается |
@@ -212,7 +212,7 @@
 ## Команды
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
-npm test                     # Node-тесты (сейчас 148)
+npm test                     # Node-тесты (сейчас 149)
 npm run typecheck            # TypeScript по всему JS в строгом режиме (tsconfig.json)
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html

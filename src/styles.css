@@ -392,7 +392,7 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .spell-dialog[open]{display:flex;flex-direction:column}
 .spell-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
 .spell-search{flex:1;min-width:160px;padding:6px 8px;border:1px solid #d8cde8;border-radius:6px;font:inherit}
-.spell-level,.spell-dc{padding:5px 6px;border:1px solid #d8cde8;border-radius:6px;font:inherit}
+.spell-level,.spell-class,.spell-dc{padding:5px 6px;border:1px solid #d8cde8;border-radius:6px;font:inherit}
 .spell-dc{width:56px}
 .spell-body{overflow:auto;min-height:120px;flex:1}
 .spell-list li{padding:0}
