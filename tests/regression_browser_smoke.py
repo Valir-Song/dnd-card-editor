@@ -1070,7 +1070,9 @@ with sync_playwright() as p:
     into_text('.el[data-id="B"] .title')
     # Characters before the caret in B's title. On a slow runner the editor reads
     # the caret moved by a key a moment later: wait for it before the next key.
-    caret="()=>{const t=document.querySelector('.el[data-id=\"B\"] .title'),s=getSelection();if(!s.rangeCount||!t.contains(s.anchorNode))return -1;const r=s.getRangeAt(0).cloneRange();r.setStart(t,0);return r.toString().length}"
+    # The editor's own selection must agree too: it reads the screen caret a moment later, and a
+    # letter typed before that lands at the old place (CI once got «BQ»). Its position = characters + 1.
+    caret="()=>{const t=document.querySelector('.el[data-id=\"B\"] .title'),s=getSelection();if(!s.rangeCount||!t.contains(s.anchorNode))return -1;const r=s.getRangeAt(0).cloneRange();r.setStart(t,0);const n=r.toString().length,ed=t.querySelector('.tiptap-content')?.editor;return ed&&ed.state.selection.from!==n+1?-2:n}"
     def caret_to(key,where):
         # A key pressed while the editor is still settling is sometimes lost (CI, both browsers):
         # press it again rather than fail; the card must still stay put (checked below).
