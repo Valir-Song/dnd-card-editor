@@ -28,7 +28,7 @@ const EDGES = ['top', 'right', 'bottom', 'left'];
 // Where each side of a box goes in a node's style.
 const SIDES = /** @type {const} */ ([['x', 'left'], ['y', 'top'], ['w', 'width'], ['h', 'height']]);
 const CLICK_SLOP = 3; // px a press may wander and still count as a click
-const NATIVE = '.editable, [contenteditable], input, textarea, select, .level, .textbox-move, .pools button, .spell-info';
+const NATIVE = '.editable, [contenteditable], input, textarea, select, .level, .textbox-move, .pools button, .hp-body button, .spell-info';
 const LOCK_ICON = '<svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="7" width="10" height="7.5" rx="1.5" fill="currentColor"/></svg>';
 
 /**

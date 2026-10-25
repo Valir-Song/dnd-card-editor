@@ -1,11 +1,15 @@
 // One object of the layout (a JSON array of these). Coordinates are in mm.
 // See README → «Формат макета».
-export type Kind = 'header' | 'note' | 'resources' | 'section' | 'card' | 'shape' | 'image' | 'textbox' | 'sheet';
+export type Kind = 'header' | 'note' | 'resources' | 'section' | 'card' | 'shape' | 'image' | 'textbox' | 'sheet' | 'hp';
 // The text fields of an object; each has a plain (title) and a formatted (titleHtml) version.
 export type TextField = 'title' | 'subtitle' | 'meta' | 'detail' | 'text';
 // A row of tick boxes in a resources box (see src/editor/resources.js).
 export type Rest = 'long' | 'short' | 'none';
 export interface Pool { label: string; count: number; used: number; rest: Rest; col: 0 | 1 }
+// Hit points box (kind 'hp', see src/editor/hp.js).
+export interface HitPoints { now: number; max: number; temp: number }
+export interface HitDice { count: number; die: number; used: number }
+export interface DeathSaves { ok: number; fail: number }
 export interface Frame { x?: number; y?: number; w?: number; h?: number }
 export interface Item {
   id: string;
@@ -26,6 +30,8 @@ export interface Item {
   roles?: string;
   // Resources box: rows of boxes (spell slots, other resources).
   pools?: Pool[];
+  // Hit points box: the numbers, and the optional rows (absent = hidden).
+  hp?: HitPoints; hitDice?: HitDice; deathSaves?: DeathSaves;
   // Locked in place (see src/editor/lock.js); absent means unlocked.
   locked?: boolean;
   // A card's text layout: the compact one of the first page or the roomy one of the others (4.2).

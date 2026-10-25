@@ -275,7 +275,7 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
   function altMarquee(ev, entry) {
     if (ev.button !== 0 || !ev.altKey) return;
     const card = target(ev).closest?.('.el');
-    if (!card || target(ev).closest('.text-wrap, .editable, [contenteditable], .level, .pools button, .spell-info')) return;
+    if (!card || target(ev).closest('.text-wrap, .editable, [contenteditable], .level, .pools button, .hp-body button, .spell-info')) return;
     ev.preventDefault();
     /** @type {(e: PointerEvent) => import('../types/geometry').Point} */
     const toMm = e => { const p = entry.page.getBoundingClientRect(), k = 210 / p.width; return [(e.clientX - p.left) * k, (e.clientY - p.top) * k]; };

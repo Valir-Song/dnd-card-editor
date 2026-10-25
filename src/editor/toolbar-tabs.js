@@ -13,10 +13,11 @@ import { icon, ICONS } from './icons.js';
 /** @type {{id: string, label: string, sections: Section[]}[]} */
 const GROUPS = [
   {id:'cards', label:'Карточки', sections:[
-    ['Добавить', 'big', ['add','addSpell','addResources']],
+    ['Добавить', 'big', ['add','addSpell','addResources','addHp']],
     ['Правка', 'big', ['duplicate','delete']],
     ['Лист', 'rows', [['toPage']], 'Выделите объект, чтобы перенести его на другой лист'],
     ['Ресурсы', 'big', ['addSpellRow','addExtraRow','shortRest','longRest']],
+    ['Хиты', 'big', ['hpDice','hpSaves']],
     ['Закрепление', 'big', ['lock','unlockPage']],
     ['Фон карточки', 'rows', [['cardBgTools']], 'Выделите карточку, чтобы поставить ей картинку на фон'],
   ]},
@@ -59,7 +60,7 @@ const GROUPS = [
 ];
 // Small buttons shown by their icon only; the label stays for screen readers.
 const ICON_ONLY = new Set(['undo','redo','saveFileAs','bgRemove','resetImage','bold','italic','underline','strike','bulletList','orderedList','clearFormatting']);
-const TOP = ['undo','redo','saveFile','saveFileAs','saveState','fileState','snapTools','help'];
+const TOP = ['undo','redo','saveFile','saveFileAs','saveState','fileState','snapTools','play','help'];
 
 // Put the control's own text into one <span class="rb-label"> after its icon,
 // so code that renames a button (see setLabel in dom.js) keeps the icon.
@@ -103,7 +104,7 @@ export function setupToolbarTabs() {
   tablist.setAttribute('role', 'tablist'); tablist.setAttribute('aria-label', 'Разделы инструментов');
   top.append(identity, tablist);
   const history = document.createElement('div'); history.className = 'toolbar-history';
-  for (const id of ['undo','redo','saveFile','saveFileAs','help']) {
+  for (const id of ['undo','redo','saveFile','saveFileAs','play','help']) {
     const node = /** @type {HTMLElement} */ (nodes.get(id));
     decorate(node, id); node.classList.add('rb-top');
   }
@@ -114,7 +115,8 @@ export function setupToolbarTabs() {
   // Snapping and the grid: icon pills; the checkbox stays the real control.
   const snapTools = /** @type {HTMLElement} */ (nodes.get('snapTools'));
   snapTools.querySelectorAll('label').forEach((label, i) => { decorate(label, i ? 'grid' : 'snap'); label.classList.add('rb-icon-only'); });
-  history.append(/** @type {HTMLElement} */ (nodes.get('help')));
+  // Game mode (play.js) sits by the help: the switch is wanted before and after every game.
+  history.append(/** @type {HTMLElement} */ (nodes.get('play')), /** @type {HTMLElement} */ (nodes.get('help')));
   top.append(history);
   const content = document.createElement('div'); content.className = 'toolbar-content';
   /** @type {HTMLButtonElement[]} */

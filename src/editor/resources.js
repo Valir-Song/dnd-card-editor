@@ -5,6 +5,8 @@
 // column. Until 3.11 the boxes were typed as «□» into the text (`detail`);
 // format 3 turns such text into rows (see migrateResources and layout.js).
 
+import { hpRest } from './hp.js';
+
 /** @typedef {import('../types/layout').Item} Item */
 /** @typedef {import('../types/layout').Pool} Pool */
 /** @typedef {import('../types/layout').Rest} Rest */
@@ -270,7 +272,7 @@ export function setupResources({store, addObject, current, getSelectionIds}) {
   for (const [id, kind] of /** @type {const} */ ([['shortRest', 'short'], ['longRest', 'long']]))
     byId(id).addEventListener('click', () => {
       // Every resources box on the sheet: a rest is for the whole character.
-      store.change(items => { takeRest(items, kind); });
+      store.change(items => { takeRest(items, kind); hpRest(items, kind); });
     });
   function sync() {
     const none = !targets().length;

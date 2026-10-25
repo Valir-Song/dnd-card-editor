@@ -1070,7 +1070,9 @@ with sync_playwright() as p:
     into_text('.el[data-id="B"] .title')
     # Characters before the caret in B's title. On a slow runner the editor reads
     # the caret moved by a key a moment later: wait for it before the next key.
-    caret="()=>{const t=document.querySelector('.el[data-id=\"B\"] .title'),s=getSelection();if(!s.rangeCount||!t.contains(s.anchorNode))return -1;const r=s.getRangeAt(0).cloneRange();r.setStart(t,0);return r.toString().length}"
+    # The editor's own selection must agree too: it reads the screen caret a moment later, and a
+    # letter typed before that lands at the old place (CI once got «BQ»). Its position = characters + 1.
+    caret="()=>{const t=document.querySelector('.el[data-id=\"B\"] .title'),s=getSelection();if(!s.rangeCount||!t.contains(s.anchorNode))return -1;const r=s.getRangeAt(0).cloneRange();r.setStart(t,0);const n=r.toString().length,ed=t.querySelector('.tiptap-content')?.editor;return ed&&ed.state.selection.from!==n+1?-2:n}"
     def caret_to(key,where):
         # A key pressed while the editor is still settling is sometimes lost (CI, both browsers):
         # press it again rather than fail; the card must still stay put (checked below).
@@ -1524,7 +1526,7 @@ with sync_playwright() as p:
     bare=page.evaluate("[...document.querySelectorAll('.rb-large,.rb-small,.rb-top')].filter(e=>!e.querySelector('svg.rb-ico')||!e.querySelector('.rb-label').textContent.trim()).map(e=>e.id)")
     assert not bare,('Buttons without an icon or a label',bare)
     names=page.eval_on_selector_all('#panel-cards .rb-name','e=>e.map(x=>x.textContent)')
-    assert names==['Добавить','Правка','Лист','Ресурсы','Закрепление','Фон карточки'],names
+    assert names==['Добавить','Правка','Лист','Ресурсы','Хиты','Закрепление','Фон карточки'],names
     # Renaming a button (lock) keeps its icon.
     page.locator('[data-tab="cards"]').click(); page.locator('#lock').click()
     assert page.locator('#lock .rb-label').inner_text()=='Открепить' and page.locator('#lock svg.rb-ico').count()==1
@@ -1929,7 +1931,6 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': spell reference — load from the site, search, circle, «Моя СЛ», cards in one step, «📖» full text')
 
-
     # 32. Sheet zoom (4.1): buttons in the corner, Ctrl+wheel keeps the point under the cursor,
     #     Ctrl+0; drag, resize and handles measure millimetres at any zoom; text still takes
     #     a click and keys; the zoom is remembered per browser, never printed or exported.
@@ -2101,6 +2102,123 @@ with sync_playwright() as p:
     assert not page.errors,page.errors
     context.close()
     print('PASS '+engine+': more sheets — add, move, copy, delete with undo, «На лист», gestures on new sheets, print and export')
+    # 34. Game mode (3.11 beta.23): «Игра» shows only the game panel; texts, badges and objects
+    #     ignore presses (no caret, no selection, no drag), resource boxes and rests still work,
+    #     pasting adds nothing, Ctrl+Z undoes a stray tick. The browser remembers the mode.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    import_json(page,json.loads((root/'library'/'richard-sadsong.dnd').read_text(encoding='utf-8')))
+    page.locator('#play').click()
+    assert page.evaluate("document.documentElement.dataset.play")=='on'
+    assert page.locator('#panel-play').is_visible() and not page.locator('#panel-cards').is_visible()
+    assert page.locator('#play').get_attribute('aria-pressed')=='true'
+    assert not page.locator('.page-add').is_visible() and not page.locator('.page-bar button').first.is_visible(),'sheets are not added or moved in game mode'
+    card=page.locator('.el.card').first
+    before=card.evaluate("e=>[e.style.left,e.style.top]")
+    card.locator('.detail').click()
+    focused="(()=>{const a=document.activeElement;return !!a&&a.isContentEditable})()"
+    assert not page.evaluate(focused),'a text took the caret in game mode'
+    assert page.locator('.el.selected').count()==0
+    box=card.bounding_box()
+    page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2); page.mouse.down()
+    page.mouse.move(box['x']+box['width']/2+60,box['y']+box['height']/2+40,steps=6); page.mouse.up()
+    assert card.evaluate("e=>[e.style.left,e.style.top]")==before
+    # Tab (here: a focus call) cannot hand a text the keys either.
+    page.evaluate("document.querySelector('.el.card .tiptap-content').focus()")
+    assert not page.evaluate(focused) and page.locator('.el.selected').count()==0
+    badge=page.locator('.el.card .level').first
+    badge.click()
+    assert not page.evaluate(focused)
+    count=page.locator('.page .el').count()
+    assert page.evaluate("()=>{const e=new Event('paste',{bubbles:true,cancelable:true});document.body.dispatchEvent(e);return e.defaultPrevented}")
+    assert page.locator('.page .el').count()==count
+    first=lambda col:page.locator('.el.resources .pool-col[data-col="'+str(col)+'"] .pool').first.locator('.pool-cell').first
+    first(0).click(); first(1).click()
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===2")
+    assert page.locator('.el.selected').count()==0
+    page.keyboard.press('Control+z')
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===1")
+    page.locator('#playLongRest').click()
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===0")
+    # Opened again, the editor is still in game mode; «К правке» brings editing back.
+    page.close()
+    page=open_editor(context)
+    assert page.evaluate("document.documentElement.dataset.play")=='on'
+    page.locator('#playExit').click()
+    assert page.evaluate("document.documentElement.dataset.play") is None
+    assert page.locator('#play').get_attribute('aria-pressed')=='false'
+    page.locator('.el.card').first.locator('.detail').click()
+    page.wait_for_function(focused)
+    page.close()
+    page=open_editor(context)
+    assert page.evaluate("document.documentElement.dataset.play") is None
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': game mode — only boxes and rests are pressable, texts and objects stay put, paste adds nothing, the mode is remembered')
+
+    # 35. Hit points (3.11 beta.23): «Хиты» adds a box; max typed in carries the current along;
+    #     «Урон» takes temporary hit points first, «Лечение» stops at the maximum, − and + one point;
+    #     hit dice and death saves are boxes; the long rest brings it all back (half the dice);
+    #     in game mode the maximum is not editable, the rest is; on paper the current is blank.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    page.locator('[data-tab="cards"]').click()
+    assert page.locator('#hpDice').is_disabled()
+    page.locator('#addHp').click()
+    hp=page.locator('.el.hp')
+    hp.wait_for()
+    record=lambda:next(item for item in saved_layout(page) if item['kind']=='hp')
+    value=lambda cls:hp.locator(cls).input_value()
+    hp.locator('.hp-max').fill('39'); hp.locator('.hp-max').press('Enter')
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='39'")
+    hp.locator('.hp-temp-value').fill('5'); hp.locator('.hp-temp-value').press('Enter')
+    page.wait_for_function("document.querySelector('.el.hp .hp-temp-value').value==='5'")
+    hp.locator('.hp-amount').fill('12'); hp.locator('.hp-damage').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='32'")
+    assert value('.hp-temp-value')=='0'
+    hp.locator('.hp-step').first.click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='31'")
+    hp.locator('.hp-amount').fill('50'); hp.locator('.hp-heal').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='39'")
+    page.keyboard.press('Control+z')
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='31'")
+    # Hit dice: + over the row (the box is selected), spend two; death saves.
+    for _ in range(3):
+        hp.locator('.hp-dice').hover(); hp.locator('.hp-dice .hp-tools').get_by_title('Добавить кость').click()
+    page.wait_for_function("document.querySelectorAll('.el.hp .hp-cell').length===4")
+    hp.locator('.hp-cell').nth(1).click()
+    hp.locator('.hp-saves .fail .hp-dot').nth(1).click()
+    page.wait_for_function("document.querySelectorAll('.el.hp .hp-cell.used').length===2&&document.querySelectorAll('.el.hp .fail .hp-dot.used').length===2")
+    page.wait_for_function("document.documentElement.dataset.saveState==='saved'")
+    assert record()['hp']=={'now':31,'max':39,'temp':0} and record()['hitDice']['used']==2 and record()['deathSaves']=={'ok':0,'fail':2},record()
+    # The ribbon hides the death saves of the selected box, and shows them again.
+    hp.click(position={'x':4,'y':4})
+    page.locator('#hpSaves').click()
+    page.wait_for_function("!document.querySelector('.el.hp .hp-saves')")
+    page.locator('#hpSaves').click()
+    page.wait_for_function("!!document.querySelector('.el.hp .hp-saves')")
+    page.locator('#longRest').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='39'&&document.querySelectorAll('.el.hp .hp-cell.used').length===0")
+    # Game mode: the amount and the boxes work, the maximum takes no typing, the box is not selected.
+    page.locator('#play').click()
+    hp.locator('.hp-amount').fill('9'); hp.locator('.hp-damage').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='30'")
+    hp.locator('.hp-cell').nth(0).click()
+    page.wait_for_function("document.querySelectorAll('.el.hp .hp-cell.used').length===1")
+    hp.locator('.hp-max').click()
+    page.keyboard.type('5')
+    assert value('.hp-max')=='39' and page.locator('.el.selected').count()==0
+    page.locator('#playLongRest').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='39'")
+    page.locator('#playExit').click()
+    # On paper: no buttons, the current hit points blank, the maximum printed.
+    page.emulate_media(media='print')
+    assert page.evaluate("""()=>{const b=document.querySelector('.el.hp');const s=x=>getComputedStyle(b.querySelector(x));
+      return s('.hp-change').display==='none'&&s('.hp-step').display==='none'&&s('.hp-now').color==='rgba(0, 0, 0, 0)'&&s('.hp-max').color!=='rgba(0, 0, 0, 0)'}""")
+    page.emulate_media(media='screen')
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': hit points — damage through temporary, healing to the maximum, ±, hit dice, death saves, long rest, game mode, print')
 
     browser.close()
 print('All regression checks passed for '+engine)

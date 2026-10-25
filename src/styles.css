@@ -414,6 +414,58 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 @media print{.el.card>.spell-info{display:none!important}}
 .spell-actions .layouts-close{margin:0;float:none;padding:7px 12px;font-size:14px}
 .spell-row .spell-en{font-weight:normal;color:#7a7186;font-size:12px}
+/* Game mode (play.js): the ribbon shows only the game panel, the sheet only ticks */
+html[data-play="on"] .toolbar-tabs{visibility:hidden}
+html[data-play="on"] .toolbar-panel:not(#panel-play){display:none!important}
+html:not([data-play="on"]) #panel-play{display:none!important}
+.play-panel .play-hint{flex:1;max-width:460px;margin:0 10px;font-size:12px;line-height:1.35;color:#5d536b}
+.toolbar .rb-top#play[aria-pressed="true"]{background:#f3d27a;color:#29253a}
+html[data-play="on"] .stage .el,html[data-play="on"] .stage .el *{cursor:default}
+html[data-play="on"] .stage .pool-cell,html[data-play="on"] .stage .spell-info{cursor:pointer}
+html[data-play="on"] .gesture-layer,html[data-play="on"] .snap-guide{display:none!important}
+/* Sheets are not added, moved or deleted at the table (pages.js); the bar keeps its place */
+html[data-play="on"] .page-bar button,html[data-play="on"] .page-add{visibility:hidden}
+html[data-play="on"] .text-wrap:hover,html[data-play="on"] .el .editable:focus{outline:none!important;background:transparent!important}
+/* A slightly larger target for a finger, without moving the boxes */
+.pools .pool-cell{position:relative}
+html[data-play="on"] .pools .pool-cell::after{content:'';position:absolute;inset:-.3mm}
+/* 3.11 beta.23: hit points box (hp.js) — now / max, temporary, an amount for damage or healing, hit dice, death saves */
+.el.hp{padding:2.4mm 3mm;border:1px solid #e2d8ca;background:#fff}
+.hp .title{font:bold 10pt Georgia;color:#755092;margin-bottom:1mm}
+.hp-body{display:flex;flex-direction:column;gap:1mm;font:8pt/1.25 Arial,sans-serif}
+.hp-body button,.hp-body input,.hp-body select{appearance:none;-moz-appearance:textfield;font:inherit;color:inherit;margin:0;padding:0;border:0;background:none}
+.hp-body input::-webkit-inner-spin-button,.hp-body input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.hp-body button{cursor:pointer}
+.hp-main{display:flex;align-items:center;gap:1mm}
+.hp-main input{width:10mm;text-align:center;font:bold 14pt Georgia;border-bottom:.25mm solid #d8c9dc;color:var(--t-title,#543874)}
+.hp-main .hp-max{width:9mm;font-size:11pt;font-weight:normal}
+.hp-of{font:11pt Georgia;opacity:.7}
+.hp-step{width:5.5mm;height:5.5mm;border-radius:50%!important;background:#eee9f7!important;font:bold 10pt/5.5mm Arial!important;text-align:center;color:#352b49!important}
+.hp-temp{display:flex;align-items:center;gap:.6mm;margin-left:auto;font-size:7pt;color:var(--t-meta,#8a7396)}
+.hp-temp input{width:7mm;font:bold 10pt Georgia;text-align:center;border-bottom:.25mm solid #d8c9dc}
+.hp-change{display:flex;align-items:center;gap:1mm}
+.hp-change .hp-amount{width:9mm;text-align:center;border:.25mm solid #d8c9dc!important;border-radius:1mm!important;padding:.3mm!important}
+.hp-change button{padding:.4mm 1.6mm!important;border-radius:1mm!important;background:#eee9f7!important;font-weight:bold}
+.hp-change .hp-damage{background:#fbe3e3!important;color:#8a1d1d!important}
+.hp-change .hp-heal{background:#e3f3e0!important;color:#2d5a28!important}
+.hp-row{display:flex;align-items:center;gap:1mm;position:relative;flex-wrap:wrap}
+.hp-label{color:var(--t-meta,#755a81)}
+.hp-die{font-weight:bold!important;cursor:pointer}
+.hp-cells{display:flex;flex-wrap:wrap;gap:.55mm .6mm}
+.hp-cell{width:2.3mm;height:2.3mm;border:.22mm solid currentColor!important;border-radius:.3mm!important;opacity:.85;position:relative}
+.hp-dot{width:2.4mm;height:2.4mm;border:.22mm solid currentColor!important;border-radius:50%!important;position:relative}
+.hp-cell.used,.hp-dot.used{background:var(--t-badge,#755092)!important;border-color:var(--t-badge,#755092)!important;opacity:1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.hp-save.fail .hp-dot.used{background:#a33a3a!important;border-color:#a33a3a!important}
+.hp-save{display:inline-flex;align-items:center;gap:.6mm}
+.hp-mark{font-size:7pt;opacity:.75}
+.hp-tools{display:none;position:absolute;right:0;bottom:100%;z-index:5;gap:1px;padding:1px;background:#29253a;border-radius:4px;box-shadow:0 1px 4px #0004}
+.el.selected .hp-row:hover .hp-tools,.el.selected .hp-row:focus-within .hp-tools{display:flex}
+.hp-tools button{min-width:18px;height:18px;padding:0 3px!important;border-radius:3px;background:#eee9f7!important;color:#2b2440!important;font:bold 11px/18px Arial,sans-serif!important;text-align:center}
+html[data-play="on"] .stage .hp-play{cursor:pointer}
+html[data-play="on"] .stage input.hp-play{cursor:text}
+html[data-play="on"] .hp-cell::after,html[data-play="on"] .hp-dot::after{content:'';position:absolute;inset:-.3mm}
+/* On paper: «___ / 39» — the current and temporary hit points are written in pencil */
+@media print{.hp-step,.hp-change,.hp-tools{display:none!important}.hp-main .hp-now,.hp-temp input{color:transparent!important}.hp-main .hp-now{width:14mm}}
 
 /* 4.1: sheet zoom. The stage is zoomed (CSS zoom); it grows to fit wide pages and
    centres them only while they fit, so a zoomed page never hides off the left edge. */
