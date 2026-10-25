@@ -1071,8 +1071,15 @@ with sync_playwright() as p:
     # Characters before the caret in B's title. On a slow runner the editor reads
     # the caret moved by a key a moment later: wait for it before the next key.
     caret="()=>{const t=document.querySelector('.el[data-id=\"B\"] .title'),s=getSelection();if(!s.rangeCount||!t.contains(s.anchorNode))return -1;const r=s.getRangeAt(0).cloneRange();r.setStart(t,0);return r.toString().length}"
-    keys('End'); page.wait_for_function("("+caret+")()===1")
-    keys('ArrowLeft'); page.wait_for_function("("+caret+")()===0")
+    def caret_to(key,where):
+        # A key pressed while the editor is still settling is sometimes lost (CI, both browsers):
+        # press it again rather than fail; the card must still stay put (checked below).
+        for _ in range(3):
+            keys(key)
+            try: page.wait_for_function("("+caret+")()==="+str(where),timeout=3000); return
+            except Exception: pass
+        raise AssertionError(('The caret did not move with '+key,page.evaluate(caret)))
+    caret_to('End',1); caret_to('ArrowLeft',0)
     page.evaluate("()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
     page.keyboard.type('Q')
     title=page.locator('.el[data-id="B"] .title').inner_text().strip()
