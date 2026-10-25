@@ -81,6 +81,7 @@
 | `src/editor/{objects,layers,card-background,image-tools,text-boxes,interactions}.js` | кнопки панели по темам; `interactions.js` — перетаскивание значка уровня |
 | `src/editor/toolbar-tabs.js` | панель-лента: вкладки в верхней тёмной строке, под ними группы (`GROUPS`: вкладка → `[название, 'big'|'rows', id, подсказка]`); кнопки получают иконку и `<span class="rb-label">`. Переименовывать кнопку только через `setLabel` (dom.js), иначе пропадёт иконка |
 | `src/editor/icons.js` | линейные SVG-иконки панели по id кнопки (в коде, чтобы файл оставался одним) |
+| `src/editor/help.js` | «Справка» (кнопка `#help` справа вверху, F1): окно `#helpDialog`, текст — в index.html короткими разделами; новая функция — строка в нужном разделе |
 | `src/editor/notice.js` | жёлтые предупреждения под панелью |
 | `src/editor/dom.js` | помощники для типов: `target(event)`, `entries` (ключи записи без расширения до string), `errorText` (что бы ни бросили); `setLabel`, `downloadFile` |
 | `src/types/*.d.ts` | типы: `Item`, `TextField`, `NewItem`, `Store`, `Editor` (помощники editor.js) и `Deps<…>`, `CommitOptions`; геометрия (`Box`, `Point`, `Dir`, `Lines`); DOM-поиск как поля ввода |
