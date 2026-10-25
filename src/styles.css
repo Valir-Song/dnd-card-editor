@@ -414,3 +414,16 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 @media print{.el.card>.spell-info{display:none!important}}
 .spell-actions .layouts-close{margin:0;float:none;padding:7px 12px;font-size:14px}
 .spell-row .spell-en{font-weight:normal;color:#7a7186;font-size:12px}
+/* Game mode (play.js): the ribbon shows only the game panel, the sheet only ticks */
+html[data-play="on"] .toolbar-tabs{visibility:hidden}
+html[data-play="on"] .toolbar-panel:not(#panel-play){display:none!important}
+html:not([data-play="on"]) #panel-play{display:none!important}
+.play-panel .play-hint{flex:1;max-width:460px;margin:0 10px;font-size:12px;line-height:1.35;color:#5d536b}
+.toolbar .rb-top#play[aria-pressed="true"]{background:#f3d27a;color:#29253a}
+html[data-play="on"] .stage .el,html[data-play="on"] .stage .el *{cursor:default}
+html[data-play="on"] .stage .pool-cell,html[data-play="on"] .stage .spell-info{cursor:pointer}
+html[data-play="on"] .gesture-layer,html[data-play="on"] .snap-guide{display:none!important}
+html[data-play="on"] .text-wrap:hover,html[data-play="on"] .el .editable:focus{outline:none!important;background:transparent!important}
+/* A slightly larger target for a finger, without moving the boxes */
+.pools .pool-cell{position:relative}
+html[data-play="on"] .pools .pool-cell::after{content:'';position:absolute;inset:-.3mm}

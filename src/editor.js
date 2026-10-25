@@ -34,6 +34,7 @@ import { errorText } from './editor/dom.js';
 import { setupBorders } from './editor/borders.js';
 import { setupBadges } from './editor/badges.js';
 import { setupResources } from './editor/resources.js';
+import { setupPlay } from './editor/play.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
@@ -443,6 +444,7 @@ try{renderer.draw()}catch(error){
   history.reset();renderer.resetRender();renderer.draw();
 }
 setupToolbarTabs();
+setupPlay({clearSelection});
 setupHelp({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('helpDialog'))),button:/** @type {HTMLElement} */ (document.getElementById('help'))});
 syncLayoutIdentity();
 reportDamagedSave();

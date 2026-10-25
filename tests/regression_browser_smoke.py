@@ -1927,5 +1927,58 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': spell reference — load from the site, search, circle, «Моя СЛ», cards in one step, «📖» full text')
 
+    # 32. Game mode (3.11 beta.21): «Игра» shows only the game panel; texts, badges and objects
+    #     ignore presses (no caret, no selection, no drag), resource boxes and rests still work,
+    #     pasting adds nothing, Ctrl+Z undoes a stray tick. The browser remembers the mode.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    import_json(page,json.loads((root/'library'/'richard-sadsong.dnd').read_text(encoding='utf-8')))
+    page.locator('#play').click()
+    assert page.evaluate("document.documentElement.dataset.play")=='on'
+    assert page.locator('#panel-play').is_visible() and not page.locator('#panel-cards').is_visible()
+    assert page.locator('#play').get_attribute('aria-pressed')=='true'
+    card=page.locator('.el.card').first
+    before=card.evaluate("e=>[e.style.left,e.style.top]")
+    card.locator('.detail').click()
+    focused="(()=>{const a=document.activeElement;return !!a&&a.isContentEditable})()"
+    assert not page.evaluate(focused),'a text took the caret in game mode'
+    assert page.locator('.el.selected').count()==0
+    box=card.bounding_box()
+    page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2); page.mouse.down()
+    page.mouse.move(box['x']+box['width']/2+60,box['y']+box['height']/2+40,steps=6); page.mouse.up()
+    assert card.evaluate("e=>[e.style.left,e.style.top]")==before
+    # Tab (here: a focus call) cannot hand a text the keys either.
+    page.evaluate("document.querySelector('.el.card .tiptap-content').focus()")
+    assert not page.evaluate(focused) and page.locator('.el.selected').count()==0
+    badge=page.locator('.el.card .level').first
+    badge.click()
+    assert not page.evaluate(focused)
+    count=page.locator('.page .el').count()
+    assert page.evaluate("()=>{const e=new Event('paste',{bubbles:true,cancelable:true});document.body.dispatchEvent(e);return e.defaultPrevented}")
+    assert page.locator('.page .el').count()==count
+    first=lambda col:page.locator('.el.resources .pool-col[data-col="'+str(col)+'"] .pool').first.locator('.pool-cell').first
+    first(0).click(); first(1).click()
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===2")
+    assert page.locator('.el.selected').count()==0
+    page.keyboard.press('Control+z')
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===1")
+    page.locator('#playLongRest').click()
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===0")
+    # Opened again, the editor is still in game mode; «К правке» brings editing back.
+    page.close()
+    page=open_editor(context)
+    assert page.evaluate("document.documentElement.dataset.play")=='on'
+    page.locator('#playExit').click()
+    assert page.evaluate("document.documentElement.dataset.play") is None
+    assert page.locator('#play').get_attribute('aria-pressed')=='false'
+    page.locator('.el.card').first.locator('.detail').click()
+    page.wait_for_function(focused)
+    page.close()
+    page=open_editor(context)
+    assert page.evaluate("document.documentElement.dataset.play") is None
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': game mode — only boxes and rests are pressable, texts and objects stay put, paste adds nothing, the mode is remembered')
+
     browser.close()
 print('All regression checks passed for '+engine)
