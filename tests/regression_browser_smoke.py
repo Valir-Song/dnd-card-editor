@@ -116,8 +116,8 @@ with sync_playwright() as p:
         before_count=page.locator('.el').count()
         before_storage=stored(page)
         assert len(json.loads(before_storage))==before_count
-        import_json(page,[{'id':'x','kind':'card','page':3,'x':0,'y':0,'w':10,'h':10,'title':'t'}])
-        assert page.dialogs and 'страница 3' in page.dialogs[-1] and 'не изменён' in page.dialogs[-1],page.dialogs
+        import_json(page,[{'id':'x','kind':'card','page':21,'x':0,'y':0,'w':10,'h':10,'title':'t'}])
+        assert page.dialogs and 'страница 21' in page.dialogs[-1] and 'не изменён' in page.dialogs[-1],page.dialogs
         assert page.locator('.el').count()==before_count
         assert stored(page)==before_storage,'Rejected import must not touch the saved layout'
         import_json(page,'not a layout')
@@ -129,7 +129,7 @@ with sync_playwright() as p:
 
         # 2. A damaged save falls back to the template, with a downloadable copy of the raw
         #    data: a save of an editor up to 3.8 (localStorage) and one in the current storage.
-        bad=[{'id':'x','kind':'card','page':3,'x':0,'y':0,'w':10,'h':10}]
+        bad=[{'id':'x','kind':'card','page':21,'x':0,'y':0,'w':10,'h':10}]
         cases=[('legacy','{not json'),('legacy',compact(bad)),('current',compact(bad))]
         if kind=='localstorage': cases.append(('current','{not json'))
         for where,damaged in cases:
@@ -1397,8 +1397,10 @@ with sync_playwright() as p:
     #     downloaded HTML carries the picture.
     context=browser.new_context(viewport={'width':1280,'height':900},accept_downloads=True)
     page=open_editor(context)
-    import_json(page,[{'id':'A','kind':'card','page':1,'x':40,'y':40,'w':60,'h':20,'z':1,'title':'A','meta':'м','detail':'д'}])
-    sheets=lambda:[i for i in saved_layout(page) if i['kind']=='sheet']
+    # Two sheets: the second one is held by an empty background (4.2: a layout has as many sheets as it uses).
+    import_json(page,[{'id':'A','kind':'card','page':1,'x':40,'y':40,'w':60,'h':20,'z':1,'title':'A','meta':'м','detail':'д'},
+      {'id':'P2','kind':'sheet','page':2,'x':0,'y':0,'w':210,'h':297,'z':0}])
+    sheets=lambda:sorted([i for i in saved_layout(page) if i['kind']=='sheet' and (i.get('sheet') or i.get('src') or i['page']!=2)],key=lambda i:i['page'])
     page.locator('[data-tab="appearance"]').click()
     page.locator('#page1').click(position={'x':4,'y':4})
     assert page.locator('#sheetFit').is_disabled() and page.locator('#sheetRemove').is_disabled(),'No picture yet'
@@ -1522,7 +1524,7 @@ with sync_playwright() as p:
     bare=page.evaluate("[...document.querySelectorAll('.rb-large,.rb-small,.rb-top')].filter(e=>!e.querySelector('svg.rb-ico')||!e.querySelector('.rb-label').textContent.trim()).map(e=>e.id)")
     assert not bare,('Buttons without an icon or a label',bare)
     names=page.eval_on_selector_all('#panel-cards .rb-name','e=>e.map(x=>x.textContent)')
-    assert names==['Добавить','Правка','Ресурсы','Закрепление','Фон карточки'],names
+    assert names==['Добавить','Правка','Лист','Ресурсы','Закрепление','Фон карточки'],names
     # Renaming a button (lock) keeps its icon.
     page.locator('[data-tab="cards"]').click(); page.locator('#lock').click()
     assert page.locator('#lock .rb-label').inner_text()=='Открепить' and page.locator('#lock svg.rb-ico').count()==1
@@ -2010,6 +2012,95 @@ with sync_playwright() as p:
     page.evaluate("localStorage.removeItem('dnd-card-editor-zoom')")
     context.close()
     print('PASS '+engine+': zoom — corner buttons, Ctrl+wheel around the cursor, Ctrl+0, gestures and text at any zoom, remembered, not printed or exported')
+
+
+    # 33. More pages (4.2): «+ Добавить лист», bars over each sheet (up, down, copy, delete with a question),
+    #     «На лист» for the selection; gestures work on new sheets; a card keeps its look on another page;
+    #     each step is one Ctrl+Z; every sheet prints, the bars do not; the exported file opens with all sheets.
+    context=browser.new_context(viewport={'width':1280,'height':900},accept_downloads=True)
+    page=open_editor(context)
+    sheets=lambda: page.locator('.stage > .page').count()
+    titles=lambda: page.locator('.page-bar-title').all_inner_texts()
+    assert sheets()==2 and titles()==['Лист 1 из 2','Лист 2 из 2'],titles()
+    assert page.locator('.page-bar').first.locator('[data-action="up"]').is_disabled()
+    page.locator('.page-add').click()
+    page.wait_for_function('document.querySelectorAll(".stage > .page").length===3')
+    assert titles()==['Лист 1 из 3','Лист 2 из 3','Лист 3 из 3'] and page.locator('.gesture-layer').count()==3
+    assert page.locator('#page3 .page-number').inner_text()=='3 / 3' and page.locator('#page1 .page-number').inner_text()=='1 / 3'
+    wait_saved(page)
+    assert max(i['page'] for i in saved_layout(page))==3,'the empty sheet is kept in the layout'
+    # «На лист»: a page-1 card goes to sheet 3, same place, selected, still compact.
+    card=page.locator('#page1 .el.card').first
+    card_id=card.get_attribute('data-id')
+    node=page.locator('.el[data-id="'+card_id+'"]')
+    before=node.evaluate("e=>[e.style.left,e.style.top,getComputedStyle(e.querySelector('.meta')).fontSize]")
+    page.locator('#page1').click(position={'x':5,'y':5})
+    page.locator('[data-tab="cards"]').click()
+    assert page.locator('#toPage').is_disabled(),'nothing selected'
+    card.click(position={'x':4,'y':20})
+    page.wait_for_function('!document.querySelector("#toPage").disabled')
+    assert page.locator('#toPage option[value="1"]').evaluate('o=>o.disabled'),'its own sheet is not offered'
+    page.select_option('#toPage','3')
+    page.wait_for_function('id=>document.querySelector(".el[data-id=\'"+id+"\']").closest(".page").id==="page3"',arg=card_id)
+    assert node.evaluate("e=>[e.style.left,e.style.top,getComputedStyle(e.querySelector('.meta')).fontSize]")==before,'same place, same look'
+    assert node.evaluate("e=>e.classList.contains('selected')") and page.locator('.gesture-layer[data-page="3"] .gesture-frame:not([hidden])').count()==1
+    wait_saved(page)
+    moved=next(i for i in saved_layout(page) if i['id']==card_id)
+    assert moved['page']==3 and moved['cardLook']=='compact',moved
+    # Gestures on the new sheet: drag 40 px.
+    left=node.evaluate('e=>parseFloat(e.style.left)')
+    box=node.bounding_box()
+    page.mouse.move(box['x']+6,box['y']+20); page.mouse.down(); page.keyboard.down('Alt')
+    page.mouse.move(box['x']+26,box['y']+20,steps=3); page.mouse.move(box['x']+46,box['y']+20,steps=3)
+    page.mouse.up(); page.keyboard.up('Alt')
+    k=210/page.locator('#page3').evaluate('e=>e.getBoundingClientRect().width')
+    assert abs(node.evaluate('e=>parseFloat(e.style.left)')-left-40*k)<0.4
+    assert handle_offset(page,node)<2,'handles on sheet 3'
+    # Up: sheet 3 becomes sheet 2 (the card with it); Ctrl+Z puts it back.
+    page.locator('.page-bar').nth(2).locator('[data-action="up"]').click()
+    page.wait_for_function('id=>document.querySelector(".el[data-id=\'"+id+"\']").closest(".page").id==="page2"',arg=card_id)
+    page.locator('#page1').click(position={'x':5,'y':5})
+    page.keyboard.press('Control+z')
+    page.wait_for_function('id=>document.querySelector(".el[data-id=\'"+id+"\']").closest(".page").id==="page3"',arg=card_id)
+    # Copy of sheet 3: a new sheet 4 with a copy of the card.
+    page.locator('.page-bar').nth(2).locator('[data-action="copy"]').click()
+    page.wait_for_function('document.querySelectorAll(".stage > .page").length===4')
+    assert page.locator('#page4 .el.card').count()==1 and page.locator('#page4 .el.card').get_attribute('data-id')!=card_id
+    # Deleting the only object of the last sheet keeps the sheet.
+    page.locator('#page4 .el.card').click(position={'x':4,'y':20})
+    page.keyboard.press('Delete')
+    page.wait_for_function('!document.querySelector("#page4 .el")')
+    assert sheets()==4,'an emptied sheet stays'
+    # Delete sheet 3: asked first (one object), then gone; Ctrl+Z brings it back.
+    page.dialogs.clear()
+    page.locator('.page-bar').nth(2).locator('[data-action="remove"]').click()
+    page.wait_for_function('document.querySelectorAll(".stage > .page").length===3')
+    assert page.dialogs and 'объекты на нём (1)' in page.dialogs[-1],page.dialogs
+    assert node.count()==0 and page.locator('.gesture-layer').count()==3 and titles()[-1]=='Лист 3 из 3'
+    page.keyboard.press('Control+z')
+    page.wait_for_function('document.querySelectorAll(".stage > .page").length===4')
+    assert node.count()==1 and page.locator('.gesture-layer').count()==4
+    # Print: every sheet, no bars, no «+ Добавить лист».
+    page.emulate_media(media='print')
+    assert page.evaluate("[...document.querySelectorAll('.page-bar,.page-add')].every(e=>getComputedStyle(e).display==='none')")
+    assert page.evaluate("[...document.querySelectorAll('.stage > .page')].every(e=>getComputedStyle(e).display!=='none')")
+    assert page.locator('#page4').evaluate('e=>getComputedStyle(e).breakAfter')=='auto','no blank sheet after the last one'
+    page.emulate_media(media='screen')
+    # The exported file opens with its four sheets.
+    page.locator('[data-tab="files"]').click()
+    with page.expect_download() as downloaded:
+        page.locator('#export').click()
+    folder=Path(tempfile.mkdtemp(prefix='dnd-pages-'))
+    exported=folder/'pages.html'
+    shutil.copy2(downloaded.value.path(),exported)
+    assert not page.errors,page.errors
+    page.close()
+    page=open_editor(context,exported.as_uri())
+    assert page.locator('.stage > .page').count()==4 and page.locator('#page3 .el[data-id="'+card_id+'"]').count()==1
+    assert page.locator('.gesture-layer').count()==4
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': more sheets — add, move, copy, delete with undo, «На лист», gestures on new sheets, print and export')
 
     browser.close()
 print('All regression checks passed for '+engine)

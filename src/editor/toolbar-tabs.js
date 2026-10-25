@@ -15,6 +15,7 @@ const GROUPS = [
   {id:'cards', label:'Карточки', sections:[
     ['Добавить', 'big', ['add','addSpell','addResources']],
     ['Правка', 'big', ['duplicate','delete']],
+    ['Лист', 'rows', [['toPage']], 'Выделите объект, чтобы перенести его на другой лист'],
     ['Ресурсы', 'big', ['addSpellRow','addExtraRow','shortRest','longRest']],
     ['Закрепление', 'big', ['lock','unlockPage']],
     ['Фон карточки', 'rows', [['cardBgTools']], 'Выделите карточку, чтобы поставить ей картинку на фон'],

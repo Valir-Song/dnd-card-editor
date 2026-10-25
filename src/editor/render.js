@@ -8,6 +8,7 @@ import { outlineLook } from './borders.js';
 /** @typedef {'title' | 'subtitle' | 'meta' | 'detail' | 'text'} Field */
 
 import { isSheet, sheetOf, paintSheet } from './sheet.js';
+import { pageCount } from './pages.js';
 import { buildPools, toggleCell, changeCount, cycleRest, switchColumn, removePool, setPoolLabel } from './resources.js';
 
 // Geometry that gestures already applied to the node: patch styles, never rebuild.
@@ -44,7 +45,7 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
   /** @param {Item} item */
   function markRendered(item){const r=rendered.get(item.id);if(r)r.snap=snapOf(item)}
   /** @param {Item} item */
-  function buildElement(item){const e=document.createElement('div');e.className='el '+(item.kind==='image'?'image-el':item.kind==='shape'?'shape '+(item.shape||'rect'):item.kind)+(item.locked?' locked':'')+(/^[a-z-]+$/.test(item.theme??'')?' theme-'+item.theme:'');const frame=outlineLook(item);if(frame){e.classList.add(frame.className);e.style.setProperty('--o-width',frame.width);if(frame.color)e.style.setProperty('--o-color',frame.color)}e.dataset.id=item.id;e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);e.style.height=mm(item.h);if(item.bg&&item.kind!=='textbox')e.style.backgroundColor=item.bg;if(item.kind==='card'&&item.bgImage){const bi=document.createElement('img');bi.className='card-bg-image';bi.src=item.bgImage;bi.draggable=false;bi.style.objectFit=item.bgFit||'cover';bi.style.opacity=String((item.bgOpacity??100)/100);bi.style.transform=`translate(${item.bgX||0}%,${item.bgY||0}%) scale(${(item.bgZoom??100)/100})`;e.append(bi);const shade=document.createElement('div');shade.className='card-bg-shade';shade.style.opacity=String((item.bgShade||0)/100);e.append(shade)}if(item.kind==='card'){/* Цветовые полосы отключены */}if(item.kind==='shape'){e.style.backgroundColor=item.bg||'#d8c5ed';if(item.shape==='line')e.style.height='2px'}if(item.kind==='image'){const im=document.createElement('img');im.src=/** @type {string} */ (item.src);im.draggable=false;im.style.objectFit=item.fit||'contain';im.style.filter=`brightness(${item.brightness??100}%) contrast(${item.contrast??100}%)`;im.style.transform=`rotate(${item.rotation||0}deg)`;e.style.opacity=String((item.opacity??100)/100);e.append(im)}if(item.kind==='textbox'){
+  function buildElement(item){const e=document.createElement('div');e.className='el '+(item.kind==='image'?'image-el':item.kind==='shape'?'shape '+(item.shape||'rect'):item.kind)+(item.locked?' locked':'')+(item.kind==='card'&&(item.cardLook==='compact'||item.cardLook==='full')?' card-'+item.cardLook:'')+(/^[a-z-]+$/.test(item.theme??'')?' theme-'+item.theme:'');const frame=outlineLook(item);if(frame){e.classList.add(frame.className);e.style.setProperty('--o-width',frame.width);if(frame.color)e.style.setProperty('--o-color',frame.color)}e.dataset.id=item.id;e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);e.style.height=mm(item.h);if(item.bg&&item.kind!=='textbox')e.style.backgroundColor=item.bg;if(item.kind==='card'&&item.bgImage){const bi=document.createElement('img');bi.className='card-bg-image';bi.src=item.bgImage;bi.draggable=false;bi.style.objectFit=item.bgFit||'cover';bi.style.opacity=String((item.bgOpacity??100)/100);bi.style.transform=`translate(${item.bgX||0}%,${item.bgY||0}%) scale(${(item.bgZoom??100)/100})`;e.append(bi);const shade=document.createElement('div');shade.className='card-bg-shade';shade.style.opacity=String((item.bgShade||0)/100);e.append(shade)}if(item.kind==='card'){/* Цветовые полосы отключены */}if(item.kind==='shape'){e.style.backgroundColor=item.bg||'#d8c5ed';if(item.shape==='line')e.style.height='2px'}if(item.kind==='image'){const im=document.createElement('img');im.src=/** @type {string} */ (item.src);im.draggable=false;im.style.objectFit=item.fit||'contain';im.style.filter=`brightness(${item.brightness??100}%) contrast(${item.contrast??100}%)`;im.style.transform=`rotate(${item.rotation||0}deg)`;e.style.opacity=String((item.opacity??100)/100);e.append(im)}if(item.kind==='textbox'){
     e.classList.toggle('auto-height',!!item.autoHeight);
     e.style.height=item.autoHeight?'auto':mm(item.h);
     e.style.maxHeight=item.autoHeight?mm(297-item.y):'';
@@ -99,8 +100,15 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
     const badge=e.querySelector(':scope > .level:not(.extra)');
     if(badge instanceof HTMLElement){badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':''}
   }
+  // 4.2: one .page per page of the layout; page N is always the Nth sheet on screen.
+  /** @param {number} count */
+  function addPages(count){
+    while(pages.length<count){const n=pages.length+1,p=document.createElement('div');p.className='page';p.dataset.page=String(n);p.id='page'+n;pages[pages.length-1].after(p);pages.push(p)}
+  }
   function draw(){
     pendingEditors.length=0;
+    const count=pageCount(getItems());
+    addPages(count);
     /** @type {Set<string>} */
     const seen=new Set();
     /** @type {Map<HTMLElement, HTMLElement>} */
@@ -123,7 +131,8 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
     }
     pages.forEach((p,i)=>paintSheet(p,sheetOf(getItems(),i+1)));
     for(const [id,r] of rendered)if(!seen.has(id)){rich.unmount(id);r.node.remove();rendered.delete(id)}
-    pages.forEach((p,i)=>{if(!p.querySelector(':scope > .page-number')){const n=document.createElement('div');n.className='page-number';n.textContent=(i+1)+' / 2';p.append(n)}});
+    while(pages.length>count)pages.pop()?.remove();
+    pages.forEach((p,i)=>{let n=p.querySelector(':scope > .page-number');if(!n){n=document.createElement('div');n.className='page-number';p.append(n)}n.textContent=(i+1)+' / '+count});
     for(const entry of pendingEditors)rich.mount(entry.node,entry.item,entry.field);
     afterDraw()}
   // Throw away every element and editor (recovery paths, before replacing all data).

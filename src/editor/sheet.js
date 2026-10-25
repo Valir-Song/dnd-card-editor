@@ -30,7 +30,8 @@ export function sheetOf(items, page) {
 
 /**
  * Change the background of a page, in place: the sheet object is created when
- * needed and removed once it holds nothing (no background, no picture).
+ * needed and removed once it holds nothing (no background, no picture), unless
+ * it is all the page has: then it keeps the empty page in the layout (pages.js).
  * `undefined` or '' in the patch removes that setting.
  * @param {Item[]} items
  * @param {number} page
@@ -51,7 +52,7 @@ export function setSheet(items, page, patch, makeId) {
   }
   // A picture's settings mean nothing without it.
   if (!sheet.src) { delete sheet.fit; delete sheet.opacity; }
-  if (!sheet.sheet && !sheet.src) {
+  if (!sheet.sheet && !sheet.src && items.some(item => item !== sheet && (item.page || 1) === page)) {
     items.splice(items.indexOf(sheet), 1);
     return undefined;
   }
@@ -133,10 +134,13 @@ export function setupSheet({store, getPage, makeId, readPicture}) {
     change({opacity: value === 100 ? undefined : value}, {group: 'sheet-opacity:' + getPage(), windowMs: 1200});
   });
   remove.addEventListener('click', () => change({src: undefined}));
-  // The other page gets this page's look (and the same picture).
+  // Every other page gets this page's look (and the same picture).
   both.addEventListener('click', () => {
     const page = getPage(), look = sheetLook(sheetOf(store.items, page));
-    store.change(items => { setSheet(items, page === 1 ? 2 : 1, look, makeId); });
+    store.change(items => {
+      const count = Math.max(1, ...items.map(item => item.page || 1));
+      for (let other = 1; other <= count; other++) if (other !== page) setSheet(items, other, look, makeId);
+    });
   });
 
   // The tools show the active page's background; picture settings are greyed out without a picture.
