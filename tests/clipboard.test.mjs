@@ -21,7 +21,7 @@ test('broken objects are refused, not pasted', () => {
 });
 
 test('the clipboard names the format version: older copies are migrated, newer refused', () => {
-  assert.equal(JSON.parse(encodeClip([card])).formatVersion, 2);
+  assert.equal(JSON.parse(encodeClip([card])).formatVersion, 3);
   const old = {...card, badgeX: 81.5, badgeY: 1.1};
   const fromOld = decodeClip(JSON.stringify({kind: 'dnd-card-editor/objects', version: 1, items: [old]}));
   assert.ok(fromOld && !('badgeX' in fromOld[0]), 'a copy from 3.11.0 beta.12 is format 1');

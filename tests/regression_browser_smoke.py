@@ -1509,7 +1509,7 @@ with sync_playwright() as p:
     bare=page.evaluate("[...document.querySelectorAll('.rb-large,.rb-small,.rb-top')].filter(e=>!e.querySelector('svg.rb-ico')||!e.querySelector('.rb-label').textContent.trim()).map(e=>e.id)")
     assert not bare,('Buttons without an icon or a label',bare)
     names=page.eval_on_selector_all('#panel-cards .rb-name','e=>e.map(x=>x.textContent)')
-    assert names==['Добавить','Правка','Закрепление','Фон карточки'],names
+    assert names==['Добавить','Правка','Ресурсы','Закрепление','Фон карточки'],names
     # Renaming a button (lock) keeps its icon.
     page.locator('[data-tab="cards"]').click(); page.locator('#lock').click()
     assert page.locator('#lock .rb-label').inner_text()=='Открепить' and page.locator('#lock svg.rb-ico').count()==1
@@ -1545,14 +1545,14 @@ with sync_playwright() as p:
         import_json(page,[old_card,{**old_card,'id':'moved','y':60,'badgeCustomPosition':True}])
         assert not page.dialogs,page.dialogs
         record=saved_record(page)
-        assert record['formatVersion']==2,'The browser save names its format'
+        assert record['formatVersion']==3,'The browser save names its format'
         by_id={item['id']:item for item in record['items']}
         assert 'badgeX' not in by_id['old'] and by_id['moved']['badgeX']==81.5,'Format 1 badges are moved, hand-placed ones kept'
         page.locator('#layoutName').fill('Формат')
         with page.expect_download() as downloaded:
             page.locator('#json').click()
         data=json.loads(Path(downloaded.value.path()).read_text(encoding='utf-8'))
-        assert data['format']=='dnd-card-editor/layout' and data['formatVersion']==2 and data['name']=='Формат',{k:v for k,v in data.items() if k!='items'}
+        assert data['format']=='dnd-card-editor/layout' and data['formatVersion']==3 and data['name']=='Формат',{k:v for k,v in data.items() if k!='items'}
         assert data['editor']==json.loads((root/'package.json').read_text(encoding='utf-8'))['version']
         assert [item['id'] for item in data['items']]==['old','moved']
         import_json(page,starter)
@@ -1568,7 +1568,7 @@ with sync_playwright() as p:
         with page.expect_download() as exported_file:
             page.locator('#export').click()
         exported=Path(exported_file.value.path()).read_text(encoding='utf-8')
-        assert re.search(r'<script[^>]*id="initial"[^>]*data-format-version="2"',exported),'The HTML file names the format of its layout'
+        assert re.search(r'<script[^>]*id="initial"[^>]*data-format-version="3"',exported),'The HTML file names the format of its layout'
         page.close()
         # A save from a newer editor: this one opens its own template under a new id.
         future={'id':'from-future','name':'Будущий','savedAt':'2999-01-01T00:00:00Z','formatVersion':99,'items':[{'id':'f','kind':'hologram'}]}
@@ -1665,7 +1665,7 @@ with sync_playwright() as p:
     page.wait_for_function('window.files.length===1')
     assert page.evaluate('window.picks')==[],'No save dialog: the opened file is the layout file'
     written=json.loads(page.evaluate('window.files[0].text'))
-    assert written['id']=='m-file-2' and written['formatVersion']==2 and written['items'][0]['title']=='Лютня!',written
+    assert written['id']=='m-file-2' and written['formatVersion']==3 and written['items'][0]['title']=='Лютня!',written
     # «Недавние файлы» lists it and opens it again.
     page.keyboard.press('Control+o')
     page.wait_for_selector('#openDialog[open] li[data-id="m-file-2"]')
@@ -1676,6 +1676,77 @@ with sync_playwright() as p:
     assert not page.errors,page.errors
     context.close()
     print('PASS '+engine+': «Открыть» opens .dnd, HTML and JSON as their own layout; Ctrl+S writes back into the opened file; recent files')
+
+    # 29. Resources (3.11 beta.18): the template's typed «□» became rows; a click on a box
+    #     spends it, a second click gives it back; «+» above a row adds a box; the row name is
+    #     typed in place; «Круг»/«Ресурс» add rows to the selected box, «Ресурсы» a new box;
+    #     «Короткий отдых» gives back only КО rows, «Длинный отдых» КО and ДО. Undo works.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    box_id=page.evaluate("document.querySelector('.el.resources').dataset.id")
+    box=lambda:page.locator('.el[data-id="'+box_id+'"]')
+    row=lambda col,n:box().locator('.pool-col[data-col="'+str(col)+'"] .pool').nth(n)
+    pools=lambda:next(item for item in saved_layout(page) if item['id']==box_id)['pools']
+    assert box().locator('.pool').count()==8 and '□' not in box().inner_text(),box().inner_text()
+    assert row(0,1).locator('.pool-label').inner_text()=='1 круг' and row(0,1).locator('.pool-cell').count()==4
+    assert row(1,0).locator('.pool-label').inner_text()=='Лютня' and row(1,0).locator('.pool-cell').count()==8
+    row(0,1).locator('.pool-cell').nth(2).click()
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===3")
+    row(0,1).locator('.pool-cell').nth(1).click()
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===1")
+    assert [p['used'] for p in pools()][:4]==[0,0,1,0] or pools()[2]['used']==1,pools()
+    page.keyboard.press('Control+z')
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===3")
+    # The box is selected now: «+» over a row adds a box; the tools never print.
+    row(1,0).hover()
+    tools=row(1,0).locator('.pool-tools')
+    assert tools.is_visible()
+    tools.get_by_title('Добавить ячейку').click()
+    page.wait_for_function("document.querySelector('.el.resources .pool-col[data-col=\"1\"] .pool').querySelectorAll('.pool-cell').length===9")
+    # A long row wraps its boxes under its own first box: the next row keeps its left edge.
+    for _ in range(8):
+        row(1,0).hover(); row(1,0).locator('.pool-tools').get_by_title('Добавить ячейку').click()
+    page.wait_for_function("document.querySelector('.el.resources .pool-col[data-col=\"1\"] .pool').querySelectorAll('.pool-cell').length===17")
+    lefts=page.evaluate("""()=>{const r=document.querySelector('.el.resources .pool-col[data-col="1"] .pool');const c=[...r.querySelectorAll('.pool-cell')].map(x=>x.getBoundingClientRect());
+      return {rows:new Set(c.map(x=>Math.round(x.top))).size,first:c[0].left,wrapped:Math.min(...c.filter(x=>x.top>c[0].top+1).map(x=>x.left)),next:r.nextElementSibling.getBoundingClientRect().top,bottom:Math.max(...c.map(x=>x.bottom))}}""")
+    assert lefts['rows']>=2 and abs(lefts['first']-lefts['wrapped'])<0.5 and lefts['next']>=lefts['bottom']-0.5,lefts
+    # The name is typed in place, as one undo step, without rebuilding the box.
+    label=row(1,1).locator('.pool-label')
+    label.click()
+    page.wait_for_function('document.activeElement?.classList.contains("pool-label")')
+    page.keyboard.press('End'); page.keyboard.type('!'); page.keyboard.press('Enter')
+    assert label.inner_text()=='Чарующая магия!'
+    page.wait_for_function("document.documentElement.dataset.saveState==='saved'")
+    assert pools()[3]['label']=='Чарующая магия!',pools()
+    # A rest: Лютня is ДО; make it КО, spend one box of Лютня and one of «2 круг» (ДО).
+    page.keyboard.press('Escape')
+    row(1,0).locator('.pool-rest').click()
+    page.wait_for_function("document.querySelector('.el.resources .pool-col[data-col=\"1\"] .pool .pool-rest').textContent==='КО'")
+    row(1,0).locator('.pool-cell').nth(0).click()
+    row(0,2).locator('.pool-cell').nth(0).click()
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===5")
+    page.locator('[data-tab="cards"]').click()
+    page.locator('#shortRest').click()
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===4")
+    page.locator('#longRest').click()
+    page.wait_for_function("document.querySelectorAll('.el.resources .pool-cell.used').length===0")
+    # New rows on the selected box, a new box from the ribbon.
+    box().click(position={'x':4,'y':4})
+    page.locator('#addSpellRow').click()
+    page.wait_for_function("[...document.querySelectorAll('.el.resources .pool-label')].some(x=>x.textContent==='4 круг')")
+    page.locator('#addResources').click()
+    page.wait_for_function("document.querySelectorAll('.el.resources').length===2")
+    assert page.locator('#addExtraRow').is_enabled()
+    page.locator('#addExtraRow').click()
+    page.wait_for_function("[...document.querySelectorAll('.el.resources')].at(-1).querySelectorAll('.pool').length===3")
+    # Print: no tools, filled boxes keep their colour.
+    page.emulate_media(media='print')
+    assert page.evaluate("[...document.querySelectorAll('.pool-tools')].every(x=>getComputedStyle(x).display==='none')")
+    page.emulate_media(media='screen')
+    assert not page.errors,page.errors
+    page.wait_for_function("document.documentElement.dataset.saveState!=='saving'")
+    context.close()
+    print('PASS '+engine+': resources — rows from typed boxes, spend/give back, +/− boxes, names, rests, new box and rows')
 
     browser.close()
 print('All regression checks passed for '+engine)

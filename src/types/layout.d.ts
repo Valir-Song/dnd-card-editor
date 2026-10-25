@@ -3,6 +3,9 @@
 export type Kind = 'header' | 'note' | 'resources' | 'section' | 'card' | 'shape' | 'image' | 'textbox' | 'sheet';
 // The text fields of an object; each has a plain (title) and a formatted (titleHtml) version.
 export type TextField = 'title' | 'subtitle' | 'meta' | 'detail' | 'text';
+// A row of tick boxes in a resources box (see src/editor/resources.js).
+export type Rest = 'long' | 'short' | 'none';
+export interface Pool { label: string; count: number; used: number; rest: Rest; col: 0 | 1 }
 export interface Frame { x?: number; y?: number; w?: number; h?: number }
 export interface Item {
   id: string;
@@ -21,6 +24,8 @@ export interface Item {
   shape?: 'rect' | 'circle' | 'line';
   src?: string; fit?: string; opacity?: number; brightness?: number; contrast?: number; rotation?: number;
   roles?: string;
+  // Resources box: rows of boxes (spell slots, other resources).
+  pools?: Pool[];
   // Locked in place (see src/editor/lock.js); absent means unlocked.
   locked?: boolean;
   // Look of a card or box (see src/editor/themes.js); absent means the default look.

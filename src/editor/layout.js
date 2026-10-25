@@ -1,6 +1,8 @@
 // Layout validation shared by startup, JSON import and tests.
 // A layout is accepted only if every object can be drawn on one of the A4 pages;
 // small, unambiguous defects (missing id/page/z, duplicate ids) are repaired.
+import { migrateResources } from './resources.js';
+
 export const PAGE_COUNT=2;
 export const KINDS=['header','note','resources','section','card','shape','image','textbox','sheet'];
 const GEOMETRY=['x','y','w','h'];
@@ -10,7 +12,7 @@ const MAX_ERRORS=5;
 // version 1; since beta.13 JSON files, saves and the clipboard say {formatVersion, items}.
 // A change to the meaning of a field adds a step to MIGRATIONS and raises the version;
 // an editor refuses a newer version instead of guessing (it would lose fields).
-export const FORMAT_VERSION=2;
+export const FORMAT_VERSION=3;
 export const FORMAT_MARK='dnd-card-editor/layout';
 
 /** @typedef {Record<string, any>} RawItem */
@@ -25,7 +27,9 @@ export const MIGRATIONS={
   1:item=>{
     if(item.kind!=='card'||item.badgeCustomPosition||item.badgeX!==81.5||item.badgeY!==1.1)return false;
     delete item.badgeX;delete item.badgeY;return true;
-  }
+  },
+  // 2 → 3: resources typed as «Ячейки 1: □ □ □» become rows of boxes (resources.js).
+  2:migrateResources
 };
 
 /**
