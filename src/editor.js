@@ -16,7 +16,7 @@ import { setupHelp } from './editor/help.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
 import { normalizeLayout, wrapLayout, FORMAT_VERSION } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
-import { formatStamp, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
+import { formatStamp, layoutTitle, isCopy, fileBase, windowTitle } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
 import { setupNewSheet } from './editor/new-sheet.js';
 import { setupSpellPicker } from './editor/spell-picker.js';
@@ -137,12 +137,12 @@ document.getElementById('resetStorage').onclick=()=>{
   switchLayout(embedded);
 };
 // ---- which layout is open: id and name; «Мои макеты» switches to another saved one ----
-const baseTitle=document.title;
+const setTitle=()=>{document.title=windowTitle(layoutName,editorVersion,HOSTED)};
 const nameInput=document.getElementById('layoutName');
 function syncLayoutIdentity(){
   document.documentElement.dataset.layoutId=layoutId;
   nameInput.value=layoutName;
-  document.title=layoutName+' · '+baseTitle;
+  setTitle();
 }
 // A layout named after its heading (the template's «ИМЯ ПЕРСОНАЖА», or any layout whose name
 // was never typed) keeps following it: the player writes the character's name on the sheet,
@@ -156,7 +156,7 @@ function followHeading(){
   followed={id:layoutId,title};
 }
 // The name is not part of the layout: no undo step, just saved with it.
-nameInput.addEventListener('input',()=>{layoutName=nameInput.value.trim()||layoutTitle(items);document.title=layoutName+' · '+baseTitle;saver.request()});
+nameInput.addEventListener('input',()=>{layoutName=nameInput.value.trim()||layoutTitle(items);setTitle();saver.request()});
 /** @param {string} id */
 async function openSaved(id){
   await saver.flush();
