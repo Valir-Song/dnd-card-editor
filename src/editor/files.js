@@ -2,6 +2,7 @@
 import { target, downloadFile as download, setLabel, errorText } from './dom.js';
 import { compressImage } from './images.js';
 import { fileBase } from './freshness.js';
+import { LAYOUT_EXTENSION } from './layout-file.js';
 import { normalizeLayout, wrapLayout, FORMAT_VERSION } from './layout.js';
 /**
  * @param {import('../types/layout').Deps<'getSelectionIds' | 'removeObjects' | 'clearSelection' | 'syncImageTools' | 'syncBgTools'>
@@ -27,6 +28,8 @@ const initial=doc.querySelector('#initial');if(!initial)throw Error('The editor 
 document.getElementById('export').onclick=()=>{store.commit();const {name,html}=exportFile();download(name,html,'text/html;charset=utf-8')};
 // The file names its format version (see layout.js); import still takes a bare array from older editors.
 document.getElementById('json').onclick=()=>{const {name}=identity();download(fileBase(name)+'.json',JSON.stringify(wrapLayout(store.items,{name,editor:document.querySelector('meta[name="editor-version"]')?.getAttribute('content')||'',savedAt:new Date().toISOString()}),null,2),'application/json')};
+// The layout file (layout-file.js): the same JSON plus the layout id, so opening it continues this layout.
+function layoutFile(){const {id,name}=identity();return {name:fileBase(name)+LAYOUT_EXTENSION,text:JSON.stringify(wrapLayout(store.items,{id,name,editor:document.querySelector('meta[name="editor-version"]')?.getAttribute('content')||'',savedAt:new Date().toISOString()}),null,2)}}
 // Validate and render an imported layout before it replaces the current one or
 // reaches localStorage; a bad file must leave the editor exactly as it was.
 document.getElementById('import').onchange=async e=>{const f=target(e).files?.[0];if(!f)return;try{
@@ -57,5 +60,5 @@ compressButton.onclick=async()=>{
   alert('Картинки сжаты: было '+mb(before)+', стало '+mb(after)+'. Ctrl+Z вернёт прежние.');
 };
 document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&getSelectionIds().length&&!target(e).isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(target(e).tagName))removeObjects(getSelectionIds())});
-return {exportFile};
+return {exportFile,layoutFile};
 }
