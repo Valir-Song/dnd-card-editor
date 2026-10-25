@@ -1,6 +1,7 @@
 """The hosted, installable editor (scripts/build-site.mjs) served over HTTP like GitHub Pages:
 manifest and icons load, the service worker serves the editor offline, a new release reaches
-the page on the next online start, and the beta channel in beta/ keeps its own worker.
+the page on the next online start, and the beta channel in beta/ keeps its own worker, and the ready sheets (library/) load from
+the site and stay available offline.
 Needs a fresh `npm run build`.
 """
 import functools
@@ -59,7 +60,7 @@ with sync_playwright() as p:
     context.set_offline(True)
     page.reload()
     editor_ready(page)
-    assert page.locator('#page1 .el').count()>10
+    assert page.locator('#page1 .el').count()>=10
     context.set_offline(False)
     print('PASS '+engine+': editor opens without network')
 
@@ -96,6 +97,25 @@ with sync_playwright() as p:
     layout=json.loads(page.evaluate('window.files[0]'))
     assert layout['format']=='dnd-card-editor/layout' and layout['id']==page.evaluate('document.documentElement.dataset.layoutId') and len(layout['items'])>10
     print('PASS '+engine+': in the app Ctrl+S saves a .dnd layout file')
+
+    # «Новый лист» → ready sheets: the list and the sheet come from library/ next to the app,
+    # a copy opens as a new layout, and what was fetched once works offline.
+    def take_richard():
+        page.locator('#newSheet').click()
+        row=page.locator('#newSheetDialog li[data-file="richard-sadsong.dnd"]')
+        row.wait_for(timeout=15000)
+        assert 'Бард 6' in row.inner_text()
+        before=page.evaluate('document.documentElement.dataset.layoutId')
+        row.locator('button').click()
+        page.wait_for_function("!document.querySelector('#newSheetDialog').open")
+        assert 'РИЧАРД СЭДСОНГ' in page.locator('#page1').inner_text()
+        assert page.evaluate('document.documentElement.dataset.layoutId')!=before
+        assert page.locator('#layoutName').input_value()=='Бард — Ричард Сэдсонг'
+    take_richard()
+    context.set_offline(True)
+    take_richard()
+    context.set_offline(False)
+    print('PASS '+engine+': ready sheets load from the site and stay offline')
 
     # The beta in beta/ has its own worker, manifest and icon; the main worker leaves it alone.
     beta=context.new_page()

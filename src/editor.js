@@ -18,6 +18,10 @@ import { normalizeLayout, wrapLayout, FORMAT_VERSION } from './editor/layout.js'
 import { createNotices } from './editor/notice.js';
 import { formatStamp, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
+import { setupNewSheet } from './editor/new-sheet.js';
+import { createLibrary, libraryBase } from './editor/library.js';
+import { HOSTED } from './editor/channel.js';
+import templateLayout from './starter-layout.json';
 import { setupClipboard } from './editor/clipboard.js';
 import { setupLock, isLocked } from './editor/lock.js';
 import { setupNudge } from './editor/nudge.js';
@@ -65,11 +69,13 @@ const mm=(/** @type {number} */ v)=>v+'mm';
 // Autosave runs in the background; the indicator next to undo/redo shows its state.
 const saveIndicator=document.getElementById('saveState');
 saveIndicator.title=storage.kind==='indexeddb'?'Макет сохраняется в базе браузера (IndexedDB)':storage.kind==='localstorage'?'Макет сохраняется в localStorage браузера (до ~5 МБ на все файлы)':'Браузер не даёт этой странице сохранять: скачивайте HTML';
-const saver=createSaver({backend:storage,describe:()=>({id:layoutId,name:layoutName,formatVersion:FORMAT_VERSION,items}),onState:(state,error)=>{
+const saver=createSaver({backend:storage,describe:()=>{followHeading();return {id:layoutId,name:layoutName,formatVersion:FORMAT_VERSION,items}},onState:(state,error)=>{
   document.documentElement.dataset.saveState=state;
   saveIndicator.dataset.state=state;
   saveIndicator.textContent=state==='saved'?'✓ Сохранено':state==='saving'?'Сохраняю…':'⚠ Не сохранено';
   if(state==='saved')notices.hide('storage');
+  // The first edit saves: the newcomer has started on the template, the hint has done its job.
+  if(state==='saving')notices.hide('welcome');
   if(state!=='error')return;
   console.warn('Autosave failed: export HTML to keep the work',error);
   const full=/** @type {{name?: string}} */ (error)?.name==='QuotaExceededError';
@@ -127,6 +133,17 @@ function syncLayoutIdentity(){
   document.documentElement.dataset.layoutId=layoutId;
   nameInput.value=layoutName;
   document.title=layoutName+' · '+baseTitle;
+}
+// A layout named after its heading (the template's «ИМЯ ПЕРСОНАЖА», or any layout whose name
+// was never typed) keeps following it: the player writes the character's name on the sheet,
+// and «Мои макеты» and the file names follow.
+let followed={id:'',title:''};
+function followHeading(){
+  const title=layoutTitle(items);
+  // A sheet without a heading (deleted for now) keeps its name and what it follows.
+  if(followed.id===layoutId&&title===layoutTitle([]))return;
+  if(followed.id===layoutId&&layoutName===followed.title&&title!==followed.title){layoutName=title;syncLayoutIdentity()}
+  followed={id:layoutId,title};
 }
 // The name is not part of the layout: no undo step, just saved with it.
 nameInput.addEventListener('input',()=>{layoutName=nameInput.value.trim()||layoutTitle(items);document.title=layoutName+' · '+baseTitle;saver.request()});
@@ -188,6 +205,30 @@ async function openFile({text,fileName}){
   ]);
   return {id,name:layoutName};
 }
+/**
+ * «Новый лист»: the template or a copy of a ready sheet becomes a new layout with its own id and
+ * undo history, like opening another file; the open one is already saved in «Мои макеты».
+ * @param {Item[]} next @param {string} name '' names it after its heading
+ */
+async function startLayout(next,name){
+  await saver.flush();
+  const previous={id:layoutId,name:layoutName,items:store.items};
+  layoutId=newLayoutId();layoutName=name||layoutTitle(next);syncLayoutIdentity();
+  clearSelection();
+  // A sheet that fails to render leaves the editor as it was.
+  try{store.replace(structuredClone(next));store.render()}catch(err){
+    layoutId=previous.id;layoutName=previous.name;syncLayoutIdentity();store.replace(previous.items);store.render();
+    alert('Лист «'+(name||layoutTitle(next))+'» не удалось отрисовать: '+errorText(err));return false;
+  }
+  history.reset();syncImageTools();syncBgTools();
+  for(const n of ['freshness','newer','layouts','damaged','opened','welcome'])notices.hide(n);
+  saveToStorage();
+  return true;
+}
+const template=()=>normalizeLayout(templateLayout).items||[];
+const newSheet=setupNewSheet({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('newSheetDialog'))),
+  button:/** @type {HTMLElement} */ (document.getElementById('newSheet')),template,currentName:()=>layoutName,create:startLayout,
+  library:createLibrary(libraryBase(HOSTED,location.href),url=>fetch(url,{cache:'no-cache'}))});
 const layoutsDialog=setupLayoutsDialog({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('layoutsDialog'))),
   storage,currentId:()=>layoutId,open:openSaved,download:downloadSaved});
 document.getElementById('layouts').onclick=()=>layoutsDialog.show();
@@ -199,6 +240,14 @@ function reportLayoutChoice(){
   ]);
   else if(!initialNode.dataset.layoutId&&!embeddedAt&&choice.hasSave&&others>1)notices.show('layouts','Открыт последний сохранённый макет «'+layoutName+'» ('+formatStamp(storedAt)+'). Остальные макеты этого браузера — в «Файл → Мои макеты».',[
     {label:'Мои макеты',onClick:()=>layoutsDialog.show()}
+  ]);
+}
+// Someone opening the editor for the first time gets the empty template: say what it is
+// and where the ready sheets are.
+function reportWelcome(){
+  if(initialNode.dataset.layoutId||embeddedAt||choice.hasSave||saves.length)return;
+  notices.show('welcome','Это пустой шаблон листа: замените надписи своими, и лист сам сохранится в браузере. Готовые листы, например «Бард — Ричард Сэдсонг», — в «Файл → Новый лист».',[
+    {label:'Готовые листы',onClick:()=>newSheet.show()}
   ]);
 }
 function reportTooNew(){
@@ -311,7 +360,7 @@ align=setupAlign({canvas,innerCanvas});
 
 const renderer=createRenderer({pages,getItems:()=>items,store,rich,
   startDrag:(event,id)=>canvas.startDrag(event,id),startBadgeDrag,
-  afterDraw:()=>{canvas.afterDraw();innerCanvas?.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync()}});
+  afterDraw:()=>{followHeading();canvas.afterDraw();innerCanvas?.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync()}});
 /** @param {HTMLElement | null} e */
 function select(e){canvas.setSelection(e?[e.dataset.id||'']:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
@@ -390,6 +439,7 @@ reportDamagedSave();
 reportTooNew();
 reportFreshness();
 reportLayoutChoice();
+reportWelcome();
 saveIndicator.textContent=storage.kind==='none'?'⚠ Без сохранения':'✓ Сохранено';saveIndicator.dataset.state=storage.kind==='none'?'error':'saved';
 if(saveAtStart)saver.request();
 if(storage.kind==='none')notices.show('storage','Браузер не даёт этой странице сохранять макет (например, в приватном окне). Изменения пропадут при закрытии вкладки: сохраняйте работу кнопкой «Скачать HTML».',[

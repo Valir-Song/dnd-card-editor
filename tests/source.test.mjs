@@ -7,8 +7,8 @@ const html = read('index.html');
 const modules = readdirSync('src/editor').filter(x=>x.endsWith('.js'));
 
 test('layout is valid',()=>{
-  assert.equal(layout.length,28);
-  assert.equal(new Set(layout.map(x=>x.id)).size,28);
+  assert.equal(layout.length,17);
+  assert.equal(new Set(layout.map(x=>x.id)).size,17);
   for(const x of layout){assert.ok([1,2].includes(x.page));assert.ok(x.w>0&&x.h>0);}
 });
 test('all UI bindings refer to existing toolbar controls',()=>{

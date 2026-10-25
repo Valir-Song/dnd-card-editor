@@ -56,6 +56,8 @@ jobs:
           mkdir -p "$target"
           # Replace this channel's files only: the other channel, README and .git stay.
           find "$target" -maxdepth 1 -type f ! -name README.md -delete
+          # Ready sheets removed from library/ must leave the site too.
+          rm -rf "$target/library"
           cp -r out/. "$target/"
           cd pages
           git config user.name "github-actions[bot]"
