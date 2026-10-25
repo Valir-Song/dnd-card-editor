@@ -79,7 +79,7 @@ test('the library fetches the index and a sheet from its folder',async()=>{
 test('a ready sheet opens like a layout file',()=>{
   assert.deepEqual(readSheet(JSON.stringify(wrapLayout([card],{name:'А'}))).items?.map(x=>x.id),['c1']);
   assert.ok('error' in readSheet('<html></html>'));
-  assert.ok('error' in readSheet(JSON.stringify([{...card,page:7}])));
+  assert.ok('error' in readSheet(JSON.stringify([{...card,page:70}])));
 });
 
 test('the empty template has no character of its own',()=>{

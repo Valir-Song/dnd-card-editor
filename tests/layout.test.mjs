@@ -19,17 +19,20 @@ test('starter layout is accepted unchanged',()=>{
 
 test('non-array data and undrawable objects are rejected with readable errors',()=>{
   assert.equal(normalizeLayout({}).items,null);
-  for(const bad of [card({page:3}),card({page:0}),card({kind:'spell'}),card({x:'10'}),card({w:0}),null,[]]){
+  for(const bad of [card({page:21}),card({page:0}),card({page:1.5}),card({kind:'spell'}),card({x:'10'}),card({w:0}),null,[]]){
     const {items,errors}=normalizeLayout([bad]);
     assert.equal(items,null,JSON.stringify(bad));
     assert.ok(errors.length>0&&errors.every(e=>/^Объект №1/.test(e)),errors.join());
   }
-  const {errors}=normalizeLayout([card({page:3})]);
-  assert.match(errors[0],/страница 3/);
+  const {errors}=normalizeLayout([card({page:21})]);
+  assert.match(errors[0],/страница 21/);
+  assert.match(errors[0],/не больше 20/);
+  // 4.2: up to 20 pages.
+  assert.ok(normalizeLayout([card({page:3}),card({page:20})]).items);
 });
 
 test('error list is capped for large broken files',()=>{
-  const {errors}=normalizeLayout(Array.from({length:20},()=>card({page:9})));
+  const {errors}=normalizeLayout(Array.from({length:20},()=>card({page:99})));
   assert.equal(errors.length,6);
   assert.match(errors.at(-1),/ещё ошибок: 15/);
 });

@@ -36,6 +36,7 @@ import { setupBadges } from './editor/badges.js';
 import { setupResources } from './editor/resources.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { createZoom } from './editor/zoom.js';
+import { setupPages, setPage, pageCount, keepPages } from './editor/pages.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
 import { openStorage, createSaver } from './editor/storage.js';
@@ -67,7 +68,10 @@ let layoutId=fileLayoutId,layoutName=startup.layoutName;
 /** @type {string | null} */
 let selected=null;
 let activePage=1;
+/** @type {{sync: () => void} | null} */
+let pagesUi=null;
 
+// Live list of the sheets on screen: render.js adds and removes pages (4.2).
 const pages=[document.getElementById('page1'),document.getElementById('page2')];
 const mm=(/** @type {number} */ v)=>v+'mm';
 // Autosave runs in the background; the indicator next to undo/redo shows its state.
@@ -345,7 +349,7 @@ const canvas=createCanvasControls({pages,store,mm,snapping,onSelection:(ids,prim
   if(ids.length){const c=store.find(ids[0]);activePage=c?.page||1;}
   const c=current();
   if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;
-  syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.selectionChanged();resources?.sync();notices.hide('locked');
+  syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.selectionChanged();resources?.sync();pagesUi?.sync();notices.hide('locked');
 }});
 innerCanvas=createInnerCanvas({
   pages,store,mm,snapping,
@@ -367,7 +371,7 @@ align=setupAlign({canvas,innerCanvas});
 
 const renderer=createRenderer({pages,getItems:()=>items,store,rich,
   startDrag:(event,id)=>canvas.startDrag(event,id),startBadgeDrag,
-  afterDraw:()=>{followHeading();canvas.afterDraw();innerCanvas?.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync();resources?.sync()}});
+  afterDraw:()=>{followHeading();activePage=Math.min(activePage,pages.length);pagesUi?.sync();canvas.afterDraw();innerCanvas?.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync();resources?.sync()}});
 /** @param {HTMLElement | null} e */
 function select(e){canvas.setSelection(e?[e.dataset.id||'']:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
@@ -397,8 +401,9 @@ function addObjects(list,wish){
   const sources=list.map(o=>{const c={x:0,y:0,...structuredClone(o)};delete c.locked;return c}).sort((a,b)=>(a.z||0)-(b.z||0));
   const box=bbox(sources),spot=placeNew({w:box.w,h:box.h},wish);
   let z=Math.max(0,...items.filter(v=>v.page===activePage).map(v=>v.z||0));
-  const page=/** @type {1 | 2} */ (activePage);
-  const added=sources.map(o=>({...o,x:o.x-box.x+spot.x,y:o.y-box.y+spot.y,z:++z,id:newId(),page}));
+  const page=activePage;
+  // A copied card keeps the look of the page it came from (pages.js).
+  const added=sources.map(o=>{const c=/** @type {Item} */ ({...o,x:o.x-box.x+spot.x,y:o.y-box.y+spot.y,z:++z,id:newId(),page:o.page||page});setPage(c,page);return c});
   store.change(items=>{items.push(...added)});
   canvas.setSelection(added.map(o=>o.id),added[0].id);
   return added;
@@ -411,7 +416,7 @@ function addObject(o,wish){addObjects([o],wish)}
 function removeObjects(ids){
   const list=ids.map(id=>store.find(id)).filter(/** @returns {x is Item} */ x=>!!x),kept=list.filter(isLocked).map(x=>x.id);
   const gone=new Set(list.filter(x=>!isLocked(x)).map(x=>x.id));
-  if(gone.size){canvas.setSelection(kept);store.change(items=>items.filter(x=>!gone.has(x.id)));syncImageTools();syncBgTools()}
+  if(gone.size){canvas.setSelection(kept);store.change(items=>{const count=pageCount(items),left=items.filter(x=>!gone.has(x.id));keepPages(left,count,newId);return left});syncImageTools();syncBgTools()}
   if(kept.length)notices.show('locked',(kept.length>1?'Закреплённые объекты не удалены':'Закреплённый объект не удалён')+': закрепление защищает от случайного удаления и сдвига.',[
     {label:'Открепить',onClick:()=>{lock?.setLocked(kept,false);notices.hide('locked')}}
   ]);
@@ -435,7 +440,9 @@ const identity=()=>({id:layoutId,name:layoutName});
 const {exportFile,layoutFile}=setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity});
 const fileSave=setupFileSave({store,notices,exportFile,layoutFile,identity});
 setupOpenFile({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('openDialog'))),handles:fileSave.handles,open:openFile,remember:fileSave.remember});
-pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p){activePage=i+1;sheet?.sync()}}));
+// A press on the blank sheet makes it the active page (new objects, «Фон листа»).
+document.querySelector('.stage')?.addEventListener('pointerdown',e=>{const p=e.target;if(p instanceof HTMLElement&&pages.some(x=>x===p)){activePage=Number(p.dataset.page)||1;sheet?.sync();pagesUi?.sync()}},true);
+pagesUi=setupPages({store,pages,getSelectionIds,current,getPage:()=>activePage,makeId:newId,setPage:n=>{activePage=n;sheet?.sync()},select:ids=>canvas.setSelection(ids,ids[0])});
 try{renderer.draw()}catch(error){
   // Valid-looking data can still fail to render; recover the same way.
   if(!saved||freshness?.source!=='browser'||damagedSave)throw error;
