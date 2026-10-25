@@ -5,38 +5,68 @@
 // frame, its drag bands and handles, and the Alt+marquee inside a card.
 import { bbox, resizeBox, scaleBoxes, marqueeHits, rectFromPoints } from './geometry.js';
 import { boxLines, snapAxis, snapMove } from './snapping.js';
+import { target } from './dom.js';
 
+/** @typedef {import('../types/geometry').Box} Box */
+/** @typedef {import('../types/geometry').Dir} Dir */
+/** @typedef {import('../types/layout').Item} Item */
+/** @typedef {import('../types/layout').Frame} Frame */
+/** @typedef {ReturnType<typeof import('./snapping.js').createSnapSettings>} Snapping */
+/** One dragged text frame: its stored offsets, their value at the start and its box on the page. */
+/** @typedef {{node: HTMLElement, position: Frame, x: number, y: number, abs: Box}} FrameRecord */
+/** @typedef {{records: FrameRecord[], frame: Box, scale: number, lines: import('../types/geometry').Lines | null, card: Box, threshold: number}} Gesture */
+
+/** @type {Record<string, Dir>} */
 const DIRECTIONS = {nw: [-1, -1], n: [0, -1], ne: [1, -1], w: [-1, 0], e: [1, 0], sw: [-1, 1], s: [0, 1], se: [1, 1]};
 const EDGES = ['top', 'right', 'bottom', 'left'];
 const CLICK_SLOP = 3;
 const NO_LIMIT = {w: Infinity, h: Infinity};
 
-/** @param {import('../types/layout').Deps} deps */
+/**
+ * @param {import('../types/layout').Deps<'pages' | 'mm'> & {selectParent: (id: string) => void, snapping?: Snapping}} deps
+ */
 export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
-  let parentId = null, fields = [], gesture = null;
-  const unique = values => [...new Set(values)];
-  const parentFor = id => store.find(id);
-  const parentNode = id => pages.flatMap(p => [...p.querySelectorAll('.el')]).find(el => el.dataset.id === id);
-  const wraps = id => [...(parentNode(id)?.querySelectorAll('.text-wrap') || [])];
-  const nodeFor = (id, field) => wraps(id).find(el => el.dataset.field === field);
-  const currentTargets = () => fields.map(field => nodeFor(parentId, field)).filter(Boolean);
-  const frameData = (item, field) => { item.textFrames ||= {}; item.textFrames[field] ||= {}; return item.textFrames[field]; };
+  /** @type {string | null} */
+  let parentId = null;
+  /** @type {string[]} */
+  let fields = [];
+  /** @type {Gesture | null} */
+  let gesture = null;
+  const unique = (/** @type {string[]} */ values) => [...new Set(values)];
+  const parentFor = (/** @type {string | null} */ id) => id === null ? undefined : store.find(id);
+  const parentNode = (/** @type {string | null} */ id) => pages.flatMap(p => [...p.querySelectorAll('.el')]).find(el => el.dataset.id === id);
+  const wraps = (/** @type {string | null} */ id) => [...(parentNode(id)?.querySelectorAll('.text-wrap') || [])];
+  const nodeFor = (/** @type {string | null} */ id, /** @type {string} */ field) => wraps(id).find(el => el.dataset.field === field);
+  const currentTargets = () => fields.map(field => nodeFor(parentId, field)).filter(/** @returns {node is HTMLElement} */ node => !!node);
+  /** The stored offsets of a text, created on first use. @param {Item} item @param {string | undefined} field @returns {Frame} */
+  const frameData = (item, field = '') => { const frames = item.textFrames ||= {}; return frames[field] ||= {}; };
   const selected = () => fields.length > 0;
+  /** @param {HTMLElement} node */
+  const pageOf = node => {
+    const page = node.closest('.page');
+    if (!page) throw Error('A text frame outside the pages');
+    return page;
+  };
   // Rendered rectangle of a node in page millimetres.
+  /** @param {HTMLElement} node @returns {Box} */
   function rectMm(node) {
-    const page = node.closest('.page'), p = page.getBoundingClientRect(), r = node.getBoundingClientRect(), k = 210 / p.width;
+    const p = pageOf(node).getBoundingClientRect(), r = node.getBoundingClientRect(), k = 210 / p.width;
     return {x: (r.left - p.left) * k, y: (r.top - p.top) * k, w: r.width * k, h: r.height * k};
   }
   // The card's area inside its padding, where its texts normally sit.
+  /** @param {HTMLElement} card @returns {Box} */
   function innerArea(card) {
     const outer = rectMm(card), style = getComputedStyle(card);
-    const k = 210 / card.closest('.page').getBoundingClientRect().width, pad = side => (parseFloat(style['padding' + side]) || 0) * k;
-    return {x: outer.x + pad('Left'), y: outer.y + pad('Top'), w: outer.w - pad('Left') - pad('Right'), h: outer.h - pad('Top') - pad('Bottom')};
+    const k = 210 / pageOf(card).getBoundingClientRect().width;
+    const pad = (/** @type {'left' | 'top' | 'right' | 'bottom'} */ side) => (parseFloat(style.getPropertyValue('padding-' + side)) || 0) * k;
+    return {x: outer.x + pad('left'), y: outer.y + pad('top'), w: outer.w - pad('left') - pad('right'), h: outer.h - pad('top') - pad('bottom')};
   }
 
   // ---- overlay inside the page-level gesture layers ----
   const overlays = pages.map(page => {
-    const layer = page.closest('.stage').querySelector('.gesture-layer[data-page="' + page.dataset.page + '"]');
+    // The sheet's gesture layers (canvas-controls.js) exist already.
+    const layer = page.closest('.stage')?.querySelector('.gesture-layer[data-page="' + page.dataset.page + '"]');
+    if (!layer) throw Error('No gesture layer for page ' + page.dataset.page);
     const frame = document.createElement('div');
     frame.className = 'gesture-frame inner';
     frame.hidden = true;
@@ -83,7 +113,7 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
   function sync() {
     const chosen = new Set(fields);
     for (const page of pages) for (const wrap of page.querySelectorAll('.text-wrap')) {
-      wrap.classList.toggle('inner-selected', wrap.closest('.el')?.dataset.id === parentId && chosen.has(wrap.dataset.field));
+      wrap.classList.toggle('inner-selected', wrap.closest('.el')?.dataset.id === parentId && chosen.has(wrap.dataset.field || ''));
     }
     const targets = currentTargets();
     sizeObserver.disconnect();
@@ -96,8 +126,9 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
     if (!selected()) return;
     parentId = null; fields = []; sync();
   }
+  /** @param {string} id @param {string[]} next */
   function setFields(id, next) {
-    const valid = wraps(id).map(el => el.dataset.field);
+    const valid = wraps(id).map(el => el.dataset.field || '');
     if (!parentFor(id) || !valid.length) return;
     const names = unique(next).filter(field => valid.includes(field));
     if (!names.length) { clear(); selectParent(id); return; }
@@ -106,7 +137,8 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
     selectParent(id);
     sync();
   }
-  const selectField = (id, field) => setFields(id, [field]);
+  const selectField = (/** @type {string} */ id, /** @type {string} */ field) => setFields(id, [field]);
+  /** @param {string} id @param {string} field */
   function toggleField(id, field) {
     setFields(id, id === parentId
       ? (fields.includes(field) ? fields.filter(f => f !== field) : [...fields, field])
@@ -122,7 +154,8 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
       const x = position.x || 0, y = position.y || 0;
       return {node, position, x, y, abs};
     });
-    const scale = 210 / chosen[0].closest('.page').getBoundingClientRect().width, card = parentNode(parentId);
+    const scale = 210 / pageOf(chosen[0]).getBoundingClientRect().width, card = parentNode(parentId);
+    if (!card) return false;
     // Texts snap to their own card only — its edges, its inner area, its centre
     // lines and its other texts — never to the sheet, the grid or other cards.
     const still = wraps(parentId).filter(node => !chosen.includes(node)).map(rectMm);
@@ -131,16 +164,26 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
     document.body.classList.add('gesture-active');
     return true;
   }
+  /** @param {number[]} dist @param {boolean} [free] */
   function drag(dist, free = false) {
-    let [dx, dy] = dist.map(v => v * gesture.scale), guides = {x: null, y: null};
+    if (!gesture) return;
+    const scale = gesture.scale;
+    /** @type {{x: number | null, y: number | null}} */
+    let guides = {x: null, y: null};
+    let [dx, dy] = dist.map(v => v * scale);
     if (gesture.lines && !free) ({dx, dy, guides} = snapMove(gesture.frame, dx, dy, gesture.lines, {threshold: gesture.threshold}));
     showGuides(guides);
     for (const r of gesture.records) setFrame(r, {x: r.x + dx, y: r.y + dy});
     render();
   }
+  /** @param {number[]} dist @param {Dir} dir @param {boolean} [free] */
   function resize(dist, dir, free = false) {
-    let [dx, dy] = dist.map(v => v * gesture.scale);
-    const {records} = gesture, single = records.length === 1, guides = {x: null, y: null};
+    if (!gesture) return;
+    const scale = gesture.scale;
+    let [dx, dy] = dist.map(v => v * scale);
+    /** @type {{x: number | null, y: number | null}} */
+    const guides = {x: null, y: null};
+    const {records} = gesture, single = records.length === 1;
     // Only the dragged edges of a single frame snap, as on the sheet.
     if (single && gesture.lines && !free) {
       const f = gesture.frame;
@@ -164,28 +207,33 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
     render();
   }
   // Guide lines across the card only (the sheet's guides span the page).
+  /** @param {{x: number | null, y: number | null}} guides */
   function showGuides({x, y}) {
     const page = gesture?.records[0].node.closest('.page'), card = gesture?.card;
-    for (const p of pages) for (const [axis, value] of [['x', x], ['y', y]]) {
+    /** @type {Array<['x' | 'y', number | null]>} */
+    const axes = [['x', x], ['y', y]];
+    for (const p of pages) for (const [axis, value] of axes) {
       let line = p.querySelector(':scope > .snap-guide.inner-guide.' + axis);
-      if (p !== page || value === null) { line?.remove(); continue; }
+      if (p !== page || value === null || !card) { line?.remove(); continue; }
       if (!line) { line = document.createElement('div'); line.className = 'snap-guide inner-guide ' + axis; p.append(line); }
       Object.assign(line.style, axis === 'x' ? {left: mm(value), top: mm(card.y), height: mm(card.h)} : {top: mm(value), left: mm(card.x), width: mm(card.w)});
     }
   }
+  /** @param {FrameRecord} record @param {Frame} values */
   function setFrame(record, values) {
     Object.assign(record.position, values);
     const p = record.position;
     record.node.style.transform = 'translate(' + mm(p.x || 0) + ', ' + mm(p.y || 0) + ')';
-    if (values.w !== undefined) record.node.style.width = mm(p.w);
-    if (values.h !== undefined) { record.node.style.height = mm(p.h); record.node.classList.add('sized'); }
+    if (values.w !== undefined) record.node.style.width = mm(values.w);
+    if (values.h !== undefined) { record.node.style.height = mm(values.h); record.node.classList.add('sized'); }
   }
+  /** @param {PointerEvent} ev @param {Dir | null} dir */
   function press(ev, dir) {
     if (ev.button !== 0) return;
     ev.preventDefault(); ev.stopPropagation();
     const id = ev.pointerId, start = [ev.clientX, ev.clientY];
     let started = false;
-    const move = e => {
+    const move = (/** @type {PointerEvent} */ e) => {
       if (e.pointerId !== id) return;
       const dist = [e.clientX - start[0], e.clientY - start[1]];
       if (!started) {
@@ -194,7 +242,7 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
       }
       dir ? resize(dist, dir, e.altKey) : drag(dist, e.altKey);
     };
-    const done = e => {
+    const done = (/** @type {PointerEvent | undefined} */ e) => {
       if (e && e.pointerId !== id) return;
       window.removeEventListener('pointermove', move, true);
       window.removeEventListener('pointerup', done, true);
@@ -214,14 +262,14 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
   // ---- Alt+marquee from a blank area inside a card picks its text fields ----
   overlays.forEach(entry => entry.page.addEventListener('pointerdown', ev => {
     if (ev.button !== 0 || !ev.altKey) return;
-    const card = ev.target.closest?.('.el');
-    if (!card || ev.target.closest('.text-wrap, .editable, [contenteditable], .level')) return;
+    const card = target(ev).closest?.('.el');
+    if (!card || target(ev).closest('.text-wrap, .editable, [contenteditable], .level')) return;
     ev.preventDefault();
     /** @type {(e: PointerEvent) => import('../types/geometry').Point} */
     const toMm = e => { const p = entry.page.getBoundingClientRect(), k = 210 / p.width; return [(e.clientX - p.left) * k, (e.clientY - p.top) * k]; };
     const from = toMm(ev);
     let moved = false;
-    const move = e => {
+    const move = (/** @type {PointerEvent} */ e) => {
       if (e.pointerId !== ev.pointerId) return;
       if (!moved && Math.hypot(e.clientX - ev.clientX, e.clientY - ev.clientY) < CLICK_SLOP) return;
       moved = true;
@@ -229,15 +277,15 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
       entry.marquee.hidden = false;
       Object.assign(entry.marquee.style, {left: mm(r.x), top: mm(r.y), width: mm(r.w), height: mm(r.h)});
     };
-    const up = e => {
+    const up = (/** @type {PointerEvent} */ e) => {
       if (e.pointerId !== ev.pointerId) return;
       window.removeEventListener('pointermove', move, true);
       window.removeEventListener('pointerup', up, true);
       window.removeEventListener('pointercancel', up, true);
       entry.marquee.hidden = true;
       if (!moved) return;
-      const id = card.dataset.id;
-      const boxes = wraps(id).map(node => ({field: node.dataset.field, ...rectMm(node)}));
+      const id = card.dataset.id || '';
+      const boxes = wraps(id).map(node => ({field: node.dataset.field || '', ...rectMm(node)}));
       const found = marqueeHits(rectFromPoints(from, toMm(e)), boxes, 0.08).map(b => b.field);
       if (found.length) setFields(id, found);
     };
@@ -256,6 +304,7 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
     return {
       boxes, area,
       fixed: nodes.map(() => !!owner.locked),
+      /** @param {Box[]} next */
       commit(next) {
         if (owner.locked) return;
         nodes.forEach((node, i) => {
@@ -271,6 +320,7 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
   }
   // Arrow keys: the selected frames move by (dx, dy) mm inside their card
   // (not in a locked one). A series of presses is one undo step.
+  /** @param {number} dx @param {number} dy */
   function nudge(dx, dy) {
     const owner = parentFor(parentId);
     if (!selected() || !owner) return false;
@@ -284,7 +334,7 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
   }
   function afterDraw() {
     if (parentId) {
-      const valid = wraps(parentId).map(el => el.dataset.field);
+      const valid = wraps(parentId).map(el => el.dataset.field || '');
       fields = fields.filter(f => valid.includes(f));
       if (!fields.length) parentId = null;
     }
@@ -293,7 +343,7 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
   return {
     clear, setFields, selectField, toggleField, afterDraw, nudge, arrangeTargets,
     hasSelection: selected,
-    belongsTo: id => selected() && parentId === id,
+    belongsTo: (/** @type {string} */ id) => selected() && parentId === id,
     count: () => fields.length,
     getFields: () => fields.slice(),
     getParentId: () => parentId

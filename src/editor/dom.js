@@ -19,3 +19,16 @@ export function setLabel(button, text) {
   const label = button.querySelector('.rb-label');
   (label || button).textContent = text;
 }
+
+/**
+ * Object.entries that keeps the key type of a record (TypeScript widens it to string).
+ * @template {string} K
+ * @template V
+ * @param {Record<K, V>} object
+ * @returns {[K, V][]}
+ */
+export const entries = object => /** @type {[K, V][]} */ (Object.entries(object));
+
+// What to tell the user about a caught error (anything can be thrown).
+/** @param {unknown} error */
+export const errorText = error => error instanceof Error ? error.message : String(error);

@@ -1,8 +1,10 @@
 // Background, border and geometry controls for Tiptap-backed text boxes.
 // All typography is controlled by the shared Tiptap toolbar.
-/** @param {import('../types/layout').Deps} deps */
+import { entries } from './dom.js';
+/** @param {import('../types/layout').Deps<'addObject' | 'current'>} deps */
 export function setupTextBoxes({addObject,current,store}) {
   const group=document.getElementById('textBoxTools');
+  /** @type {Record<'bg' | 'borderColor' | 'bgTransparent' | 'borderVisible' | 'autoHeight', HTMLInputElement>} */
   const fields={
     bg:document.getElementById('boxBgColor'),
     borderColor:document.getElementById('boxBorderColor'),
@@ -21,17 +23,17 @@ export function setupTextBoxes({addObject,current,store}) {
   function syncTextBoxTools(){
     const item=active();group.style.display=item?'inline-flex':'none';
     if(!item)return;
-    for(const [property,field] of Object.entries(fields)){
+    for(const [property,field] of entries(fields)){
       if(field.type==='checkbox')field.checked=!!item[property];
-      else field.value=item[property]||({bg:'#ffffff',borderColor:'#745193'}[property]);
+      else field.value=String(item[property]||(property==='bg'?'#ffffff':'#745193'));
     }
     fields.bg.disabled=!!item.bgTransparent;
     fields.borderColor.disabled=!item.borderVisible;
   }
-  for(const [property,field] of Object.entries(fields)){
+  for(const [property,field] of entries(fields)){
     field.addEventListener(field.type==='checkbox'?'change':'input',()=>{
       const item=active();if(!item)return;
-      store.change(()=>{item[property]=field.type==='checkbox'?field.checked:field.value},{group:'textbox-style:'+item.id+':'+property,windowMs:400});
+      store.change(()=>{if(property==='bg'||property==='borderColor')item[property]=field.value;else item[property]=field.checked},{group:'textbox-style:'+item.id+':'+property,windowMs:400});
       syncTextBoxTools();
     });
   }

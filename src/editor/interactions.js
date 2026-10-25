@@ -1,6 +1,6 @@
 // The only remaining special-case gesture is the spell-level badge.
 // All other geometry is on the gesture layer: canvas-controls.js and inner-canvas.js.
-/** @param {import('../types/layout').Deps} deps */
+/** @param {import('../types/layout').Deps<'select' | 'mm'>} deps */
 export function createInnerInteractions({select,store,mm}) {
   /**
    * Drag a badge inside its card; a click without moving puts the caret in it

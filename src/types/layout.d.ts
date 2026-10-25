@@ -1,6 +1,8 @@
 // One object of the layout (a JSON array of these). Coordinates are in mm.
 // See README → «Формат макета».
 export type Kind = 'header' | 'note' | 'resources' | 'section' | 'card' | 'shape' | 'image' | 'textbox' | 'sheet';
+// The text fields of an object; each has a plain (title) and a formatted (titleHtml) version.
+export type TextField = 'title' | 'subtitle' | 'meta' | 'detail' | 'text';
 export interface Frame { x?: number; y?: number; w?: number; h?: number }
 export interface Item {
   id: string;
@@ -46,5 +48,28 @@ export interface Store {
   replace(items: Item[]): void;
   render(): void;
 }
-// Feature-module dependencies: the store is typed; other helpers are left open.
-export type Deps = { store: Store; current?: () => Item | undefined; [dependency: string]: any };
+// A new object as the toolbar describes it: editor.js adds id, page, place and layer.
+export type NewItem = Partial<Item> & { kind: Kind; w: number; h: number };
+// What editor.js hands to its feature modules (each module names the ones it uses, see Deps).
+export interface Editor {
+  store: Store;
+  // The one selected object (null with a group or nothing selected).
+  current: () => Item | undefined;
+  getSelected: () => string | null;
+  // Every selected object; empty while a text inside a card is selected.
+  getSelectionIds: () => string[];
+  select: (element: HTMLElement | null) => void;
+  clearSelection: () => void;
+  getPage: () => number;
+  addCard: () => void;
+  addObject: (item: NewItem, wish?: { x: number; y: number }) => void;
+  addObjects: (list: NewItem[], wish?: { x: number; y: number }) => Item[];
+  // How many were removed (locked ones stay).
+  removeObjects: (ids: string[]) => number;
+  syncImageTools: () => void;
+  syncBgTools: () => void;
+  mm: (value: number) => string;
+  pages: HTMLElement[];
+}
+// Feature-module dependencies: the store and the named helpers of the editor.
+export type Deps<K extends keyof Editor = never> = Pick<Editor, 'store' | K>;

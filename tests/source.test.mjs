@@ -38,3 +38,11 @@ test('feature modules change the layout only through the store',()=>{
     assert.doesNotMatch(src,/\b(persist|draw|setItems|markRendered|saveToStorage)\(|history\.commit/,name+' must use store.change/commit/shown');
   }
 });
+test('the whole editor is type-checked in strict mode, with no way around it',()=>{
+  const config=JSON.parse(read('tsconfig.json'));
+  assert.equal(config.compilerOptions.strict,true,'tsconfig.json must stay strict');
+  assert.deepEqual(config.include,['src/**/*.js','src/**/*.d.ts']);
+  const files=['src/editor.js','src/main.js',...modules.map(x=>'src/editor/'+x)];
+  const escapes=files.filter(file=>/@ts-(ignore|nocheck|expect-error)|@type \{any\}/.test(read(file)));
+  assert.deepEqual(escapes,[],'type checks are switched off or bypassed with any');
+});
