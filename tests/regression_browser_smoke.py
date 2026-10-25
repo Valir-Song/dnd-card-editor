@@ -1844,7 +1844,7 @@ with sync_playwright() as p:
     print('PASS '+engine+': resources — rows from typed boxes, spend/give back, +/− boxes, names, rests, new box and rows')
 
     # 31. Spell reference (3.11 beta.19): «Заклинание…» loads library/spells.json from the site
-    #     (here: routed); without the site the dialog says why. Search, circle, «Моя СЛ» and
+    #     (here: routed); without the site the dialog says why. Search, class, circle, «Моя СЛ» and
     #     ticks make cards in one undo step: badge = circle, «1 круг · основное · 60 фт. · мгновенно», the summary with
     #     the DC, the full text inside the card; «📖» shows it, does not drag, never prints.
     context=browser.new_context(viewport={'width':1280,'height':900})
@@ -1855,7 +1855,7 @@ with sync_playwright() as p:
         route.fulfill(status=200,content_type='application/json',body=(root/'library'/name).read_text(encoding='utf-8'),headers={'Access-Control-Allow-Origin':'*'})
     context.route('https://valir-song.github.io/dnd-editor/library/**',serve_spells)
     page=open_editor(context)
-    page.evaluate("localStorage.removeItem('dnd-card-editor-spell-dc')")
+    page.evaluate("localStorage.removeItem('dnd-card-editor-spell-dc');localStorage.removeItem('dnd-card-editor-spell-class')")
     before=page.locator('.el').count()
     page.locator('[data-tab="cards"]').click()
     page.locator('#addSpell').click()
@@ -1864,7 +1864,11 @@ with sync_playwright() as p:
     online['on']=True
     page.locator('#spellDialog').get_by_role('button',name='Попробовать ещё раз').click()
     page.wait_for_selector('#spellDialog li[data-spell]')
-    assert page.locator('#spellDialog li[data-spell]').count()==130
+    assert page.locator('#spellDialog li[data-spell]').count()==339,'the whole SRD by default'
+    # The class filter: a bard sees the bard list; the subclasses of the group use the wizard's.
+    assert 'Воин — Мистический рыцарь' in page.locator('.spell-class').evaluate("e=>[...e.options].map(o=>o.text).join('|')")
+    page.select_option('.spell-class','bard')
+    page.wait_for_function("document.querySelectorAll('#spellDialog li[data-spell]').length===130")
     assert page.locator('.spell-insert').is_disabled()
     page.fill('.spell-search','шепот')
     page.wait_for_function("document.querySelectorAll('#spellDialog li[data-spell]').length===1")
@@ -1901,7 +1905,7 @@ with sync_playwright() as p:
     node.locator('.spell-info').click()
     page.wait_for_selector('#spellInfoDialog[open]')
     info=page.locator('#spellInfoDialog').inner_text()
-    assert 'Диссонирующий шёпот [Dissonant Whispers] — 1-й круг, очарование' in info and 'Время:' in info and 'CC-BY 4.0' in info,info
+    assert 'Диссонирующий шёпот [Dissonant Whispers] — 1-й круг, очарование' in info and 'Время:' in info and 'Классы: бард' in info and 'CC-BY 4.0' in info,info
     assert page.locator('#spellInfoDialog b').count()>=4,'bold labels'
     page.keyboard.press('Escape')
     page.wait_for_function("!document.querySelector('#spellInfoDialog').open")
@@ -1909,7 +1913,7 @@ with sync_playwright() as p:
     # The DC is remembered for the next time; the reference is loaded once.
     page.locator('#addSpell').click()
     page.wait_for_selector('#spellDialog li[data-spell]')
-    assert page.locator('.spell-dc').input_value()=='14'
+    assert page.locator('.spell-dc').input_value()=='14' and page.locator('.spell-class').input_value()=='bard'
     page.locator('#spellDialog').get_by_role('button',name='Закрыть').click()
     # Print: no «📖»; one Ctrl+Z takes both cards back.
     page.emulate_media(media='print')

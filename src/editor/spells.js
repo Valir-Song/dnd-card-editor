@@ -101,6 +101,7 @@ export function spellText(spell) {
     spell.name + ' [' + spell.nameEn + '] — ' + kind,
     '**Время:** ' + spell.castingTime + ' · **Дистанция:** ' + spell.range + ' · **Компоненты:** ' + spell.components
       + ' · **Длительность:** ' + (spell.concentration ? 'Концентрация, ' : '') + spell.duration,
+    ...(classNames(spell) ? ['**Классы:** ' + classNames(spell)] : []),
     ...spell.text,
     ...(spell.higherLevel ? [spell.higherLevel] : []),
     SOURCE,
@@ -145,12 +146,35 @@ export function spellCards(spells, dc) {
 export const MAX_AT_ONCE = 20;
 
 /**
- * The spells the dialog shows: by circle, then by a search in the Russian, English or another known name.
+ * Spell lists of the SRD classes, and the subclasses of the group that cast from someone else's
+ * list (Eldritch Knight and Arcane Trickster use the wizard's, up to circle 4).
+ * @type {readonly {id: string, label: string, list: string, maxLevel?: number}[]}
+ */
+export const CLASSES = [
+  {id: 'bard', label: 'Бард', list: 'bard'},
+  {id: 'wizard', label: 'Волшебник', list: 'wizard'},
+  {id: 'druid', label: 'Друид', list: 'druid'},
+  {id: 'cleric', label: 'Жрец', list: 'cleric'},
+  {id: 'warlock', label: 'Колдун', list: 'warlock'},
+  {id: 'paladin', label: 'Паладин', list: 'paladin'},
+  {id: 'ranger', label: 'Следопыт', list: 'ranger'},
+  {id: 'sorcerer', label: 'Чародей', list: 'sorcerer'},
+  {id: 'eldritch-knight', label: 'Воин — Мистический рыцарь', list: 'wizard', maxLevel: 4},
+  {id: 'arcane-trickster', label: 'Плут — Мистический ловкач', list: 'wizard', maxLevel: 4},
+];
+/** The class names of a spell, as the full text shows them: «бард, волшебник». @param {Spell} spell */
+export const classNames = spell => CLASSES.filter(c => c.id === c.list && spell.classes.includes(c.id)).map(c => c.label.toLowerCase()).join(', ');
+
+/**
+ * The spells the dialog shows: by class, circle, then by a search in the Russian, English or another
+ * known name. An empty or unknown class shows every spell.
  * @param {Spell[]} spells @param {{query: string, level: number | null, cls?: string}} filter
  */
-export function filterSpells(spells, {query, level, cls = 'bard'}) {
+export function filterSpells(spells, {query, level, cls = ''}) {
   const words = query.toLowerCase().replace(/ё/g, 'е').split(/\s+/).filter(Boolean);
-  return spells.filter(spell => (level === null || spell.level === level) && (!cls || spell.classes.includes(cls))
+  const klass = CLASSES.find(c => c.id === cls);
+  return spells.filter(spell => (level === null || spell.level === level)
+    && (!klass || (spell.classes.includes(klass.list) && spell.level <= (klass.maxLevel ?? 9)))
     && words.every(word => [spell.name, spell.nameEn, ...(spell.aliases || [])].join(' ').toLowerCase().replace(/ё/g, 'е').includes(word)))
     .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'ru'));
 }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readSpells, spellMeta, withDc, readDc, spellText, boldPieces, spellCard, spellCards, filterSpells, SPELLS_NAME, MAX_AT_ONCE } from '../src/editor/spells.js';
+import { readSpells, spellMeta, withDc, readDc, spellText, boldPieces, spellCard, spellCards, filterSpells, classNames, SPELLS_NAME, MAX_AT_ONCE, CLASSES } from '../src/editor/spells.js';
 import { libraryIndex } from '../scripts/library.mjs';
 import { createLibrary } from '../src/editor/library.js';
 import { normalizeLayout } from '../src/editor/layout.js';
@@ -10,10 +10,12 @@ const file=JSON.parse(readFileSync('library/'+SPELLS_NAME,'utf8'));
 const reference=readSpells(file);
 const byId=(/** @type {string} */ id)=>{const spell=reference?.spells.find(s=>s.id===id);assert.ok(spell,id);return spell};
 
-test('library/spells.json is a whole spell reference: 130 bard spells, no broken entries, the SRD attribution',()=>{
+test('library/spells.json is the whole SRD 5.2: 339 spells, every class list, no broken entries, the attribution',()=>{
   assert.ok(reference);
   assert.equal(reference.spells.length,file.spells.length,'every entry is a spell');
-  assert.equal(reference.spells.filter(s=>s.classes.includes('bard')).length,130);
+  assert.equal(reference.spells.length,339);
+  const lists=Object.fromEntries(['bard','wizard','sorcerer','druid','cleric','warlock','ranger','paladin'].map(c=>[c,reference.spells.filter(s=>s.classes.includes(c)).length]));
+  assert.deepEqual(lists,{bard:130,wizard:218,sorcerer:140,druid:124,cleric:109,warlock:72,ranger:48,paladin:38});
   assert.equal(new Set(reference.spells.map(s=>s.id)).size,reference.spells.length);
   assert.equal(new Set(reference.spells.map(s=>s.name)).size,reference.spells.length,'names are unique in the list');
   assert.match(reference.attribution,/System Reference Document 5\.2.*Creative Commons Attribution 4\.0/);
@@ -23,7 +25,16 @@ test('library/spells.json is a whole spell reference: 130 bard spells, no broken
     assert.doesNotMatch(spell.short+spell.text.join(''),/[A-Za-z]{3,}/,spell.id+': no English left');
   }
   const levels=Object.fromEntries([0,1,2,3,4,5,6,7,8,9].map(n=>[n,reference.spells.filter(s=>s.level===n).length]));
-  assert.deepEqual(levels,{0:10,1:23,2:23,3:17,4:10,5:17,6:8,7:11,8:6,9:5});
+  assert.deepEqual(levels,{0:27,1:57,2:57,3:42,4:34,5:38,6:31,7:20,8:17,9:16});
+  const bard=Object.fromEntries([0,1,2,3,4,5,6,7,8,9].map(n=>[n,filterSpells(reference.spells,{query:'',level:n,cls:'bard'}).length]));
+  assert.deepEqual(bard,{0:10,1:23,2:23,3:17,4:10,5:17,6:8,7:11,8:6,9:5});
+  // A name or another known name leads to one spell only: the search never mixes two up.
+  const owner=new Map();
+  for(const spell of reference.spells) for(const name of [spell.name,...(spell.aliases||[])]){
+    const key=name.toLowerCase().replace(/ё/g,'е');
+    assert.ok(!owner.has(key)||owner.get(key)===spell.id,name+': '+owner.get(key)+' and '+spell.id);
+    owner.set(key,spell.id);
+  }
 });
 
 test('the spell reference is not taken for a ready sheet',()=>{
@@ -103,7 +114,8 @@ test('several cards stand in columns of ten, two millimetres apart',()=>{
 
 test('the list filters by circle and by a Russian or English word',()=>{
   const spells=reference?.spells||[];
-  assert.equal(filterSpells(spells,{query:'',level:0}).length,10);
+  assert.equal(filterSpells(spells,{query:'',level:0}).length,27,'every class');
+  assert.equal(filterSpells(spells,{query:'',level:0,cls:'bard'}).length,10);
   assert.deepEqual(filterSpells(spells,{query:'лечащее',level:null}).map(s=>s.id),['healing-word','mass-healing-word']);
   assert.deepEqual(filterSpells(spells,{query:'Healing word',level:3}).map(s=>s.id),['mass-healing-word']);
   assert.deepEqual(filterSpells(spells,{query:'шепот',level:null}).map(s=>s.id),['dissonant-whispers'],'ё = е');
@@ -135,4 +147,18 @@ test('spells of the owner’s sheet carry the names he uses there',()=>{
     assert.ok(titles.includes(title),'on the sheet: '+title);
     assert.ok(names.has(title),'in the reference: '+title);
   }
+});
+
+test('the class filter: SRD lists, and the group\'s Eldritch Knight and Arcane Trickster on the wizard list up to circle 4',()=>{
+  const spells=reference?.spells||[];
+  assert.equal(filterSpells(spells,{query:'',level:null,cls:'wizard'}).length,218);
+  const knight=filterSpells(spells,{query:'',level:null,cls:'eldritch-knight'});
+  assert.ok(knight.length>0&&knight.every(s=>s.classes.includes('wizard')&&s.level<=4));
+  assert.equal(knight.length,spells.filter(s=>s.classes.includes('wizard')&&s.level<=4).length);
+  assert.deepEqual(filterSpells(spells,{query:'',level:null,cls:'arcane-trickster'}),knight);
+  assert.equal(filterSpells(spells,{query:'',level:null,cls:'nobody'}).length,339,'an unknown class shows everything');
+  assert.ok(filterSpells(spells,{query:'',level:null,cls:'paladin'}).every(s=>s.level<=5));
+  assert.equal(classNames(byId('healing-word')),'бард, друид, жрец');
+  assert.match(spellText(byId('fireball')),/\*\*Классы:\*\* волшебник, чародей/);
+  assert.ok(CLASSES.every(c=>CLASSES.some(l=>l.id===c.list)),'every list is a class of its own');
 });
