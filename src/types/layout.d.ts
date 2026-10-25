@@ -14,7 +14,7 @@ export interface Frame { x?: number; y?: number; w?: number; h?: number }
 export interface Item {
   id: string;
   kind: Kind;
-  page: 1 | 2;
+  page: number;
   x: number; y: number; w: number; h: number;
   z?: number;
   title?: string; subtitle?: string; meta?: string; detail?: string; text?: string;
@@ -34,6 +34,9 @@ export interface Item {
   hp?: HitPoints; hitDice?: HitDice; deathSaves?: DeathSaves;
   // Locked in place (see src/editor/lock.js); absent means unlocked.
   locked?: boolean;
+  // A card's text layout: the compact one of the first page or the roomy one of the others (4.2).
+  // Absent means «as the page it is on»; set when the card changes pages, so it keeps its look.
+  cardLook?: 'compact' | 'full';
   // Look of a card or box (see src/editor/themes.js); absent means the default look.
   theme?: string;
   // Background of a page (kind 'sheet', see src/editor/sheet.js); src/fit/opacity are its picture.

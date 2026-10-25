@@ -15,6 +15,7 @@ const GROUPS = [
   {id:'cards', label:'Карточки', sections:[
     ['Добавить', 'big', ['add','addSpell','addResources','addHp']],
     ['Правка', 'big', ['duplicate','delete']],
+    ['Лист', 'rows', [['toPage']], 'Выделите объект, чтобы перенести его на другой лист'],
     ['Ресурсы', 'big', ['addSpellRow','addExtraRow','shortRest','longRest']],
     ['Хиты', 'big', ['hpDice','hpSaves']],
     ['Закрепление', 'big', ['lock','unlockPage']],

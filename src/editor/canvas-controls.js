@@ -69,8 +69,11 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
 
   // ---- overlay: one layer per page, positioned over it inside the stage ----
   const stage = pages[0].closest('.stage') || document.body;
+  // Pages come and go (4.2): a layer is made for each new page and dropped with it.
   /** @type {Overlay[]} */
-  const layers = pages.map(page => {
+  let layers = [];
+  /** @param {HTMLElement} page @returns {Overlay} */
+  function makeLayer(page) {
     const layer = document.createElement('div');
     layer.className = 'gesture-layer';
     layer.dataset.page = page.dataset.page || '';
@@ -101,9 +104,19 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
     marquee.hidden = true;
     layer.append(frame, marquee);
     stage.append(layer);
-    return {page, layer, frame, marquee};
-  });
+    const entry = {page, layer, frame, marquee};
+    page.addEventListener('mousedown', blankMouseDown, true);
+    page.addEventListener('pointerdown', e => pagePointerDown(e, entry), true);
+    return entry;
+  }
+  function syncLayers() {
+    for (const entry of layers) if (!pages.includes(entry.page)) entry.layer.remove();
+    layers = layers.filter(entry => pages.includes(entry.page));
+    for (const page of pages) if (!layers.some(entry => entry.page === page)) layers.push(makeLayer(page));
+    for (const entry of layers) entry.layer.dataset.page = entry.page.dataset.page || '';
+  }
   function placeLayers() {
+    syncLayers();
     for (const {page, layer} of layers) {
       layer.style.left = page.offsetLeft + 'px';
       layer.style.top = page.offsetTop + 'px';
@@ -378,17 +391,20 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   }
 
   // A press on a locked object (not on its text) behaves like one on the blank sheet.
-  const pressesLocked = (/** @type {Event} */ e) => {
+  /** @param {Event} e */
+  function pressesLocked(e) {
     const element = target(e).closest?.('.el');
     return !!element && locked(element.dataset.id || '') && !target(e).closest('.text-wrap, ' + NATIVE);
-  };
+  }
   // Firefox starts its own (Shift-)selection on the compatibility mousedown,
   // which pointerdown's preventDefault does not stop: cancel it on blank sheet.
-  layers.forEach(({page}) => page.addEventListener('mousedown', e => {
+  /** @param {MouseEvent} e */
+  function blankMouseDown(e) {
     if (e.button === 0 && (!target(e).closest?.('.el') || pressesLocked(e))) e.preventDefault();
-  }, true));
+  }
   // Capture phase: decide before Tiptap's own pointerdown handlers run.
-  layers.forEach(entry => entry.page.addEventListener('pointerdown', e => {
+  /** @param {PointerEvent} e @param {Overlay} entry */
+  function pagePointerDown(e, entry) {
     if (e.button !== 0) return;
     const page = entry.page;
     const element = target(e).closest?.('.el');
@@ -415,7 +431,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
     if (inner?.hasSelection() || !ids.includes(id)) setSelection([id], id);
     if (target(e).closest(NATIVE)) return; // editors, inputs, badge and grip keep their own behaviour
     track(e, {onStart: () => { begin(); return !!gesture; }, onMove: (dist, ev) => applyDrag(dist, ev.altKey)});
-  }, true));
+  }
 
   // The text box grip (⠿) moves its box even when the click starts on it.
   /** @param {PointerEvent} e @param {string} id */

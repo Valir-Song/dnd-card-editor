@@ -21,12 +21,18 @@ test('a page background is created on first use and holds only what is set',()=>
 });
 
 test('removing the picture drops its settings; an empty background disappears',()=>{
-  const items=[structuredClone(card)];
+  const other={...card,id:'c2',page:2};
+  const items=[structuredClone(card),structuredClone(other)];
   setSheet(items,2,{src:'data:image/png;base64,AAAA',opacity:40,fit:'fill'},makeId);
   const sheet=setSheet(items,2,{src:undefined,sheet:'night'},makeId);
   assert.ok(sheet&&!('src' in sheet)&&!('fit' in sheet)&&!('opacity' in sheet));
   assert.equal(setSheet(items,2,{sheet:''},makeId),undefined);
-  assert.deepEqual(items,[card],'nothing is left behind');
+  assert.deepEqual(items,[card,other],'nothing is left behind');
+  // 4.2: on a page with nothing else the empty sheet stays, or the page would vanish.
+  const lone=[structuredClone(card)];
+  setSheet(lone,2,{sheet:'night'},makeId);
+  const kept=setSheet(lone,2,{sheet:''},makeId);
+  assert.deepEqual({...kept,id:'x'},{id:'x',kind:'sheet',page:2,x:0,y:0,w:210,h:297,z:0});
 });
 
 test('«На оба листа» gives the other page the same look',()=>{
@@ -36,7 +42,8 @@ test('«На оба листа» gives the other page the same look',()=>{
   const copy=setSheet(items,2,sheetLook(sheetOf(items,1)),makeId);
   assert.deepEqual([copy?.sheet,copy?.src,copy?.opacity,'fit' in (copy||{})],['wood','data:image/jpeg;base64,BBBB',70,false]);
   setSheet(items,2,sheetLook(undefined),makeId);
-  assert.equal(sheetOf(items,2),undefined,'a page without a background clears the other');
+  const plain=sheetOf(items,2);
+  assert.ok(plain&&!plain.sheet&&!plain.src,'a page without a background clears the other (an empty page keeps a plain sheet)');
 });
 
 test('layouts with a page background load; old layouts are unchanged',()=>{

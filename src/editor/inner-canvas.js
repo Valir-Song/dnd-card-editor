@@ -63,7 +63,11 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
   }
 
   // ---- overlay inside the page-level gesture layers ----
-  const overlays = pages.map(page => {
+  // One per page; pages come and go (4.2), see syncOverlays.
+  /** @type {{page: HTMLElement, frame: HTMLElement, marquee: HTMLElement}[]} */
+  let overlays = [];
+  /** @param {HTMLElement} page */
+  function makeOverlay(page) {
     // The sheet's gesture layers (canvas-controls.js) exist already.
     const layer = page.closest('.stage')?.querySelector('.gesture-layer[data-page="' + page.dataset.page + '"]');
     if (!layer) throw Error('No gesture layer for page ' + page.dataset.page);
@@ -88,8 +92,15 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
     marquee.className = 'gesture-marquee inner';
     marquee.hidden = true;
     layer.append(frame, marquee);
-    return {page, frame, marquee};
-  });
+    const entry = {page, frame, marquee};
+    page.addEventListener('pointerdown', ev => altMarquee(ev, entry), true);
+    return entry;
+  }
+  function syncOverlays() {
+    overlays = overlays.filter(entry => pages.includes(entry.page));
+    for (const page of pages) if (!overlays.some(entry => entry.page === page)) overlays.push(makeOverlay(page));
+  }
+  syncOverlays();
   function render() {
     const targets = currentTargets();
     const page = targets[0]?.closest('.page');
@@ -260,7 +271,8 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
   }
 
   // ---- Alt+marquee from a blank area inside a card picks its text fields ----
-  overlays.forEach(entry => entry.page.addEventListener('pointerdown', ev => {
+  /** @param {PointerEvent} ev @param {{page: HTMLElement, marquee: HTMLElement}} entry */
+  function altMarquee(ev, entry) {
     if (ev.button !== 0 || !ev.altKey) return;
     const card = target(ev).closest?.('.el');
     if (!card || target(ev).closest('.text-wrap, .editable, [contenteditable], .level, .pools button, .hp-body button, .spell-info')) return;
@@ -292,7 +304,7 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
     window.addEventListener('pointermove', move, true);
     window.addEventListener('pointerup', up, true);
     window.addEventListener('pointercancel', up, true);
-  }, true));
+  }
 
   // The selected text frames for the «Выравнивание» tab, in page millimetres. A
   // single frame aligns to the card's inner area (inside its padding); frames
@@ -333,6 +345,7 @@ export function createInnerCanvas({pages, store, mm, selectParent, snapping}) {
     return true;
   }
   function afterDraw() {
+    syncOverlays();
     if (parentId) {
       const valid = wraps(parentId).map(el => el.dataset.field || '');
       fields = fields.filter(f => valid.includes(f));
