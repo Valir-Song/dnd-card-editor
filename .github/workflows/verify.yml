@@ -47,6 +47,10 @@ jobs:
         run: EDITOR_BROWSER=chromium python tests/ci_run.py tiptap_browser_smoke.py
       - name: Tiptap browser smoke (real built HTML, Firefox)
         run: EDITOR_BROWSER=firefox python tests/ci_run.py tiptap_browser_smoke.py
+      - name: Installable app (Chromium)
+        run: EDITOR_BROWSER=chromium python tests/ci_run.py app_browser_smoke.py
+      - name: Installable app (Firefox)
+        run: EDITOR_BROWSER=firefox python tests/ci_run.py app_browser_smoke.py
       # The visual reference is the editor on main, rendered on this same runner.
       - name: Fetch main for the visual reference
         run: git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main

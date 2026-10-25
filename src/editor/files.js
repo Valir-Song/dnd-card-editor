@@ -12,8 +12,9 @@ export function setupFiles({ store, getSelectionIds, removeObjects, clearSelecti
 // Exporting the live DOM would serialize editor internals and break reloading.
 const pristine=/** @type {HTMLElement} */ (document.documentElement.cloneNode(true));
 // The gesture layers are attached while the editor starts, before this snapshot. Strip them so each exported generation
-// starts from the same clean markup instead of accumulating stale copies.
-const RUNTIME_NODES='.gesture-layer, #notices > *';
+// starts from the same clean markup instead of accumulating stale copies. The hosted app's manifest and worker
+// (data-app-only, scripts/site.mjs) stay out too: a downloaded file is a plain offline editor.
+const RUNTIME_NODES='.gesture-layer, #notices > *, [data-app-only]';
 /** @param {HTMLElement} doc */
 function cleanExport(doc){doc.querySelectorAll(RUNTIME_NODES).forEach(node=>node.remove());doc.querySelector('.stage')?.removeAttribute('data-grid');return doc}
 document.getElementById('save').onclick=async()=>{store.commit();alert(await flushSave()?'Сохранено в браузере. Для надёжного переноса нажми «Скачать HTML».':'Не удалось сохранить в браузере: макет не помещается в хранилище. Нажми «Скачать HTML» или «JSON», чтобы не потерять работу.')};

@@ -1,0 +1,68 @@
+# Publish the installable editor to the public Pages repository (only the built page, no sources).
+# Main: after "Verify editor" passes on main. Beta: run by hand with the branch to try.
+# Needs the secret PAGES_TOKEN (fine-grained token, Contents: read and write on the Pages repository);
+# without it the job only says so.
+name: Publish app
+on:
+  workflow_run:
+    workflows: [Verify editor]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: stable (root of the site) or beta (beta/)
+        default: beta
+        type: choice
+        options: [beta, stable]
+concurrency: publish-app
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    env:
+      PAGES_REPO: ${{ vars.PAGES_REPO || 'Valir-Song/dnd-editor' }}
+      CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'stable' }}
+      HAS_TOKEN: ${{ secrets.PAGES_TOKEN != '' }}
+    steps:
+      - name: Token check
+        if: env.HAS_TOKEN != 'true'
+        run: echo "::notice::No PAGES_TOKEN secret yet, nothing published. See README, «Приложение»."
+      - uses: actions/checkout@v4
+        if: env.HAS_TOKEN == 'true'
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
+      - uses: actions/setup-node@v4
+        if: env.HAS_TOKEN == 'true'
+        with:
+          node-version: 22
+      - name: Build the hosted editor
+        if: env.HAS_TOKEN == 'true'
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          npm run check:build
+          node scripts/build-site.mjs "$CHANNEL" out
+      - uses: actions/checkout@v4
+        if: env.HAS_TOKEN == 'true'
+        with:
+          repository: ${{ env.PAGES_REPO }}
+          token: ${{ secrets.PAGES_TOKEN }}
+          path: pages
+      - name: Copy and push
+        if: env.HAS_TOKEN == 'true'
+        run: |
+          if [ "$CHANNEL" = beta ]; then target=pages/beta; else target=pages; fi
+          mkdir -p "$target"
+          # Replace this channel's files only: the other channel, README and .git stay.
+          find "$target" -maxdepth 1 -type f ! -name README.md -delete
+          cp -r out/. "$target/"
+          cd pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          version=$(node -p "require('../package.json').version")
+          git diff --cached --quiet && { echo "::notice::$CHANNEL $version is already published"; exit 0; }
+          git commit -m "Publish $CHANNEL $version ($(git -C .. rev-parse --short HEAD))"
+          git push
+          echo "::notice::Published $CHANNEL $version to https://github.com/$PAGES_REPO"
