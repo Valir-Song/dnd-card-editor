@@ -4,7 +4,7 @@
 // and death saves (three successes, three failures). Damage takes temporary
 // hit points first; a long rest brings everything back (2024 rules: half the
 // hit dice). All of it is kept on a `kind: 'hp'` object (format unchanged:
-// an editor before 3.11 beta.21 does not know the kind and will not open it).
+// an editor before 3.11 beta.22 does not know the kind and will not open it).
 
 /** @typedef {import('../types/layout').Item} Item */
 /** @typedef {import('../types/layout').HitPoints} HitPoints */

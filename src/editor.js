@@ -37,6 +37,7 @@ import { setupResources } from './editor/resources.js';
 import { setupPlay } from './editor/play.js';
 import { setupHp } from './editor/hp.js';
 import { createSnapSettings } from './editor/snapping.js';
+import { createZoom } from './editor/zoom.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
 import { openStorage, createSaver } from './editor/storage.js';
@@ -449,6 +450,7 @@ try{renderer.draw()}catch(error){
 }
 setupToolbarTabs();
 setupPlay({clearSelection});
+createZoom({stage:/** @type {HTMLElement} */ (document.querySelector('.stage')),pages:()=>pages,onChange:()=>{canvas.afterDraw();innerCanvas?.afterDraw()}});
 setupHelp({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('helpDialog'))),button:/** @type {HTMLElement} */ (document.getElementById('help'))});
 syncLayoutIdentity();
 reportDamagedSave();
