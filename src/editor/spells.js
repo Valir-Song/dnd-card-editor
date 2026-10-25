@@ -41,19 +41,32 @@ export function readSpells(data) {
 /** «Заговор» or «3 круг», as on the owner's cards. @param {number} level */
 export const levelName = level => level ? level + ' круг' : 'Заговор';
 
+// Short words for the card: «бонусное», «1 мин», «мгновенно».
+/** @param {string} text */
+const shortTime = text => text.replace(/^до /, '').replace(/ минут[аы]?$/, ' мин').replace(/ час(а|ов)?$/, ' ч').replace(/^1 дня$/, '1 день');
+/** @param {string} castingTime */
+function castingWord(castingTime) {
+  if (castingTime.startsWith('Бонусное действие')) return 'бонусное';
+  if (castingTime.startsWith('Реакция')) return 'реакция';
+  // «Действие (Разрастание) или 8 часов (Плодородие)»: both ways.
+  const either = castingTime.match(/^Действие \(.*\) или (.+?) \(/);
+  if (either) return 'основное или ' + shortTime(either[1]);
+  if (castingTime.startsWith('Действие')) return 'основное';
+  // «1 мин» alone would read as the duration.
+  return 'наложение ' + shortTime(castingTime);
+}
+
 /**
- * The card's meta line: «1 круг · 60 фт. · К, 1 мин».
+ * The card's meta line: circle, casting time, range, duration, ritual —
+ * «1 круг · основное · 60 фт. · К, 1 мин · ритуал».
  * @param {Spell} spell
  */
 export function spellMeta(spell) {
   const range = spell.range.replace(/ футов?$/, ' фт.').replace(/^На себя$/, 'на себя').replace(/^Касание$/, 'касание')
     .replace(/^Пределы видимости$/, 'в пределах видимости').replace(/^Особая$/, 'особая').replace(/^Не ограничена$/, 'без ограничений');
-  const parts = [levelName(spell.level), range];
-  if (spell.duration !== 'Мгновенно') {
-    const duration = spell.duration.replace(/^до /, '').replace(/ минут[аы]?$/, ' мин').replace(/ час(а|ов)?$/, ' ч')
-      .replace(/^1 дня$/, '1 день').replace(/^Пока не рассеется.*/, 'до рассеивания');
-    parts.push((spell.concentration ? 'К, ' : '') + duration);
-  }
+  const duration = spell.duration === 'Мгновенно' ? 'мгновенно'
+    : /^Пока не рассеется/.test(spell.duration) ? 'до рассеивания' : shortTime(spell.duration);
+  const parts = [levelName(spell.level), castingWord(spell.castingTime), range, (spell.concentration ? 'К, ' : '') + duration];
   if (spell.ritual) parts.push('ритуал');
   return parts.join(' · ');
 }

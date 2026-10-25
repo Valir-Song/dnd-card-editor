@@ -1838,7 +1838,7 @@ with sync_playwright() as p:
 
     # 31. Spell reference (3.11 beta.19): «Заклинание…» loads library/spells.json from the site
     #     (here: routed); without the site the dialog says why. Search, circle, «Моя СЛ» and
-    #     ticks make cards in one undo step: badge = circle, «1 круг · 60 фт.», the summary with
+    #     ticks make cards in one undo step: badge = circle, «1 круг · основное · 60 фт. · мгновенно», the summary with
     #     the DC, the full text inside the card; «📖» shows it, does not drag, never prints.
     context=browser.new_context(viewport={'width':1280,'height':900})
     online={'on':False}
@@ -1863,7 +1863,7 @@ with sync_playwright() as p:
     page.wait_for_function("document.querySelectorAll('#spellDialog li[data-spell]').length===1")
     page.fill('.spell-dc','14')
     whisper=page.locator('#spellDialog li[data-spell="dissonant-whispers"]')
-    assert 'Мудрость СЛ 14.' in whisper.inner_text() and '1 круг · 60 фт.' in whisper.inner_text() and 'Dissonant Whispers' in whisper.inner_text()
+    assert 'Мудрость СЛ 14.' in whisper.inner_text() and '1 круг · основное · 60 фт. · мгновенно' in whisper.inner_text() and 'Dissonant Whispers' in whisper.inner_text()
     # The original name is shown and searched: a translation that differs is still found.
     page.fill('.spell-search','shatter')
     page.wait_for_function("document.querySelectorAll('#spellDialog li[data-spell]').length===1")
@@ -1884,7 +1884,7 @@ with sync_playwright() as p:
     cards=[item for item in saved_layout(page) if item.get('spellId')]
     assert [c['spellId'] for c in cards]==['vicious-mockery','dissonant-whispers'],cards
     whisper_card=cards[1]
-    assert whisper_card['title']=='Диссонирующий шёпот' and whisper_card['level']=='1' and whisper_card['meta']=='1 круг · 60 фт.',whisper_card
+    assert whisper_card['title']=='Диссонирующий шёпот' and whisper_card['level']=='1' and whisper_card['meta']=='1 круг · основное · 60 фт. · мгновенно',whisper_card
     assert whisper_card['detail'].startswith('Мудрость СЛ 14. 3к6'),whisper_card['detail']
     assert 'Ячейкой выше' in whisper_card['spellText'] and cards[0]['level']=='0'
     assert page.locator('.el.selected').count()==2,'the new cards are selected'

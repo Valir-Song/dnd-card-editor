@@ -42,13 +42,21 @@ test('a damaged reference is refused, a damaged entry is skipped',()=>{
 });
 
 test('the meta line is written the way the owner writes it',()=>{
-  assert.equal(spellMeta(byId('dissonant-whispers')),'1 круг · 60 фт.');
-  assert.equal(spellMeta(byId('hypnotic-pattern')),'3 круг · 120 фт. · К, 1 мин');
-  assert.equal(spellMeta(byId('disguise-self')),'1 круг · на себя · 1 ч');
-  assert.equal(spellMeta(byId('mage-hand')),'Заговор · 30 фт. · 1 мин');
-  assert.equal(spellMeta(byId('detect-magic')),'1 круг · на себя · К, 10 мин · ритуал');
-  assert.equal(spellMeta(byId('find-the-path')),'6 круг · на себя · К, 1 день');
-  assert.equal(spellMeta(byId('glyph-of-warding')),'3 круг · касание · до рассеивания');
+  assert.equal(spellMeta(byId('dissonant-whispers')),'1 круг · основное · 60 фт. · мгновенно');
+  assert.equal(spellMeta(byId('healing-word')),'1 круг · бонусное · 60 фт. · мгновенно');
+  assert.equal(spellMeta(byId('feather-fall')),'1 круг · реакция · 60 фт. · 1 мин');
+  assert.equal(spellMeta(byId('hypnotic-pattern')),'3 круг · основное · 120 фт. · К, 1 мин');
+  assert.equal(spellMeta(byId('disguise-self')),'1 круг · основное · на себя · 1 ч');
+  assert.equal(spellMeta(byId('mage-hand')),'Заговор · основное · 30 фт. · 1 мин');
+  assert.equal(spellMeta(byId('detect-magic')),'1 круг · основное · на себя · К, 10 мин · ритуал');
+  assert.equal(spellMeta(byId('find-the-path')),'6 круг · наложение 1 мин · на себя · К, 1 день');
+  assert.equal(spellMeta(byId('glyph-of-warding')),'3 круг · наложение 1 ч · касание · до рассеивания');
+  assert.equal(spellMeta(byId('plant-growth')),'3 круг · основное или 8 ч · 150 фт. · мгновенно');
+  // Every spell: casting time and duration are always there, and the line fits on a narrow card.
+  for (const spell of reference?.spells||[]) {
+    const parts=spellMeta(spell).split(' · ');
+    assert.ok(parts.length>=4&&spellMeta(spell).length<=60,spell.id+': '+spellMeta(spell));
+  }
 });
 
 test('«Моя СЛ» puts the number into the first saving throw of the summary',()=>{
@@ -63,7 +71,7 @@ test('a spell becomes a card like the owner’s: badge = circle, meta, summary, 
   const card=spellCard(byId('dissonant-whispers'),14);
   assert.equal(card.kind,'card');
   assert.equal(card.title,'Диссонирующий шёпот');
-  assert.equal(card.meta,'1 круг · 60 фт.');
+  assert.equal(card.meta,'1 круг · основное · 60 фт. · мгновенно');
   assert.equal(card.detail,'Мудрость СЛ 14. 3к6 психической энергией, половина при успехе; провал — отход реакцией.');
   assert.equal(card.level,'1');
   assert.equal(card.w,91);
