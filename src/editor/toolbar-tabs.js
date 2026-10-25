@@ -49,7 +49,7 @@ const GROUPS = [
     ['Размер', 'big', ['sameWidth','sameHeight']],
   ]},
   {id:'files', label:'Файл', sections:[
-    ['Файл', 'big', ['openFile']],
+    ['Файл', 'big', ['newSheet','openFile']],
     ['Браузер', 'big', ['save','layouts']],
     ['Название', 'rows', [['layoutName']]],
     ['Скачать и открыть', 'big', ['export','json','importLabel','print']],

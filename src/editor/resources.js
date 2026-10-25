@@ -42,8 +42,8 @@ export function poolsOf(item) {
   });
 }
 
-/** «Ячейки 2» (the old wording) becomes «2 круг». @param {string} label */
-const tidyLabel = label => label.trim().replace(/^ячейки\s+([1-9])$/i, '$1 круг');
+/** «Ячейки 2» or «Ячейки 2 круга» (the old wordings) becomes «2 круг». @param {string} label */
+const tidyLabel = label => label.trim().replace(/^ячейки\s+([1-9])(\s+круга?)?$/i, '$1 круг');
 
 /**
  * Rows typed as text: every «label: □ □ □» becomes a row (the first on a line

@@ -24,7 +24,7 @@ with sync_playwright() as p:
     page.goto(html_path.as_uri(),wait_until='load')
     page.wait_for_selector('.el .tiptap-content')
     assert page.locator('[role="tab"]').count()==8, errors  # 3.11 added «Выравнивание» and «Кружочки»
-    assert page.locator('.el.card').count()>10
+    assert page.locator('.el.card').count()>=10  # the empty template: 10 cards
     assert page.locator('.el .tiptap-content').count()>40
     assert page.locator('.el.textbox').count()==0
     for selector in ['.header .title .tiptap-content','.card .title .tiptap-content','.card .meta .tiptap-content','.card .detail .tiptap-content','.note .detail .tiptap-content']:

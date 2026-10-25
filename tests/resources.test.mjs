@@ -19,6 +19,11 @@ test('the template text with typed boxes becomes rows in two columns', () => {
   assert.ok(pools.every(p => p.used === 0 && p.rest === 'long'));
 });
 
+test('«Ячейки 2 круга» (the empty template) is «2 круг» too', () => {
+  const {pools} = parsePools('Ячейки 1 круга: □ □ □ □          Особый ресурс: □ □ □\nЯчейки 2 круга: □ □ □');
+  assert.deepEqual(pools.map(p => [p.label, p.count, p.col]), [['1 круг', 4, 0], ['Особый ресурс', 3, 1], ['2 круг', 3, 0]]);
+});
+
 test('filled boxes are spent; text that is not a row stays as text', () => {
   const {pools, rest} = parsePools('Заметка про отдых\nКи: ■ ■ □ □   и ещё слова');
   assert.deepEqual(pools, [{label: 'Ки', count: 4, used: 2, rest: 'long', col: 0}]);
