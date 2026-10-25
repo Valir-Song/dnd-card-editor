@@ -329,7 +329,7 @@ with sync_playwright() as p:
       assert len(saved_layout(newer_file,newer_file.evaluate('document.documentElement.dataset.layoutId')+':previous'))==len(starter)-2,'The older browser save must be kept'
       with newer_file.expect_download() as backup:
           notice.get_by_role('button',name='Скачать его JSON').click()
-      assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8')))==len(starter)-2
+      assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8'))['items'])==len(starter)-2
       notice.get_by_role('button',name='Открыть макет из браузера').click()
       assert newer_file.locator('.el').count()==len(starter)-2
 
@@ -338,7 +338,7 @@ with sync_playwright() as p:
       with newer_file.expect_download() as backup:
           newer_file.locator('#resetStorage').click()
       assert newer_file.dialogs and 'Сбросить сохранение' in newer_file.dialogs[-1]
-      assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8')))==len(starter)-2
+      assert len(json.loads(Path(backup.value.path()).read_text(encoding='utf-8'))['items'])==len(starter)-2
       assert newer_file.locator('.el').count()==len(starter)-1
       assert len(json.loads(stored(newer_file)))==len(starter)-1
       newer_file.keyboard.press('Control+z')
@@ -684,7 +684,7 @@ with sync_playwright() as p:
       with b.expect_download() as downloaded:
           b.locator(f'#layoutsDialog li[data-id="{id_a}"]').get_by_role('button',name='Скачать JSON').click()
       assert downloaded.value.suggested_filename=='Альфа.json'
-      assert len(json.loads(Path(downloaded.value.path()).read_text(encoding='utf-8')))==len(starter)-2
+      assert len(json.loads(Path(downloaded.value.path()).read_text(encoding='utf-8'))['items'])==len(starter)-2
       b.locator(f'#layoutsDialog li[data-id="{id_a}"]').get_by_role('button',name='Открыть').click()
       b.wait_for_function(f"document.documentElement.dataset.layoutId==='{id_a}'")
       assert b.locator('#layoutName').input_value()=='Альфа' and b.title().startswith('Альфа')
@@ -1523,6 +1523,68 @@ with sync_playwright() as p:
     assert not page.errors,page.errors
     context.close()
     print('PASS '+engine+': the ribbon keeps one height, icons and labels on every button, fits 1280 px')
+
+    # 27. Layout format version (3.11 beta.13): the JSON file says {formatVersion, items}
+    #     and reads back; an old bare array still opens and is moved to the current
+    #     format (the 3.4 badge spot); a newer version is refused, and a browser save
+    #     written by a newer editor is neither opened nor overwritten.
+    for kind,query in backends:
+        context=browser.new_context(accept_downloads=True)
+        page=open_editor(context,html_path.as_uri()+query)
+        old_card={'id':'old','kind':'card','page':1,'x':10,'y':30,'w':80,'h':25,'title':'Старая','level':'1','badgeX':81.5,'badgeY':1.1}
+        import_json(page,[old_card,{**old_card,'id':'moved','y':60,'badgeCustomPosition':True}])
+        assert not page.dialogs,page.dialogs
+        record=saved_record(page)
+        assert record['formatVersion']==2,'The browser save names its format'
+        by_id={item['id']:item for item in record['items']}
+        assert 'badgeX' not in by_id['old'] and by_id['moved']['badgeX']==81.5,'Format 1 badges are moved, hand-placed ones kept'
+        page.locator('#layoutName').fill('Формат')
+        with page.expect_download() as downloaded:
+            page.locator('#json').click()
+        data=json.loads(Path(downloaded.value.path()).read_text(encoding='utf-8'))
+        assert data['format']=='dnd-card-editor/layout' and data['formatVersion']==2 and data['name']=='Формат',{k:v for k,v in data.items() if k!='items'}
+        assert data['editor']==json.loads((root/'package.json').read_text(encoding='utf-8'))['version']
+        assert [item['id'] for item in data['items']]==['old','moved']
+        import_json(page,starter)
+        assert page.locator('.el').count()==len(starter)
+        page.locator('[data-tab="files"]').click()
+        page.set_input_files('#import',{'name':'back.json','mimeType':'application/json','buffer':Path(downloaded.value.path()).read_bytes()})
+        page.wait_for_function("document.querySelectorAll('.el').length===2")
+        assert not page.dialogs,page.dialogs
+        count=len(page.dialogs)
+        import_json(page,{**data,'formatVersion':99})
+        assert 'более новой версией редактора' in wait_dialog(page,count),page.dialogs
+        assert page.locator('.el').count()==2,'A newer file leaves the layout as it was'
+        with page.expect_download() as exported_file:
+            page.locator('#export').click()
+        exported=Path(exported_file.value.path()).read_text(encoding='utf-8')
+        assert re.search(r'<script[^>]*id="initial"[^>]*data-format-version="2"',exported),'The HTML file names the format of its layout'
+        page.close()
+        # A save from a newer editor: this one opens its own template under a new id.
+        future={'id':'from-future','name':'Будущий','savedAt':'2999-01-01T00:00:00Z','formatVersion':99,'items':[{'id':'f','kind':'hologram'}]}
+        page=open_editor(context,html_path.as_uri()+query)
+        put_saved(page,future)
+        page.close()
+        page=open_editor(context,html_path.as_uri()+query)
+        notice=page.locator('.notice[data-notice="tooNew"]')
+        assert notice.is_visible() and 'Будущий' in notice.inner_text(),page.locator('#notices').inner_text()
+        assert page.evaluate('document.documentElement.dataset.layoutId')!='from-future'
+        assert page.locator('.el').count()==len(starter)
+        page.locator('.el.card').first.click(position={'x':4,'y':20}); page.keyboard.press('Delete')
+        wait_saved(page)
+        assert saved_record(page,'from-future')==future,'The newer save is not touched'
+        page.locator('[data-tab="files"]').click(); page.locator('#layouts').click()
+        page.wait_for_selector('#layoutsDialog[open] li strong')
+        with page.expect_download() as raw:
+            page.locator('#layoutsDialog li[data-id="from-future"]').get_by_role('button',name='Скачать JSON').click()
+        assert json.loads(Path(raw.value.path()).read_text(encoding='utf-8'))=={'formatVersion':99,'items':future['items']},'Downloaded as it is'
+        count=len(page.dialogs)
+        page.locator('#layoutsDialog li[data-id="from-future"]').get_by_role('button',name='Открыть').click()
+        assert 'более новой версией редактора' in wait_dialog(page,count)
+        assert page.locator('.el').count()==len(starter)-1,'The open layout stays'
+        assert not page.errors,page.errors
+        context.close()
+        print('PASS '+engine+' '+kind+': layout files name their format version, old ones migrate, newer ones are refused and kept')
 
     browser.close()
 print('All regression checks passed for '+engine)

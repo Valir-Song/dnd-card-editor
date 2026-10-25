@@ -2,7 +2,7 @@
 import { target, downloadFile as download, setLabel } from './dom.js';
 import { compressImage } from './images.js';
 import { fileBase } from './freshness.js';
-import { normalizeLayout } from './layout.js';
+import { normalizeLayout, wrapLayout, FORMAT_VERSION } from './layout.js';
 /** @param {import('../types/layout').Deps} deps */
 export function setupFiles({ store, getSelectionIds, removeObjects, clearSelection, syncImageTools, syncBgTools, flushSave, identity }) {
 // Snapshot unmodified source DOM once, before dynamic panels and Tiptap mount.
@@ -18,9 +18,10 @@ function exportFile(){const doc=cleanExport(pristine.cloneNode(true));// Rebuild
 // The pristine source already contains original toolbar nodes.
 for(const id of ['cardBgTools','imageTools']){const node=doc.querySelector('#'+id);if(node)node.style.display='none'}
 for(const id of ['undo','redo']){const node=doc.querySelector('#'+id);if(node)node.disabled=true}
-const initial=doc.querySelector('#initial');initial.textContent=JSON.stringify(store.items).replace(/</g,'\\u003c');initial.dataset.savedAt=new Date().toISOString();const {id,name}=identity();initial.dataset.layoutId=id;initial.dataset.layoutName=name;doc.querySelectorAll('.page').forEach(p=>p.replaceChildren());const version=(doc.querySelector('meta[name="editor-version"]')?.content||'3').replace(/[^0-9a-z]+/gi,'_');return {name:fileBase(identity().name)+'_'+version+'.html',html:'<!doctype html>\n'+doc.outerHTML}}
+const initial=doc.querySelector('#initial');initial.textContent=JSON.stringify(store.items).replace(/</g,'\\u003c');initial.dataset.savedAt=new Date().toISOString();initial.dataset.formatVersion=String(FORMAT_VERSION);const {id,name}=identity();initial.dataset.layoutId=id;initial.dataset.layoutName=name;doc.querySelectorAll('.page').forEach(p=>p.replaceChildren());const version=(doc.querySelector('meta[name="editor-version"]')?.content||'3').replace(/[^0-9a-z]+/gi,'_');return {name:fileBase(identity().name)+'_'+version+'.html',html:'<!doctype html>\n'+doc.outerHTML}}
 document.getElementById('export').onclick=()=>{store.commit();const {name,html}=exportFile();download(name,html,'text/html;charset=utf-8')};
-document.getElementById('json').onclick=()=>download(fileBase(identity().name)+'.json',JSON.stringify(store.items,null,2),'application/json');
+// The file names its format version (see layout.js); import still takes a bare array from older editors.
+document.getElementById('json').onclick=()=>{const {name}=identity();download(fileBase(name)+'.json',JSON.stringify(wrapLayout(store.items,{name,editor:document.querySelector('meta[name="editor-version"]')?.getAttribute('content')||'',savedAt:new Date().toISOString()}),null,2),'application/json')};
 // Validate and render an imported layout before it replaces the current one or
 // reaches localStorage; a bad file must leave the editor exactly as it was.
 document.getElementById('import').onchange=async e=>{const f=target(e).files[0];if(!f)return;try{

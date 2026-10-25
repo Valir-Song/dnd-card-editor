@@ -11,7 +11,7 @@ import { setupFiles } from './editor/files.js';
 import { setupFileSave } from './editor/save-file.js';
 import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
-import { normalizeLayout } from './editor/layout.js';
+import { normalizeLayout, wrapLayout, FORMAT_VERSION } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
 import { formatStamp, layoutTitle, isCopy, fileBase } from './editor/freshness.js';
 import { setupLayoutsDialog } from './editor/layouts-dialog.js';
@@ -28,25 +28,28 @@ import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
 import { openStorage, createSaver } from './editor/storage.js';
-import { loadStartupLayout, checkSaved, newLayoutId, RECOVERY_KEY } from './editor/startup.js';
+import { loadStartupLayout, checkSaved, savedData, newLayoutId, RECOVERY_KEY } from './editor/startup.js';
 import { createRenderer } from './editor/render.js';
 
 // Saves live in IndexedDB (see storage.js), one record per layout; startup.js
 // picks the one this file opens with.
 const notices=createNotices(document.getElementById('notices'));
 const initialNode=document.getElementById('initial');
-const embedded=normalizeLayout(JSON.parse(initialNode.textContent)).items||[];
+// Exports since 3.11.0 beta.13 name their format version; the template and older exports are format 1.
+const embeddedFormat=Number(initialNode.dataset.formatVersion)||1;
+const embeddedLayout=normalizeLayout({formatVersion:embeddedFormat,items:JSON.parse(initialNode.textContent)});
+const embedded=embeddedLayout.items||[];
 const embeddedAt=initialNode.dataset.savedAt||null;
 // ?storage=local forces the localStorage fallback (tests cover both paths).
 const storage=await openStorage({prefer:new URLSearchParams(location.search).get('storage')});
 document.documentElement.dataset.storage=storage.kind;
-const startup=await loadStartupLayout({storage,initialNode,embedded,embeddedAt});
-const {choice,saves,saved,storedAt,freshness}=startup;
+const startup=await loadStartupLayout({storage,initialNode,embedded,embeddedAt,embeddedMigrated:embeddedLayout.migrated});
+const {choice,saves,saved,storedAt,freshness,tooNew}=startup;
 /** @type {import('./types/layout').Item[]} */
 let items=startup.items;
 let {damagedSave,saveAtStart}=startup;
 // The layout this file stands for; «Мои макеты» can switch the editor to another one.
-const fileLayoutId=choice.layoutId;
+const fileLayoutId=startup.layoutId;
 let layoutId=fileLayoutId,layoutName=startup.layoutName;
 let selected=null, activePage=1;
 
@@ -55,7 +58,7 @@ const mm=v=>v+'mm',esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 // Autosave runs in the background; the indicator next to undo/redo shows its state.
 const saveIndicator=document.getElementById('saveState');
 saveIndicator.title=storage.kind==='indexeddb'?'Макет сохраняется в базе браузера (IndexedDB)':storage.kind==='localstorage'?'Макет сохраняется в localStorage браузера (до ~5 МБ на все файлы)':'Браузер не даёт этой странице сохранять: скачивайте HTML';
-const saver=createSaver({backend:storage,describe:()=>({id:layoutId,name:layoutName,items}),onState:(state,error)=>{
+const saver=createSaver({backend:storage,describe:()=>({id:layoutId,name:layoutName,formatVersion:FORMAT_VERSION,items}),onState:(state,error)=>{
   document.documentElement.dataset.saveState=state;
   saveIndicator.dataset.state=state;
   saveIndicator.textContent=state==='saved'?'✓ Сохранено':state==='saving'?'Сохраняю…':'⚠ Не сохранено';
@@ -72,7 +75,11 @@ document.documentElement.dataset.saveState=saver.state;
 function saveToStorage(){saver.request();return true}
 // Closing the tab while a write is running (or after one failed) would lose edits.
 window.addEventListener('beforeunload',event=>{if(saver.state!=='saved'){event.preventDefault();event.returnValue=''}});
-function downloadJSON(name,data){
+// A layout file names its format version (see layout.js), so a later editor knows how to read it.
+const editorVersion=document.querySelector('meta[name="editor-version"]')?.getAttribute('content')||'';
+/** @param {string} name @param {import('./types/layout').Item[]} layout @param {string} [title] */
+function downloadJSON(name,layout,title=layoutName){downloadData(name,wrapLayout(layout,{name:title,editor:editorVersion,savedAt:new Date().toISOString()}))}
+function downloadData(name,data){
   const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   const a=document.createElement('a');a.href=url;a.download=name;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),3000);
@@ -119,7 +126,7 @@ async function openSaved(id){
   await saver.flush();
   let record=null;
   try{record=await storage.load(id)}catch(e){console.warn('Could not read the saved layout',e)}
-  const result=record?checkSaved(record.items):{items:null,errors:['Сохранение не найдено.']};
+  const result=record?checkSaved(savedData(record)):{items:null,errors:['Сохранение не найдено.']};
   if(!record||!result.items){alert('Этот макет не открывается:\n'+result.errors.join('\n'));return}
   // Like opening another file: its own undo history starts here.
   layoutId=id;layoutName=record.name||layoutTitle(result.items);syncLayoutIdentity();
@@ -129,7 +136,10 @@ async function openSaved(id){
 /** @param {string} id */
 async function downloadSaved(id){
   const record=await storage.load(id).catch(()=>null);
-  if(record)downloadJSON(fileBase(record.name||'')+'.json',record.items);
+  if(!record)return;
+  // A record this editor cannot read (damaged, or from a newer editor) is downloaded as it is.
+  const {items:layout}=checkSaved(savedData(record));
+  if(layout)downloadJSON(fileBase(record.name||'')+'.json',layout,record.name);else downloadData(fileBase(record.name||'')+'.json',savedData(record));
 }
 const layoutsDialog=setupLayoutsDialog({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('layoutsDialog'))),
   storage,currentId:()=>layoutId,open:openSaved,download:downloadSaved});
@@ -141,6 +151,12 @@ function reportLayoutChoice(){
     {label:'Мои макеты',onClick:()=>layoutsDialog.show()}
   ]);
   else if(!initialNode.dataset.layoutId&&!embeddedAt&&choice.hasSave&&others>1)notices.show('layouts','Открыт последний сохранённый макет «'+layoutName+'» ('+formatStamp(storedAt)+'). Остальные макеты этого браузера — в «Файл → Мои макеты».',[
+    {label:'Мои макеты',onClick:()=>layoutsDialog.show()}
+  ]);
+}
+function reportTooNew(){
+  if(!tooNew)return;
+  notices.show('tooNew','Сохранённый в браузере макет «'+(tooNew.name||'Макет без названия')+'» записан более новой версией редактора (формат '+tooNew.version+'), и этот редактор его не откроет. Он не тронут: откройте его в новой версии. Сейчас открыт макет из этого файла, он сохранится отдельно.',[
     {label:'Мои макеты',onClick:()=>layoutsDialog.show()}
   ]);
 }
@@ -314,6 +330,7 @@ try{renderer.draw()}catch(error){
 setupToolbarTabs();
 syncLayoutIdentity();
 reportDamagedSave();
+reportTooNew();
 reportFreshness();
 reportLayoutChoice();
 saveIndicator.textContent=storage.kind==='none'?'⚠ Без сохранения':'✓ Сохранено';saveIndicator.dataset.state=storage.kind==='none'?'error':'saved';

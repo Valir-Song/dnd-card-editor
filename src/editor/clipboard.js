@@ -3,7 +3,7 @@
 // pasted into another editor file too. Inside a text field the keys keep
 // their usual meaning (Tiptap copies text), and pasted pictures are handled
 // by objects.js.
-import { normalizeLayout } from './layout.js';
+import { normalizeLayout, FORMAT_VERSION } from './layout.js';
 import { bbox } from './geometry.js';
 
 /** @typedef {import('../types/layout').Item} Item */
@@ -11,7 +11,8 @@ const MARK = 'dnd-card-editor/objects';
 
 /** @param {Item[]} items */
 export function encodeClip(items) {
-  return JSON.stringify({kind: MARK, version: 1, items});
+  // version: of this clipboard wrapper; formatVersion: of the objects (see layout.js).
+  return JSON.stringify({kind: MARK, version: 1, formatVersion: FORMAT_VERSION, items});
 }
 
 /**
@@ -24,7 +25,8 @@ export function decodeClip(text) {
   let data;
   try { data = JSON.parse(text); } catch (error) { return null; }
   if (data?.kind !== MARK || !Array.isArray(data.items) || !data.items.length) return null;
-  return normalizeLayout(data.items).items;
+  // Objects copied in an editor before 3.11.0 beta.13 are format 1.
+  return normalizeLayout({formatVersion: data.formatVersion ?? 1, items: data.items}).items;
 }
 
 /** The event is ours: no default action and no other listener (a text editor). @param {Event} event */
