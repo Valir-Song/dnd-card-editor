@@ -217,7 +217,7 @@
 ## Команды
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
-npm test                     # Node-тесты (сейчас 173)
+npm test                     # Node-тесты (сейчас 174)
 npm run typecheck            # TypeScript по всему JS в строгом режиме (tsconfig.json)
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html
@@ -237,9 +237,15 @@ python3 tests/regression_browser_smoke.py # один набор (нужен св
 PNG в репозитории нет специально: шрифты здесь и в CI разные (Verdana→Inter здесь).
 
 ## Версия и сборка
+- Нумерация (согласовано с владельцем 25.10.2026, беты 3.11 вышли как **4.0.0**): каждый PR с изменением
+  редактора — следующая бета `X.Y.0-beta.N`; готовая версия `X.Y.0` — отдельный PR «выпуск», только по слову
+  владельца (номер выбирает он); после 4.0.0 новые функции — `4.1.0-beta.1…`, исправления — `4.0.1`. Номера пунктов
+  ROADMAP (4.1, 5.1…) — не версии. Слово beta косметическое: каждое вливание в `main` сразу
+  уходит на основной сайт.
 - При смене версии править: `package.json`, `package-lock.json` (строки 3 и 9), `index.html`
-  (`<meta … name="editor-version">`, `<title>… — X.Y Beta</title>`, надпись «редактор X.Y beta»
-  на панели), `README.md` («Текущая версия» и «История версий»). Затем `npm run standalone`.
+  (`<meta … name="editor-version">`, `<title>D&amp;D Card Editor X.Y</title>` (+ « Beta» у беты), надпись
+  «редактор X.Y» (+ « beta») на панели), `README.md` («Текущая версия» и «История версий»). Затем `npm run standalone`.
+  Заголовок окна при работе пишет `windowTitle` (freshness.js) по `editor-version`: «макет — 4.1 β2».
 - `DND_Card_Editor_standalone.html` закоммичен и **должен совпадать байт в байт со сборкой**
   (CI сравнивает `cmp`; `source.test.mjs` проверяет версию). После любой правки `src/`, `index.html`
   или зависимостей — `npm run standalone` и коммит файла.

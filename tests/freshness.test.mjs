@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseStartupLayout, formatStamp, chooseLayout, hashText, layoutTitle, isCopy, fileBase } from '../src/editor/freshness.js';
+import { chooseStartupLayout, formatStamp, chooseLayout, hashText, layoutTitle, isCopy, fileBase, windowTitle } from '../src/editor/freshness.js';
 
 const a=[{id:'a'}],b=[{id:'b'}];
 const pick=(o)=>chooseStartupLayout({storedItems:a,embeddedItems:b,...o});
@@ -73,4 +73,12 @@ test('download names come from the layout name',()=>{
   assert.equal(fileBase('Бард: 6 ур. / «Очарование»'),'Бард_6_ур_Очарование');
   assert.equal(fileBase('Макет без названия'),'DND_Card_Editor');
   assert.equal(fileBase('///'),'DND_Card_Editor');
+});
+
+test('window title: layout name and short version, the app name only in a file', () => {
+  assert.equal(windowTitle('Ричард','3.11.0-beta.23',false),'Ричард — D&D Card Editor 3.11 β23');
+  assert.equal(windowTitle('Ричард','3.11.0-beta.23',true),'Ричард — 3.11 β23');
+  assert.equal(windowTitle('Ричард','3.11.0',true),'Ричард — 3.11');
+  assert.equal(windowTitle('Ричард','3.11.2',false),'Ричард — D&D Card Editor 3.11.2');
+  assert.equal(windowTitle('Ричард','',true),'Ричард');
 });

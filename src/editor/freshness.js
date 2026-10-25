@@ -63,6 +63,17 @@ export function layoutTitle(items){
   return heading?.title?.trim().replace(/\s+/g,' ').slice(0,60)||'Макет без названия';
 }
 
+/**
+ * Window title: the layout name and the short version («3.11 β23», a release «3.11»).
+ * The installed app's window already starts with the app name (Chrome adds it), so only a file says it.
+ * @param {string} name @param {string} version package version, e.g. 3.11.0-beta.23 @param {boolean} hosted
+ */
+export function windowTitle(name,version,hosted){
+  const [, minor='', patch='0', beta]=/^(\d+\.\d+)\.(\d+)(?:-beta\.(\d+))?/.exec(version)||[];
+  const short=!minor?'':minor+(patch!=='0'?'.'+patch:'')+(beta?' β'+beta:'');
+  return [name,[hosted?'':'D&D Card Editor',short].filter(Boolean).join(' ')].filter(Boolean).join(' — ');
+}
+
 /** Download name stem for a layout: its name in letters and digits, or the editor's name. @param {string} name */
 export function fileBase(name){
   const stem=name==='Макет без названия'?'':name.replace(/[^\p{L}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'').slice(0,40);

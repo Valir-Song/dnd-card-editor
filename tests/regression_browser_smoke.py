@@ -657,7 +657,7 @@ with sync_playwright() as p:
           pg.locator('.el.card').first.click(position={'x':2,'y':2}); pg.keyboard.press('Delete')
       page=open_editor(context,html_path.as_uri()+query)
       page.locator('[data-tab="files"]').click(); page.locator('#layoutName').fill('Альфа')
-      assert page.title().startswith('Альфа · '),page.title()
+      assert page.title().startswith('Альфа — '),page.title()
       delete_card(page)
       suggested,file_a=export(page,'a.html')
       assert suggested.startswith('Альфа_') and suggested.endswith('.html'),suggested
