@@ -29,10 +29,6 @@
 .toolbar-top{display:flex;align-items:center;gap:12px;padding:8px 12px 6px;min-height:48px}
 .toolbar-identity{font-size:13px;white-space:nowrap;margin-right:auto}
 .toolbar-history{display:flex;gap:6px;align-items:center}
-.toolbar-help{position:relative;margin-left:8px;font-size:12px}
-.toolbar-help summary{cursor:pointer;list-style:none;color:#e3dcec;padding:7px;border-radius:5px}
-.toolbar-help summary:hover{background:#ffffff16}
-.toolbar-help .hint{position:absolute;right:0;top:31px;z-index:205;width:min(390px,80vw);white-space:normal;background:#f8f4ff;border:1px solid #d2c5e1;border-radius:7px;box-shadow:0 5px 20px #0003;color:#29253a;padding:12px;line-height:1.6;opacity:1}
 .toolbar-tabs{display:flex;gap:3px;overflow-x:auto;scrollbar-width:thin;padding:0 10px;min-height:38px;align-items:end;border-bottom:1px solid #514765}
 .toolbar .toolbar-tab{flex:0 0 auto;border-radius:7px 7px 0 0;background:transparent;color:#ddd5eb;padding:9px 13px;border:1px solid transparent;border-bottom:0;white-space:nowrap;font-weight:500}
 .toolbar .toolbar-tab:hover{background:#413651;color:white}
@@ -301,10 +297,6 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .toolbar .toolbar-history .snap-tools label:hover{background:#ffffff1c}
 .toolbar .toolbar-history .snap-tools label:has(#snapToggle:checked){background:#ffffff1a;color:#fff}
 .toolbar .toolbar-history .snap-tools label:has(#snapToggle:checked) .rb-ico{color:#c9a8f2}
-.toolbar .toolbar-help{margin:0}
-.toolbar .toolbar-help summary{display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border-radius:7px;color:#e9e3f3}
-.toolbar .toolbar-help summary::-webkit-details-marker{display:none}
-.toolbar .toolbar-help .hint{top:38px}
 .toolbar .toolbar-content{display:block;height:92px;min-height:0;min-width:0;padding:6px 6px 0;background:#f4f1f9;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;box-shadow:0 2px 10px #0002}
 .toolbar .toolbar-panel{display:flex;flex-wrap:nowrap;align-items:stretch;gap:0;height:100%;min-height:0;width:max-content}
 .toolbar .rb-group{display:flex;flex-direction:column;padding:0 8px;border-right:1px solid #dcd4e6}
@@ -351,3 +343,24 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .toolbar .toolbar-content label:has(>#bgMode,>#bgFit,>#sheetFit,>#sheetTheme,>#theme,>#outlineStyle)>*{font-size:13px}
 .toolbar .toolbar-content label:has(>#sheetTheme) .sheet-page{margin-left:6px;font-size:12px}
 .toolbar .toolbar-content #imageTools input[type=range]{width:60px!important}
+
+/* 3.11 beta.16: «Справка» — short grouped sections instead of one paragraph. */
+.help-dialog{width:min(860px,calc(100vw - 32px));max-height:86vh;padding:16px 20px 20px;font:13px/1.45 Arial,sans-serif}
+.help-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.help-head h2{margin:0}
+.help-close{border:0;background:#eee9f7;color:#2b2440;border-radius:6px;width:30px;height:30px;font-size:15px;cursor:pointer}
+.help-close:hover{background:#ddd3ee}
+.help-grid{columns:2 340px;column-gap:28px}
+.help-grid section{break-inside:avoid;margin:0 0 12px}
+.help-grid h3{margin:0 0 4px;font-size:14px;color:#5b3d7c}
+.help-grid ul{margin:0;padding-left:18px}
+.help-grid li{margin:2px 0}
+.help-grid kbd{display:inline-block;padding:0 5px;border:1px solid #cfc4dd;border-bottom-width:2px;border-radius:4px;background:#f6f3fa;font:12px/1.5 Arial,sans-serif;white-space:nowrap}
+.help-keys dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0;align-items:baseline}
+.help-keys dt{white-space:nowrap}
+.help-keys dd{margin:0}
+/* The tabs fill the top bar at 1280 px: there «Справка» shows only its «?», wider windows add the word. */
+@media(max-width:1359px) and (min-width:1181px){
+  .toolbar #help.rb-top{padding:0}
+  .toolbar #help>.rb-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+}

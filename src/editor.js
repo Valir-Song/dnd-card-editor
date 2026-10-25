@@ -12,6 +12,7 @@ import { setupFileSave } from './editor/save-file.js';
 import { setupOpenFile } from './editor/open-file.js';
 import { readLayoutFile } from './editor/layout-file.js';
 import { setupToolbarTabs } from './editor/toolbar-tabs.js';
+import { setupHelp } from './editor/help.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
 import { normalizeLayout, wrapLayout, FORMAT_VERSION } from './editor/layout.js';
 import { createNotices } from './editor/notice.js';
@@ -383,6 +384,7 @@ try{renderer.draw()}catch(error){
   history.reset();renderer.resetRender();renderer.draw();
 }
 setupToolbarTabs();
+setupHelp({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('helpDialog'))),button:/** @type {HTMLElement} */ (document.getElementById('help'))});
 syncLayoutIdentity();
 reportDamagedSave();
 reportTooNew();
