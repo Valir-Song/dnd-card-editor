@@ -33,6 +33,9 @@ test('each channel has its own name and icons, relative to its folder', () => {
   assert.ok(beta.icons.every(icon => icon.src.startsWith('icon-beta')));
   assert.ok(stable.icons.every(icon => !icon.src.includes('beta')));
   assert.match(beta.description, /3\.12\.0-beta\.1/);
+  // Double click on a layout file opens the installed app.
+  assert.deepEqual(stable.file_handlers[0].accept, {'application/x-dnd-card-layout+json': ['.dnd']});
+  assert.equal(stable.file_handlers[0].action, './');
 });
 
 test('the worker caches its channel files and leaves the beta folder to the beta worker', () => {

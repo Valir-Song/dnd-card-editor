@@ -12,3 +12,5 @@ export function channelOf(doc) {
 export const CHANNEL = channelOf(globalThis.document);
 /** Added to storage names: '' keeps the names every earlier version used. */
 export const STORAGE_SUFFIX = CHANNEL === 'beta' ? '-beta' : '';
+/** The installed app from the site (either channel): its documents are layout files (.dnd); a file from disk keeps saving HTML. */
+export const HOSTED = !!globalThis.document?.querySelector('meta[name="editor-channel"]');

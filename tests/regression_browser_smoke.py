@@ -1586,5 +1586,86 @@ with sync_playwright() as p:
         context.close()
         print('PASS '+engine+' '+kind+': layout files name their format version, old ones migrate, newer ones are refused and kept')
 
+    # 28. «Открыть» (3.11 beta.15): a layout file (.dnd) opens as its own layout (its id, name,
+    #     a fresh undo history); an editor HTML from any version and a bare JSON open too.
+    #     With the File System Access API (stubbed) the opened file becomes the layout's file:
+    #     Ctrl+S writes the layout back into it without a dialog, and it is listed under
+    #     «Недавние файлы». A save of the same layout made later in this browser wins, the
+    #     file's version one click away; a broken file leaves everything as it was.
+    context=browser.new_context(viewport={'width':1280,'height':900},accept_downloads=True)
+    page=open_editor(context)
+    page.evaluate('window.showOpenFilePicker=undefined')
+    lute={'id':'L','kind':'card','page':1,'x':10,'y':30,'w':80,'h':25,'z':1,'title':'Лютня'}
+    dnd={'format':'dnd-card-editor/layout','formatVersion':2,'id':'m-file-1','name':'Ричард из файла','savedAt':'2026-10-20T10:00:00.000Z','items':[lute]}
+    def open_with_input(name,text):
+        page.keyboard.press('Control+o')
+        page.wait_for_selector('#openDialog[open] .open-pick')
+        page.set_input_files('#openFileInput',{'name':name,'mimeType':'application/octet-stream','buffer':text.encode('utf-8')})
+    import_json(page,starter)
+    page.locator('.el.card').first.click(position={'x':4,'y':20}); page.keyboard.press('Delete')
+    open_with_input('Ричард.dnd',json.dumps(dnd,ensure_ascii=False))
+    page.wait_for_function("document.documentElement.dataset.layoutId==='m-file-1'")
+    assert page.locator('.el').count()==1 and page.locator('#layoutName').input_value()=='Ричард из файла'
+    assert page.locator('#undo').is_disabled(),'An opened file starts its own undo history'
+    assert not page.locator('#openDialog').evaluate('d=>d.open')
+    wait_saved(page)
+    assert saved_record(page,'m-file-1')['items'][0]['title']=='Лютня','The opened layout is saved under its own id'
+    # An editor HTML downloaded earlier opens its layout under its own id.
+    page.locator('#layoutName').fill('Из HTML')
+    with page.expect_download() as exported_file:
+        page.locator('#export').click()
+    exported=Path(exported_file.value.path()).read_text(encoding='utf-8')
+    # A bare JSON array (any older download) starts a new layout.
+    open_with_input('старый.json',json.dumps([lute,{**lute,'id':'L2','y':70}]))
+    page.wait_for_function("document.querySelectorAll('.el').length===2")
+    assert page.evaluate('document.documentElement.dataset.layoutId')!='m-file-1'
+    open_with_input('старый.html',exported)
+    page.wait_for_function("document.documentElement.dataset.layoutId==='m-file-1'")
+    assert page.locator('.el').count()==1 and page.locator('#layoutName').input_value()=='Из HTML'
+    open_with_input('старый.json',json.dumps([lute,{**lute,'id':'L2','y':70}]))
+    page.wait_for_function("document.querySelectorAll('.el').length===2")
+    # A broken file: a message, nothing changes.
+    count=len(page.dialogs)
+    open_with_input('битый.dnd','{"items": [}')
+    assert 'не открывается' in wait_dialog(page,count)
+    assert page.locator('.el').count()==2
+    # A later save of the same layout in this browser wins over the older file.
+    put_saved(page,{'id':'m-file-1','name':'Ричард','savedAt':'2026-10-24T10:00:00.000Z','formatVersion':2,'items':[{**lute,'title':'Лютня из браузера'}]})
+    open_with_input('Ричард.dnd',json.dumps(dnd,ensure_ascii=False))
+    page.wait_for_selector('[data-notice="opened"]')
+    assert page.locator('.el[data-id="L"] .title').inner_text().strip()=='Лютня из браузера'
+    page.locator('[data-notice="opened"]').get_by_role('button',name='Открыть как в файле').click()
+    page.wait_for_function("document.querySelector('.el[data-id=\"L\"] .title').innerText.trim()==='Лютня'")
+    page.keyboard.press('Control+z')
+    page.wait_for_function("document.querySelector('.el[data-id=\"L\"] .title').innerText.trim()==='Лютня из браузера'")
+    # With the API: the file picked in «Открыть» is the one Ctrl+S writes into.
+    page.evaluate("""data=>{window.files=[];window.picks=[];window.opens=0;
+      window.handle={name:'Ричард.dnd',getFile:async()=>new Blob([JSON.stringify(data)]),
+        createWritable:async()=>{let text='';return {write:async d=>{text+=d},close:async()=>{window.files.push({name:'Ричард.dnd',text})}}}};
+      window.showOpenFilePicker=async()=>{window.opens++;return [window.handle]};
+      window.showSaveFilePicker=async options=>{window.picks.push(options.suggestedName);throw new DOMException('no','AbortError')}}""",{**dnd,'id':'m-file-2','savedAt':'2026-10-25T09:00:00.000Z'})
+    page.keyboard.press('Control+o')
+    page.locator('#openDialog .open-pick').click()
+    page.wait_for_function("document.documentElement.dataset.layoutId==='m-file-2'")
+    page.wait_for_function("document.querySelector('#fileState').textContent.includes('Ричард.dnd')")
+    page.locator('.el[data-id="L"] .title').click()
+    page.wait_for_function('document.activeElement?.isContentEditable')
+    page.keyboard.press('End'); page.keyboard.type('!')
+    page.keyboard.press('Control+s')
+    page.wait_for_function('window.files.length===1')
+    assert page.evaluate('window.picks')==[],'No save dialog: the opened file is the layout file'
+    written=json.loads(page.evaluate('window.files[0].text'))
+    assert written['id']=='m-file-2' and written['formatVersion']==2 and written['items'][0]['title']=='Лютня!',written
+    # «Недавние файлы» lists it and opens it again.
+    page.keyboard.press('Control+o')
+    page.wait_for_selector('#openDialog[open] li[data-id="m-file-2"]')
+    assert 'Ричард.dnd' in page.locator('#openDialog li[data-id="m-file-2"]').inner_text()
+    page.locator('#openDialog li[data-id="m-file-2"]').get_by_role('button',name='Открыть').click()
+    page.wait_for_function('!document.querySelector("#openDialog").open')
+    assert page.evaluate('window.opens')==1,'A recent file opens without the dialog'
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': «Открыть» opens .dnd, HTML and JSON as their own layout; Ctrl+S writes back into the opened file; recent files')
+
     browser.close()
 print('All regression checks passed for '+engine)

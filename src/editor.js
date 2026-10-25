@@ -9,6 +9,8 @@ import { createRichText } from './editor/rich-text.js';
 import { setupObjects } from './editor/objects.js';
 import { setupFiles } from './editor/files.js';
 import { setupFileSave } from './editor/save-file.js';
+import { setupOpenFile } from './editor/open-file.js';
+import { readLayoutFile } from './editor/layout-file.js';
 import { setupToolbarTabs } from './editor/toolbar-tabs.js';
 import { setupTextBoxes } from './editor/text-boxes.js';
 import { normalizeLayout, wrapLayout, FORMAT_VERSION } from './editor/layout.js';
@@ -146,6 +148,44 @@ async function downloadSaved(id){
   // A record this editor cannot read (damaged, or from a newer editor) is downloaded as it is.
   const {items:layout}=checkSaved(savedData(record));
   if(layout)downloadJSON(fileBase(record.name||'')+'.json',layout,record.name);else downloadData(fileBase(record.name||'')+'.json',savedData(record));
+}
+/**
+ * «Открыть»: a layout file, an editor HTML or a JSON becomes the open layout, like opening another
+ * file (its own id and undo history). A save of the same layout made in this browser after the
+ * file wins, the file's version is one click away; an older save is kept as '<id>:previous'.
+ * @param {{text: string, fileName: string}} file
+ * @returns {Promise<{id: string, name: string} | null>} the layout opened, null when the file does not open
+ */
+async function openFile({text,fileName}){
+  const read=readLayoutFile(text);
+  const result='error' in read?{items:null,errors:[read.error]}:normalizeLayout(read.data);
+  if('error' in read||!result.items){alert('Файл «'+fileName+'» не открывается:\n'+result.errors.join('\n'));return null}
+  await saver.flush();
+  let id=read.id||newLayoutId();
+  /** @type {import('./types/storage').StoredLayout | null} */
+  let record=null;
+  try{record=read.id?await storage.load(id):null}catch(e){console.warn('Could not read the saved layout',e)}
+  // A save from a newer editor is neither opened nor overwritten (see startup.js).
+  if(record&&typeof record.formatVersion==='number'&&record.formatVersion>FORMAT_VERSION){id=newLayoutId();record=null}
+  const own=record?checkSaved(savedData(record)):null;
+  const fileItems=result.items,fromBrowser=!!(record&&own?.items&&Date.parse(record.savedAt)>(Date.parse(read.savedAt||'')||0));
+  const next=fromBrowser&&own?.items?own.items:fileItems;
+  const previous={id:layoutId,name:layoutName,items:store.items};
+  layoutId=id;layoutName=read.name||record?.name||layoutTitle(next);syncLayoutIdentity();
+  clearSelection();
+  // A layout that fails to render leaves the editor as it was.
+  try{store.replace(next);store.render()}catch(err){
+    layoutId=previous.id;layoutName=previous.name;syncLayoutIdentity();store.replace(previous.items);store.render();
+    alert('Макет из файла «'+fileName+'» не удалось отрисовать: '+errorText(err));return null;
+  }
+  history.reset();syncImageTools();syncBgTools();
+  for(const n of ['freshness','newer','layouts','damaged','opened'])notices.hide(n);
+  if(record&&own?.items&&!fromBrowser&&JSON.stringify(own.items)!==JSON.stringify(fileItems))storage.put({id:id+':previous',name:(record.name||layoutTitle(own.items))+' — до открытия файла',savedAt:record.savedAt,formatVersion:FORMAT_VERSION,items:own.items}).catch(e=>console.warn('Could not keep the earlier save',e));
+  saveToStorage();
+  if(fromBrowser&&record)notices.show('opened','Открыт макет «'+layoutName+'», сохранённый в браузере '+formatStamp(record.savedAt)+': он новее файла «'+fileName+'»'+(read.savedAt?' ('+formatStamp(read.savedAt)+')':'')+'.',[
+    {label:'Открыть как в файле',onClick:()=>switchLayout(fileItems)}
+  ]);
+  return {id,name:layoutName};
 }
 const layoutsDialog=setupLayoutsDialog({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('layoutsDialog'))),
   storage,currentId:()=>layoutId,open:openSaved,download:downloadSaved});
@@ -331,8 +371,9 @@ sheet=setupSheet({store,getPage:()=>activePage,makeId:newId,readPicture:readComp
 borders=setupBorders({store,getSelectionIds,current,getPage:()=>activePage});
 badges=setupBadges({store,getSelectionIds,current});
 const identity=()=>({id:layoutId,name:layoutName});
-const {exportFile}=setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity});
-setupFileSave({store,notices,exportFile,identity});
+const {exportFile,layoutFile}=setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity});
+const fileSave=setupFileSave({store,notices,exportFile,layoutFile,identity});
+setupOpenFile({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('openDialog'))),handles:fileSave.handles,open:openFile,remember:fileSave.remember});
 pages.forEach((p,i)=>p.addEventListener('pointerdown',e=>{if(e.target===p){activePage=i+1;sheet?.sync()}}));
 try{renderer.draw()}catch(error){
   // Valid-looking data can still fail to render; recover the same way.

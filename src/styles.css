@@ -200,6 +200,8 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
 .layouts-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .layouts-actions button,.layouts-close{border:1px solid #cbbfe0;background:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font:inherit;font-size:12.5px}
 .layouts-close{margin-top:14px;float:right}
+.open-pick{border:1px solid #8b6bb8;background:#f4effb;border-radius:6px;padding:7px 12px;cursor:pointer;font:inherit;font-weight:600}
+.open-recent{margin:16px 0 8px;font-size:14px}
 @media(max-width:520px){.layouts-list li{flex-direction:column;align-items:stretch}.layouts-actions{justify-content:flex-start}}
 /* 3.11: themes (themes.js) — one block of colours per theme; the rules below use them. */
 .el.theme-parchment{--t-bg:#f5ead0;--t-border:#c8a46a;--t-title:#5a3818;--t-meta:#8a6436;--t-text:#3b2a17;--t-badge:#8b5a2b;--t-tex:radial-gradient(ellipse at 20% 0%,#fff8e4,transparent 70%)}

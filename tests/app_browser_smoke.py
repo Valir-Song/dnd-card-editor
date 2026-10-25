@@ -85,6 +85,18 @@ with sync_playwright() as p:
         assert part not in exported, part
     print('PASS '+engine+': exported HTML has no app-only parts')
 
+    # In the app the document is a layout file: Ctrl+S suggests «….dnd» and writes the layout JSON.
+    page.evaluate("""()=>{window.files=[];window.picks=[];
+      window.showSaveFilePicker=async options=>{window.picks.push({name:options.suggestedName,first:Object.values(options.types[0].accept)[0][0]});
+        return {name:options.suggestedName,createWritable:async()=>{let text='';return {write:async d=>{text+=d},close:async()=>{window.files.push(text)}}}}}}""")
+    page.keyboard.press('Control+s')
+    page.wait_for_function('window.files.length===1')
+    pick=page.evaluate('window.picks[0]')
+    assert pick['name'].endswith('.dnd') and pick['first']=='.dnd',pick
+    layout=json.loads(page.evaluate('window.files[0]'))
+    assert layout['format']=='dnd-card-editor/layout' and layout['id']==page.evaluate('document.documentElement.dataset.layoutId') and len(layout['items'])>10
+    print('PASS '+engine+': in the app Ctrl+S saves a .dnd layout file')
+
     # The beta in beta/ has its own worker, manifest and icon; the main worker leaves it alone.
     beta=context.new_page()
     beta.on('pageerror',lambda error:errors.append(str(error)))

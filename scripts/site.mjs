@@ -1,6 +1,8 @@
 // The hosted (installable) editor: the same one-file build plus a manifest, icons and an
 // offline service worker. Pure functions here (Node tests); build-site.mjs writes the files.
 
+import { LAYOUT_EXTENSION, LAYOUT_MIME } from '../src/editor/layout-file.js';
+
 export const CHANNELS = {
   stable: {name: 'D&D Card Editor', shortName: 'Листы D&D', icon: 'icon', others: ['beta/']},
   beta: {name: 'D&D Card Editor — бета', shortName: 'Листы D&D β', icon: 'icon-beta', others: []},
@@ -30,6 +32,12 @@ export function manifest(channel, version) {
       {src: icon + '-192.png', sizes: '192x192', type: 'image/png'},
       {src: icon + '-512.png', sizes: '512x512', type: 'image/png'},
     ],
+    // The installed app opens layout files from the system (double click); open-file.js reads them.
+    file_handlers: [{
+      action: './',
+      accept: {[LAYOUT_MIME]: [LAYOUT_EXTENSION]},
+      icons: [{src: icon + '-192.png', sizes: '192x192', type: 'image/png'}],
+    }],
   };
 }
 
