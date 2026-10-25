@@ -36,6 +36,11 @@ test('each channel has its own name and icons, relative to its folder', () => {
   // Double click on a layout file opens the installed app.
   assert.deepEqual(stable.file_handlers[0].accept, {'application/x-dnd-card-layout+json': ['.dnd']});
   assert.equal(stable.file_handlers[0].action, './');
+  // Layout files get their own icon (a sheet with the d20), shipped with each channel.
+  for (const m of [stable, beta]) {
+    assert.deepEqual(m.file_handlers[0].icons.map(icon => icon.src), ['file-icon.svg', 'file-icon-256.png']);
+  }
+  assert.ok(assetNames('beta').includes('file-icon-256.png'));
 });
 
 test('the worker caches its channel files and leaves the beta folder to the beta worker', () => {

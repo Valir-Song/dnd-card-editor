@@ -11,7 +11,7 @@ export const CHANNELS = {
 /** Files a channel folder holds besides index.html and sw.js. */
 export function assetNames(channel) {
   const {icon} = CHANNELS[channel];
-  return ['manifest.webmanifest', icon + '.svg', icon + '-192.png', icon + '-512.png'];
+  return ['manifest.webmanifest', icon + '.svg', icon + '-192.png', icon + '-512.png', 'file-icon.svg', 'file-icon-256.png'];
 }
 
 export function manifest(channel, version) {
@@ -36,7 +36,11 @@ export function manifest(channel, version) {
     file_handlers: [{
       action: './',
       accept: {[LAYOUT_MIME]: [LAYOUT_EXTENSION]},
-      icons: [{src: icon + '-192.png', sizes: '192x192', type: 'image/png'}],
+      // The layout files' own icon in the file manager: a sheet with the d20, not the app icon.
+      icons: [
+        {src: 'file-icon.svg', sizes: 'any', type: 'image/svg+xml'},
+        {src: 'file-icon-256.png', sizes: '256x256', type: 'image/png'},
+      ],
     }],
   };
 }
