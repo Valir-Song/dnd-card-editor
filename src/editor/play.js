@@ -8,7 +8,7 @@ import { setLabel, target } from './dom.js';
 
 export const PLAY_KEY = 'dnd-card-editor-play' + STORAGE_SUFFIX;
 /** What stays pressable on the sheet in game mode. */
-export const PLAY_TARGETS = '.pool-cell, .spell-info';
+export const PLAY_TARGETS = '.pool-cell, .spell-info, .hp-play';
 /** Events the sheet sees from a press; touchstart stays free so the page still scrolls. */
 export const PRESS_EVENTS = /** @type {const} */ (['pointerdown', 'mousedown', 'click', 'dblclick']);
 
@@ -60,12 +60,12 @@ export function setupPlay({clearSelection}) {
   const body = document.createElement('div'); body.className = 'rb-body rb-big';
   body.append(
     big('playShortRest', 'Короткий отдых', 'Вернуть все ячейки с пометкой КО', 'shortRest', () => rest('shortRest')),
-    big('playLongRest', 'Длинный отдых', 'Вернуть все ячейки с пометками КО и ДО', 'longRest', () => rest('longRest')),
+    big('playLongRest', 'Длинный отдых', 'Вернуть ячейки с пометками КО и ДО, хиты до максимума, половину костей хитов', 'longRest', () => rest('longRest')),
   );
   const caption = document.createElement('div'); caption.className = 'rb-name'; caption.textContent = 'Отдых';
   group.append(body, caption);
   const hint = document.createElement('p'); hint.className = 'play-hint';
-  hint.textContent = 'Режим игры: лист защищён от случайных правок. Нажимай квадратики ресурсов и 📖. Ctrl+Z отменит лишнее нажатие.';
+  hint.textContent = 'Режим игры: лист защищён от случайных правок. Нажимай квадратики ресурсов, хиты и 📖. Ctrl+Z отменит лишнее нажатие.';
   const exit = big('playExit', 'К правке', 'Выйти из режима игры: снова можно менять тексты и двигать объекты', 'edit', () => set(false));
   panel.append(group, hint, exit);
   content?.append(panel);
@@ -82,7 +82,7 @@ export function setupPlay({clearSelection}) {
     } else delete root.dataset.play;
     setLabel(button, on ? 'Правка' : 'Игра');
     button.setAttribute('aria-pressed', String(on));
-    button.title = on ? 'Выйти из режима игры и снова править лист' : 'Режим игры: лист защищён от правок, нажимаются только квадратики ресурсов и 📖';
+    button.title = on ? 'Выйти из режима игры и снова править лист' : 'Режим игры: лист защищён от правок, нажимаются только квадратики ресурсов, хиты и 📖';
     remember(on);
   }
   button.addEventListener('click', () => set(!isOn()));
@@ -98,7 +98,8 @@ export function setupPlay({clearSelection}) {
   // Tab can still reach a text; it must not take keys (nor keep the selection its focus made).
   stage.addEventListener('focusin', event => {
     const node = target(event);
-    if (!isOn() || !node.isContentEditable) return;
+    // A field the game does not use (the maximum hit points) is editing too.
+    if (!isOn() || !(node.isContentEditable || (node.matches('input, select, textarea') && !node.matches(PLAY_TARGETS)))) return;
     node.blur();
     clearSelection();
   });

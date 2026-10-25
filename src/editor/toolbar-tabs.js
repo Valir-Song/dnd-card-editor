@@ -13,9 +13,10 @@ import { icon, ICONS } from './icons.js';
 /** @type {{id: string, label: string, sections: Section[]}[]} */
 const GROUPS = [
   {id:'cards', label:'Карточки', sections:[
-    ['Добавить', 'big', ['add','addSpell','addResources']],
+    ['Добавить', 'big', ['add','addSpell','addResources','addHp']],
     ['Правка', 'big', ['duplicate','delete']],
     ['Ресурсы', 'big', ['addSpellRow','addExtraRow','shortRest','longRest']],
+    ['Хиты', 'big', ['hpDice','hpSaves']],
     ['Закрепление', 'big', ['lock','unlockPage']],
     ['Фон карточки', 'rows', [['cardBgTools']], 'Выделите карточку, чтобы поставить ей картинку на фон'],
   ]},

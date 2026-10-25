@@ -1980,5 +1980,69 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': game mode — only boxes and rests are pressable, texts and objects stay put, paste adds nothing, the mode is remembered')
 
+    # 33. Hit points (3.11 beta.21): «Хиты» adds a box; max typed in carries the current along;
+    #     «Урон» takes temporary hit points first, «Лечение» stops at the maximum, − and + one point;
+    #     hit dice and death saves are boxes; the long rest brings it all back (half the dice);
+    #     in game mode the maximum is not editable, the rest is; on paper the current is blank.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    page.locator('[data-tab="cards"]').click()
+    assert page.locator('#hpDice').is_disabled()
+    page.locator('#addHp').click()
+    hp=page.locator('.el.hp')
+    hp.wait_for()
+    record=lambda:next(item for item in saved_layout(page) if item['kind']=='hp')
+    value=lambda cls:hp.locator(cls).input_value()
+    hp.locator('.hp-max').fill('39'); hp.locator('.hp-max').press('Enter')
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='39'")
+    hp.locator('.hp-temp-value').fill('5'); hp.locator('.hp-temp-value').press('Enter')
+    page.wait_for_function("document.querySelector('.el.hp .hp-temp-value').value==='5'")
+    hp.locator('.hp-amount').fill('12'); hp.locator('.hp-damage').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='32'")
+    assert value('.hp-temp-value')=='0'
+    hp.locator('.hp-step').first.click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='31'")
+    hp.locator('.hp-amount').fill('50'); hp.locator('.hp-heal').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='39'")
+    page.keyboard.press('Control+z')
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='31'")
+    # Hit dice: + over the row (the box is selected), spend two; death saves.
+    for _ in range(3):
+        hp.locator('.hp-dice').hover(); hp.locator('.hp-dice .hp-tools').get_by_title('Добавить кость').click()
+    page.wait_for_function("document.querySelectorAll('.el.hp .hp-cell').length===4")
+    hp.locator('.hp-cell').nth(1).click()
+    hp.locator('.hp-saves .fail .hp-dot').nth(1).click()
+    page.wait_for_function("document.querySelectorAll('.el.hp .hp-cell.used').length===2&&document.querySelectorAll('.el.hp .fail .hp-dot.used').length===2")
+    page.wait_for_function("document.documentElement.dataset.saveState==='saved'")
+    assert record()['hp']=={'now':31,'max':39,'temp':0} and record()['hitDice']['used']==2 and record()['deathSaves']=={'ok':0,'fail':2},record()
+    # The ribbon hides the death saves of the selected box, and shows them again.
+    hp.click(position={'x':4,'y':4})
+    page.locator('#hpSaves').click()
+    page.wait_for_function("!document.querySelector('.el.hp .hp-saves')")
+    page.locator('#hpSaves').click()
+    page.wait_for_function("!!document.querySelector('.el.hp .hp-saves')")
+    page.locator('#longRest').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='39'&&document.querySelectorAll('.el.hp .hp-cell.used').length===0")
+    # Game mode: the amount and the boxes work, the maximum takes no typing, the box is not selected.
+    page.locator('#play').click()
+    hp.locator('.hp-amount').fill('9'); hp.locator('.hp-damage').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='30'")
+    hp.locator('.hp-cell').nth(0).click()
+    page.wait_for_function("document.querySelectorAll('.el.hp .hp-cell.used').length===1")
+    hp.locator('.hp-max').click()
+    page.keyboard.type('5')
+    assert value('.hp-max')=='39' and page.locator('.el.selected').count()==0
+    page.locator('#playLongRest').click()
+    page.wait_for_function("document.querySelector('.el.hp .hp-now').value==='39'")
+    page.locator('#playExit').click()
+    # On paper: no buttons, the current hit points blank, the maximum printed.
+    page.emulate_media(media='print')
+    assert page.evaluate("""()=>{const b=document.querySelector('.el.hp');const s=x=>getComputedStyle(b.querySelector(x));
+      return s('.hp-change').display==='none'&&s('.hp-step').display==='none'&&s('.hp-now').color==='rgba(0, 0, 0, 0)'&&s('.hp-max').color!=='rgba(0, 0, 0, 0)'}""")
+    page.emulate_media(media='screen')
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': hit points — damage through temporary, healing to the maximum, ±, hit dice, death saves, long rest, game mode, print')
+
     browser.close()
 print('All regression checks passed for '+engine)
