@@ -8,6 +8,7 @@ import { outlineLook } from './borders.js';
 /** @typedef {'title' | 'subtitle' | 'meta' | 'detail' | 'text'} Field */
 
 import { isSheet, sheetOf, paintSheet } from './sheet.js';
+import { buildPools, toggleCell, changeCount, cycleRest, switchColumn, removePool, setPoolLabel } from './resources.js';
 
 // Geometry that gestures already applied to the node: patch styles, never rebuild.
 const GEOMETRY=['x','y','w','h','z','textFrames','badgeX','badgeY','badgeCustomPosition'];
@@ -60,12 +61,29 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
     grip.textContent='⠿';grip.title='Перетащить текстовую рамку';
     grip.addEventListener('pointerdown',ev=>startDrag(ev,item.id));
     e.append(grip);
-  }for(const f of /** @type {const} */ (['title','subtitle','meta','detail']))if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h){wrap.style.height=mm(pos.h);wrap.classList.add('sized')}const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}if(item.level){const badge=makeBadge(item.level,item.badgeColor,null);badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';e.append(badge)}
+  }for(const f of /** @type {const} */ (['title','subtitle','meta','detail']))if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h){wrap.style.height=mm(pos.h);wrap.classList.add('sized')}const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}
+    // Resources rows sit right under the title; a press on them edits, never drags.
+    if(item.kind==='resources'&&Array.isArray(item.pools)){const pools=buildPools(item,poolActions(item.id)),title=e.querySelector(':scope > .text-wrap[data-field="title"]');if(title)title.after(pools);else e.append(pools)}
+    if(item.level){const badge=makeBadge(item.level,item.badgeColor,null);badge.style.left=item.badgeX!==undefined?mm(item.badgeX):'';badge.style.top=item.badgeY!==undefined?mm(item.badgeY):'';badge.style.right=item.badgeX!==undefined?'auto':'';badge.style.bottom=item.badgeY!==undefined?'auto':'';e.append(badge)}
     // More badges (3.11): placed by their own x/y; changing one rebuilds the element.
     (Array.isArray(item.badges)?item.badges:[]).forEach((b,i)=>{if(!b||typeof b!=='object')return;const badge=makeBadge(String(b.text??''),b.color,i);badge.classList.add('extra');badge.style.left=mm(Number(b.x)||0);badge.style.top=mm(Number(b.y)||0);badge.style.right='auto';badge.style.bottom='auto';e.append(badge)});
     /** A badge node: typing is recorded as shown, a press drags it. @param {string} text @param {string | undefined} color @param {number | null} index */
     function makeBadge(text,color,index){const badge=document.createElement('div');badge.className='level'+(text==='♪'?' item':'');if(index!==null)badge.dataset.index=String(index);badge.textContent=text;badge.contentEditable='true';if(color)badge.style.background=color;badge.addEventListener('input',()=>{const it=itemById(item.id);if(!it)return;if(index===null)it.level=badge.textContent??'';else if(Array.isArray(it.badges)&&it.badges[index])it.badges[index].text=badge.textContent??'';store.shown(it,{group:'badge:'+it.id+':'+index})});badge.addEventListener('pointerdown',ev=>startBadgeDrag(ev,itemById(item.id),e,badge,index));return badge}
     return e}
+  /** What a click in the resources rows does. @param {string} id @returns {import('./resources.js').PoolActions} */
+  function poolActions(id){
+    /** @param {(item: Item) => void} edit */
+    const change=edit=>{const it=itemById(id);if(it)store.change(()=>edit(it))};
+    return {
+      toggle:(i,cell)=>change(it=>toggleCell(it,i,cell)),
+      count:(i,delta)=>change(it=>changeCount(it,i,delta)),
+      rest:i=>change(it=>cycleRest(it,i)),
+      column:i=>change(it=>switchColumn(it,i)),
+      remove:i=>change(it=>removePool(it,i)),
+      // Typing is already on screen: record it without rebuilding the box.
+      label:(i,text)=>{const it=itemById(id);if(!it)return;setPoolLabel(it,i,text);store.shown(it,{group:'pool:'+id+':'+i})}
+    };
+  }
   /** @param {HTMLElement} e @param {Item} item */
   function patchGeometry(e,item){
     e.style.zIndex=String(item.z||1);e.style.left=mm(item.x);e.style.top=mm(item.y);e.style.width=mm(item.w);

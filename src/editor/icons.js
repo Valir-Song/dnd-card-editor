@@ -14,6 +14,11 @@ export const ICONS = {
   d20: '<path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 2 7 13h10zM7 13l-4 4M17 13l4 4M7 13l5 9 5-9"/>',
 
   add: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 9v6M9 12h6"/>',
+  addResources: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h3M7 14h3M13 8.5h2v2h-2zM17 8.5h0M13 13.5h2v2h-2z"/>',
+  addSpellRow: '<path d="M12 3 14.5 9 21 9.5 16 14l1.5 6.5L12 17l-5.5 3.5L8 14 3 9.5 9.5 9z"/>',
+  addExtraRow: '<rect x="3" y="9" width="5" height="5" rx="1"/><rect x="10" y="9" width="5" height="5" rx="1"/><path d="M19.5 9v5M17 11.5h5"/>',
+  shortRest: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/>',
+  longRest: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
   duplicate: '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M4 16V5a2 2 0 0 1 2-2h11"/>',
   delete: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/>',
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',

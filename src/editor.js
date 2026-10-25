@@ -32,6 +32,7 @@ import { readCompressed } from './editor/images.js';
 import { errorText } from './editor/dom.js';
 import { setupBorders } from './editor/borders.js';
 import { setupBadges } from './editor/badges.js';
+import { setupResources } from './editor/resources.js';
 import { createSnapSettings } from './editor/snapping.js';
 import { findFreeSpot, bbox } from './editor/geometry.js';
 import { createStore } from './editor/store.js';
@@ -51,7 +52,8 @@ const embeddedAt=initialNode.dataset.savedAt||null;
 // ?storage=local forces the localStorage fallback (tests cover both paths).
 const storage=await openStorage({prefer:new URLSearchParams(location.search).get('storage')});
 document.documentElement.dataset.storage=storage.kind;
-const startup=await loadStartupLayout({storage,initialNode,embedded,embeddedAt,embeddedMigrated:embeddedLayout.migrated});
+const startup=await loadStartupLayout({storage,initialNode,embedded,embeddedAt,// A clean editor's template is not anyone's work yet: moving it to the current format is no reason to save it.
+  embeddedMigrated:embeddedLayout.migrated&&!!(initialNode.dataset.layoutId||initialNode.dataset.savedAt)});
 const {choice,saves,saved,storedAt,freshness,tooNew}=startup;
 /** @type {import('./types/layout').Item[]} */
 let items=startup.items;
@@ -319,6 +321,8 @@ let sheet=null;
 let borders=null;
 /** @type {ReturnType<typeof setupBadges> | null} */
 let badges=null;
+/** @type {ReturnType<typeof setupResources> | null} */
+let resources=null;
 /** @type {ReturnType<typeof createInnerCanvas> | null} */
 let innerCanvas=null;
 const rich=createRichText({
@@ -338,7 +342,7 @@ const canvas=createCanvasControls({pages,store,mm,snapping,onSelection:(ids,prim
   if(ids.length){const c=store.find(ids[0]);activePage=c?.page||1;}
   const c=current();
   if(c?.bg&&/^#[0-9a-f]{6}$/i.test(c.bg))document.getElementById('bg').value=c.bg;
-  syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.selectionChanged();notices.hide('locked');
+  syncImageTools();syncBgTools();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.selectionChanged();resources?.sync();notices.hide('locked');
 }});
 innerCanvas=createInnerCanvas({
   pages,store,mm,snapping,
@@ -360,7 +364,7 @@ align=setupAlign({canvas,innerCanvas});
 
 const renderer=createRenderer({pages,getItems:()=>items,store,rich,
   startDrag:(event,id)=>canvas.startDrag(event,id),startBadgeDrag,
-  afterDraw:()=>{followHeading();canvas.afterDraw();innerCanvas?.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync()}});
+  afterDraw:()=>{followHeading();canvas.afterDraw();innerCanvas?.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync();resources?.sync()}});
 /** @param {HTMLElement | null} e */
 function select(e){canvas.setSelection(e?[e.dataset.id||'']:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
@@ -420,6 +424,7 @@ themes=setupThemes({store,getSelectionIds,current,getPage:()=>activePage});
 sheet=setupSheet({store,getPage:()=>activePage,makeId:newId,readPicture:readCompressed});
 borders=setupBorders({store,getSelectionIds,current,getPage:()=>activePage});
 badges=setupBadges({store,getSelectionIds,current});
+resources=setupResources({store,addObject,current,getSelectionIds});
 const identity=()=>({id:layoutId,name:layoutName});
 const {exportFile,layoutFile}=setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity});
 const fileSave=setupFileSave({store,notices,exportFile,layoutFile,identity});

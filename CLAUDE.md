@@ -70,6 +70,7 @@
 | `src/editor/align.js` | вкладка «Выравнивание»: `arrange` (чистая, Node-тесты) поверх `alignBoxes`/`distributeBoxes`/`matchSize` из geometry.js; цели — `canvas.arrangeTargets()` или `innerCanvas.arrangeTargets()` (тексты карточки) |
 | `src/editor/themes.js` | темы: `item.theme` → класс `.el.theme-<id>`, цвета в styles.css (переменные `--t-*`); `applyTheme` (Node-тесты); новая тема = строка в `THEMES` + блок в CSS |
 | `src/editor/sheet.js` | фон листа: объект `kind:'sheet'` (один на страницу, весь лист) — готовый фон `sheet` → `.page[data-sheet]` в CSS, своя картинка `src/fit/opacity` → `img.sheet-image` под объектами; рисует `render.js` (`paintSheet`), не `.el`; чистые `setSheet`/`sheetOf` (Node-тесты); жесты, рамка-выделение, привязка, слои и свободное место его пропускают |
+| `src/editor/resources.js` | окно ресурсов: `pools: [{label,count,used,rest,col}]` у `kind:'resources'` — строки квадратиков (ячейки «N круг» слева, свои ресурсы справа), `rest` = `long`/`short`/`none` (пометка ДО/КО); `buildPools` рисует (вызывает render.js, щелчки — через `store.change`, название — `store.shown`); `migrateResources` — шаг формата 2→3 (текст «□ □ □» → строки); кнопки «Ресурсы», «Круг», «Ресурс», «Короткий/Длинный отдых» на вкладке «Карточки»; чистые функции — Node-тесты |
 | `src/editor/borders.js` | рамки: `outline` (стиль), `outlineColor`, `outlineWidth` (мм); рисуются `::after` поверх края (текст не сдвигается); `outlineLook` для render.js, чистая `applyOutline` (Node-тесты); на вкладке «Оформление» |
 | `src/editor/badges.js` | кружочки: главный (`level`, `badgeX/Y`, `badgeColor`) и дополнительные `badges[]`; знаки `SYMBOLS` (с U+FE0E — не эмодзи), `COLORS`; чистые add/remove/set (Node-тесты); вкладка «Кружочки» |
 | `src/editor/clipboard.js` | Ctrl+C/X/V объектов: JSON с меткой `dnd-card-editor/objects` в системном буфере; в тексте не вмешивается |
@@ -103,11 +104,12 @@
 - Картинки — `data:` URL прямо в объекте (`src` у `image`, `bgImage` у `card`).
 - Формат совместим с 3.2: старые макеты импортируются как есть. **Ломать совместимость нельзя**;
   если нужно новое поле — делать его необязательным со значением по умолчанию.
-- **Версия формата** (с 3.11.0 beta.13, `FORMAT_VERSION`=2 в `layout.js`): JSON-файл — `{format, formatVersion, name,
+- **Версия формата** (с 3.11.0 beta.13, `FORMAT_VERSION` в `layout.js`; 3 — с beta.18): JSON-файл — `{format, formatVersion, name,
   editor, savedAt, items}` (`wrapLayout`), запись браузера — поле `formatVersion`, скачанный HTML — `#initial[data-format-version]`,
   буфер — `formatVersion` рядом с `version` (версия обёртки буфера). Голый массив и запись без поля — формат 1.
   `normalizeLayout` принимает оба вида, гонит объекты через `MIGRATIONS[n]` (n→n+1, на копиях, `migrated` = что-то
-  поменялось → запись при старте) и только потом проверяет. 1→2 — перенос значка 3.4 (81.5/1.1), раньше жил в startup.js.
+  поменялось → запись при старте) и только потом проверяет. 1→2 — перенос значка 3.4 (81.5/1.1), раньше жил в startup.js; 2→3 — ресурсы «□» в `pools` (resources.js).
+  Шаблон чистого файла (без `data-layout-id`/`data-saved-at`) после миграции **не** записывается при старте — иначе он занял бы запись и сломал перенос сохранения 3.8.
   Новый смысл поля = шаг в `MIGRATIONS` + `FORMAT_VERSION`+1 + Node-тест. Формат новее известного: файл не открывается,
   запись браузера не открывается **и не перезаписывается** (startup берёт новый номер макета, предупреждение `tooNew`).
 - `normalizeLayout` отвергает неизвестный `kind`, страницу вне 1..`PAGE_COUNT` (=2), нечисловую
@@ -209,7 +211,7 @@
 ## Команды
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
-npm test                     # Node-тесты (сейчас 128)
+npm test                     # Node-тесты (сейчас 137)
 npm run typecheck            # TypeScript по всему JS в строгом режиме (tsconfig.json)
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html

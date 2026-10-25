@@ -366,3 +366,24 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
   .toolbar #help.rb-top{padding:0}
   .toolbar #help>.rb-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 }
+
+/* 3.11 beta.18: resources rows (resources.js) — a name, its rest mark, then boxes.
+   A long row wraps its boxes under its own first box; the other rows keep their place. */
+.resources .pools{display:grid;grid-template-columns:1fr 1fr;column-gap:3mm;font:8pt/1.32 Arial,sans-serif;align-items:start}
+.pools .pool-col{display:flex;flex-direction:column;gap:.35mm;min-width:0}
+.pools .pool{display:flex;align-items:flex-start;gap:1.2mm;position:relative}
+.pools .pool-name{display:flex;align-items:baseline;gap:.5mm;flex:0 1 auto;min-width:0}
+.pools .pool-label{outline:none;cursor:text;overflow-wrap:anywhere;min-width:3mm}
+.pools .pool-label:focus{background:#fffae8}
+.pools .pool-label:empty::before{content:'Название';opacity:.4}
+.pools button{appearance:none;font:inherit;color:inherit;margin:0;padding:0;border:0;background:none;cursor:pointer}
+.pools .pool-rest{font-size:5pt;line-height:1;color:var(--t-meta,#8a7396);align-self:flex-start;margin-top:.2mm}
+.pools .pool-cells{display:flex;flex-wrap:wrap;gap:.55mm .6mm;padding-top:.55mm;flex:1 1 0;min-width:8.6mm}
+.pools .pool-cell{width:2.3mm;height:2.3mm;border:.22mm solid currentColor;border-radius:.3mm;opacity:.85}
+.pools .pool-cell.used{background:var(--t-badge,#755092);border-color:var(--t-badge,#755092);opacity:1;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pools .pool-cell:hover{box-shadow:0 0 0 .3mm #3485c966}
+.pools .pool-tools{display:none;position:absolute;right:0;bottom:100%;z-index:5;gap:1px;padding:1px;background:#29253a;border-radius:4px;box-shadow:0 1px 4px #0004}
+.el.selected .pool:hover .pool-tools,.el.selected .pool:focus-within .pool-tools{display:flex}
+.pools .pool-tools button{min-width:18px;height:18px;padding:0 3px;border-radius:3px;background:#eee9f7;color:#2b2440;font:bold 11px/18px Arial,sans-serif;text-align:center}
+.pools .pool-tools button:hover{background:#d8ccef}
+@media print{.pools .pool-tools{display:none!important}.pools .pool-label:empty::before{content:none}}
