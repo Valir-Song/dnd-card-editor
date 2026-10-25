@@ -9,7 +9,7 @@
  * @typedef {{id: string, name: string, nameEn: string, level: number, school: string,
  *   castingTime: string, range: string, components: string, duration: string,
  *   concentration: boolean, ritual: boolean, classes: string[], short: string,
- *   text: string[], higherLevel: string}} Spell
+ *   text: string[], higherLevel: string, aliases?: string[]}} Spell
  */
 
 export const SPELLS_NAME = 'spells.json';
@@ -32,7 +32,9 @@ export function readSpells(data) {
     && STRING_KEYS.every(key => typeof spell[key] === 'string') && !!spell.id && !!spell.name
     && Number.isInteger(spell.level) && spell.level >= 0 && spell.level <= 9
     && Array.isArray(spell.text) && spell.text.every(/** @param {unknown} p */ p => typeof p === 'string')
-    && Array.isArray(spell.classes));
+    && Array.isArray(spell.classes))
+    // Other names players know a spell by (another translation, the old name with a wizard's): search only.
+    .map(spell => ({...spell, aliases: Array.isArray(spell.aliases) ? spell.aliases.filter(/** @param {unknown} a */ a => typeof a === 'string') : []}));
   return {spells, attribution: typeof file.attribution === 'string' ? file.attribution : ''};
 }
 
@@ -130,12 +132,12 @@ export function spellCards(spells, dc) {
 export const MAX_AT_ONCE = 20;
 
 /**
- * The spells the dialog shows: by circle, then by a search in the Russian or English name.
+ * The spells the dialog shows: by circle, then by a search in the Russian, English or another known name.
  * @param {Spell[]} spells @param {{query: string, level: number | null, cls?: string}} filter
  */
 export function filterSpells(spells, {query, level, cls = 'bard'}) {
   const words = query.toLowerCase().replace(/ё/g, 'е').split(/\s+/).filter(Boolean);
   return spells.filter(spell => (level === null || spell.level === level) && (!cls || spell.classes.includes(cls))
-    && words.every(word => (spell.name + ' ' + spell.nameEn).toLowerCase().replace(/ё/g, 'е').includes(word)))
+    && words.every(word => [spell.name, spell.nameEn, ...(spell.aliases || [])].join(' ').toLowerCase().replace(/ё/g, 'е').includes(word)))
     .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'ru'));
 }

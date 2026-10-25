@@ -212,7 +212,7 @@
 ## Команды
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
-npm test                     # Node-тесты (сейчас 147)
+npm test                     # Node-тесты (сейчас 148)
 npm run typecheck            # TypeScript по всему JS в строгом режиме (tsconfig.json)
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html

@@ -35,8 +35,10 @@ test('a damaged reference is refused, a damaged entry is skipped',()=>{
   assert.equal(readSpells(null),null);
   assert.equal(readSpells({spells:[]}),null,'not our format');
   const good=byId('healing-word');
-  const read=readSpells({format:'dnd-card-editor/spells',spells:[good,{...good,id:'x',level:12},{...good,id:'y',text:'one string'},null]});
+  const read=readSpells({format:'dnd-card-editor/spells',spells:[{...good,aliases:['Лечащее слово',7]},{...good,id:'x',level:12},{...good,id:'y',text:'one string'},null]});
   assert.deepEqual(read?.spells.map(s=>s.id),['healing-word']);
+  assert.deepEqual(read?.spells[0].aliases,['Лечащее слово']);
+  assert.deepEqual(readSpells({format:'dnd-card-editor/spells',spells:[{...good,aliases:undefined}]})?.spells[0].aliases,[]);
 });
 
 test('the meta line is written the way the owner writes it',()=>{
@@ -97,6 +99,10 @@ test('the list filters by circle and by a Russian or English word',()=>{
   assert.deepEqual(filterSpells(spells,{query:'лечащее',level:null}).map(s=>s.id),['healing-word','mass-healing-word']);
   assert.deepEqual(filterSpells(spells,{query:'Healing word',level:3}).map(s=>s.id),['mass-healing-word']);
   assert.deepEqual(filterSpells(spells,{query:'шепот',level:null}).map(s=>s.id),['dissonant-whispers'],'ё = е');
+  // The names of the owner's sheet, and other known names too.
+  assert.deepEqual(filterSpells(spells,{query:'разбивающий',level:null}).map(s=>s.id),['shatter']);
+  assert.deepEqual(filterSpells(spells,{query:'дребезги',level:null}).map(s=>s.id),['shatter']);
+  assert.deepEqual(filterSpells(spells,{query:'Таши',level:null}).map(s=>s.id),['hideous-laughter']);
   const all=filterSpells(spells,{query:'',level:null});
   assert.ok(all.every((s,i)=>!i||all[i-1].level<=s.level),'by circle');
 });
@@ -111,4 +117,14 @@ test('the library fetches the reference from its folder',async()=>{
   const library=createLibrary('https://example.org/dnd-editor/library/',async url=>{asked.push(url);return {ok:true,status:200,text:async()=>JSON.stringify(file)}});
   assert.equal(readSpells(await library.spells())?.spells.length,file.spells.length);
   assert.deepEqual(asked,['https://example.org/dnd-editor/library/spells.json']);
+});
+
+test('spells of the owner’s sheet carry the names he uses there',()=>{
+  const sheet=JSON.parse(readFileSync('library/richard-sadsong.dnd','utf8'));
+  const names=new Set(reference?.spells.map(s=>s.name));
+  const titles=sheet.items.filter((/** @type {{kind: string}} */ i)=>i.kind==='card').map((/** @type {{title?: string}} */ i)=>(i.title||'').replace(/\s+/g,' ').trim());
+  for(const title of ['Магическая рука','Мелкие фокусы','Диссонирующий шёпот','Приказ','Изменение облика','Немой образ','Приворот гуманоида','Разбивающий звук','Внушение','Зеркальное отражение','Обнаружение мыслей','Завораживающий узор','Ужас','Исцеляющее слово','Массовое исцеляющее слово']){
+    assert.ok(titles.includes(title),'on the sheet: '+title);
+    assert.ok(names.has(title),'in the reference: '+title);
+  }
 });
