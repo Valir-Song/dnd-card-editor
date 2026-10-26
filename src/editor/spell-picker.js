@@ -4,11 +4,13 @@
 // offline and in a file from disk.
 import { readSpells, spellCards, filterSpells, readDc, spellMeta, withDc, boldPieces, MAX_AT_ONCE, CLASSES } from './spells.js';
 import { errorText, target } from './dom.js';
+import { findCharacter, characterOf, characterStats } from './character.js';
 
 /** @typedef {import('./spells.js').Spell} Spell */
 
 const DC_KEY = 'dnd-card-editor-spell-dc';
 const CLASS_KEY = 'dnd-card-editor-spell-class';
+const DC_HINT = 'Сложность спасброска ваших заклинаний: на карточку попадёт «Мудрость СЛ 14» вместо «Спасбросок Мудрости». Пусто — без числа.';
 
 /**
  * @param {import('../types/layout').Deps<'addObjects'> & {dialog: HTMLDialogElement, infoDialog: HTMLDialogElement,
@@ -50,7 +52,7 @@ export function setupSpellPicker({dialog, infoDialog, button, library, addObject
   classes.value = cls;
   const dc = /** @type {HTMLInputElement} */ (el('input'));
   dc.type = 'number'; dc.min = '1'; dc.max = '30'; dc.className = 'spell-dc'; dc.placeholder = '—';
-  dc.title = 'Сложность спасброска ваших заклинаний: на карточку попадёт «Мудрость СЛ 14» вместо «Спасбросок Мудрости». Пусто — без числа.';
+  dc.title = DC_HINT;
   const list = el('ul', 'layouts-list spell-list');
   const insert = action('Вставить', () => insertChosen());
   insert.className = 'spell-insert';
@@ -134,6 +136,11 @@ export function setupSpellPicker({dialog, infoDialog, button, library, addObject
   actions.append(status, insert, close);
 
   button.onclick = () => {
+    // The hero's spell DC («Персонаж») wins over the one remembered here.
+    const hero = findCharacter(store.items);
+    const heroDc = hero ? characterStats(characterOf(hero)).dc.value : null;
+    if (heroDc !== null) { dcText = String(heroDc); dc.value = dcText; }
+    dc.title = (heroDc !== null ? 'Взято из окна «Персонаж». ' : '') + DC_HINT;
     dialog.replaceChildren(
       el('h2', '', 'Заклинание из справочника'),
       el('p', 'layouts-hint', 'Отметьте заклинания — каждое станет карточкой: круг, дистанция, длительность и суть в одну строку. Полный текст — по кнопке 📖 на карточке.'),
