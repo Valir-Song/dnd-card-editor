@@ -173,6 +173,10 @@
 
 ### Отрисовка (инкрементальная, `render.js`)
 - `rendered: Map(id → {node, snap})`, `snap = JSON.stringify(item)`.
+- `buildElement` (4.3.0 beta.3) — короткая последовательность помощников рядом с ним: `elementClass`, `addOutline`, `placeElement`,
+  `addCardBackground`, `styleShape`, `addImage`, `addTextbox`, `addTextFields`, `addBody` (окна ресурсов/хитов/окошки под заголовком),
+  `addSpellInfo`, `addBadges`/`makeBadge`. `placeTextFrame` и `placeMainBadge` общие с `patchGeometry`: положение текста и значка
+  при сборке и после жеста считается одним кодом. Новая часть объекта — свой помощник, порядок вызовов = порядок узлов в DOM.
 - При `draw()`: снимок совпал → узел остаётся (Tiptap переподключается `rich.rebind`); изменилась только
   геометрия (`GEOMETRY = x,y,w,h,z,textFrames,badgeX,badgeY,badgeCustomPosition`) → `patchGeometry`;
   иначе — узел и его редакторы пересоздаются на том же месте. Порядок узлов в DOM = порядок данных.
