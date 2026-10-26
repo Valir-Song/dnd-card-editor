@@ -271,6 +271,8 @@ PNG в репозитории нет специально: шрифты здес
 - GitHub: только REST через `gh api` (GraphQL закрыт). Логи заданий CI закрыты прокси — причину падения
   смотреть в аннотациях check-run (их пишет `tests/ci_run.py`: хвост вывода упавшего набора):
   `gh api repos/Valir-Song/dnd-card-editor/commits/<sha>/check-runs`, затем `…/check-runs/<id>/annotations`.
+- CI идёт на `ubuntu-24.04`, а не на `ubuntu-latest`: с 26.10.2026 `ubuntu-latest` = Ubuntu 26.04, и Playwright 1.56
+  там не ставит браузеры (падает шаг `pip install` / `playwright install`). Сменить можно вместе с обновлением Playwright.
 - CI (`.github/workflows/verify.yml`) идёт ~4–6 мин: Node-тесты, typecheck, сборка, сверка standalone,
   4 набора × Chromium/Firefox, затем 4 набора в Chromium с `CPU_THROTTLE=4`.
 - **Красный крестик CI на `main` после пачки вливаний — не поломка.** Когда несколько PR вливаются за
