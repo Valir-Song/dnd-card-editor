@@ -8,7 +8,8 @@ import { outlineLook } from './borders.js';
 /** @typedef {'title' | 'subtitle' | 'meta' | 'detail' | 'text'} Field */
 
 import { isSheet, sheetOf, paintSheet } from './sheet.js';
-import { isCharacter } from './character.js';
+import { isCharacter, findCharacter } from './character.js';
+import { buildStats } from './stats-box.js';
 import { buildHp, step, damage, heal, setHp, toggleDie, setDice, toggleSave, toggleDice, toggleSaves } from './hp.js';
 import { pageCount } from './pages.js';
 import { buildPools, toggleCell, changeCount, cycleRest, switchColumn, removePool, setPoolLabel } from './resources.js';
@@ -39,8 +40,11 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
   const rendered=new Map();
   /** @param {string} id */
   const itemById=id=>getItems().find(x=>x.id===id);
+  // A stats box shows the character's numbers: they are part of what it looks like.
   /** @param {Item} item */
-  const snapOf=item=>JSON.stringify(item);
+  const view=item=>item.kind==='stats'?{...item,character:findCharacter(getItems())?.character}:item;
+  /** @param {Item} item */
+  const snapOf=item=>JSON.stringify(view(item));
   /** @param {Item} item */
   const withoutGeometry=item=>JSON.stringify(item,(k,v)=>GEOMETRY.includes(k)?undefined:v);
   // Text edited in Tiptap (or the badge) is already on screen: just record it.
@@ -67,6 +71,7 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
   }for(const f of /** @type {const} */ (['title','subtitle','meta','detail']))if(item[f]!==undefined){const wrap=document.createElement('div');wrap.className='text-wrap';wrap.dataset.field=f;const pos=(item.textFrames||{})[f]||{};wrap.style.transform=`translate(${pos.x||0}mm, ${pos.y||0}mm)`;if(pos.w)wrap.style.width=mm(pos.w);if(pos.h){wrap.style.height=mm(pos.h);wrap.classList.add('sized')}const d=document.createElement('div');setField(d,item,f);wrap.append(d);e.append(wrap)}
     // Resources rows sit right under the title; a press on them edits, never drags.
     if(item.kind==='resources'&&Array.isArray(item.pools)){const pools=buildPools(item,poolActions(item.id)),title=e.querySelector(':scope > .text-wrap[data-field="title"]');if(title)title.after(pools);else e.append(pools)}
+    if(item.kind==='stats'){const body=buildStats(item,getItems()),title=e.querySelector(':scope > .text-wrap[data-field="title"]');if(title)title.after(body);else e.append(body)}
     if(item.kind==='hp'){const body=buildHp(item,hpActions(item.id)),title=e.querySelector(':scope > .text-wrap[data-field="title"]');if(title)title.after(body);else e.append(body)}
     // A card from the spell reference: «📖» opens its full text (spell-picker.js); never printed.
     if(item.kind==='card'&&item.spellText){const info=document.createElement('button');info.type='button';info.className='spell-info';info.textContent='📖';info.title='Полное описание заклинания';info.setAttribute('aria-label',info.title);e.append(info)}
@@ -138,7 +143,7 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
       const page=pages[(item.page||1)-1],snap=snapOf(item),r=rendered.get(item.id);
       // Gestures move nodes directly, so geometry is re-applied even when unchanged.
       if(r&&r.snap===snap){rich.rebind(item.id,item);patchGeometry(r.node,item)}
-      else if(r&&withoutGeometry(item)===withoutGeometry(JSON.parse(r.snap))){rich.rebind(item.id,item);patchGeometry(r.node,item);r.snap=snap}
+      else if(r&&withoutGeometry(view(item))===withoutGeometry(JSON.parse(r.snap))){rich.rebind(item.id,item);patchGeometry(r.node,item);r.snap=snap}
       else{
         if(r){rich.unmount(item.id);r.node.remove()}
         rendered.set(item.id,{node:buildElement(item),snap});

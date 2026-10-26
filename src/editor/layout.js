@@ -4,7 +4,7 @@
 import { migrateResources } from './resources.js';
 import { MAX_PAGES } from './pages.js';
 
-export const KINDS=['header','note','resources','section','card','shape','image','textbox','sheet','hp','character'];
+export const KINDS=['header','note','resources','section','card','shape','image','textbox','sheet','hp','character','stats'];
 const GEOMETRY=['x','y','w','h'];
 const MAX_ERRORS=5;
 

@@ -14,6 +14,7 @@ import { icon, ICONS } from './icons.js';
 const GROUPS = [
   {id:'cards', label:'Карточки', sections:[
     ['Добавить', 'big', ['add','addSpell','addResources','addHp']],
+    ['Персонаж', 'big', ['addAbilities','addSkills','addCombat','allSkills']],
     ['Правка', 'big', ['duplicate','delete']],
     ['Лист', 'rows', [['toPage']], 'Выделите объект, чтобы перенести его на другой лист'],
     ['Ресурсы', 'big', ['addSpellRow','addExtraRow','shortRest','longRest']],

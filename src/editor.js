@@ -31,6 +31,7 @@ import { setupThemes } from './editor/themes.js';
 import { setupSheet, isSheet } from './editor/sheet.js';
 import { isCharacter } from './editor/character.js';
 import { setupCharacter } from './editor/character-dialog.js';
+import { setupStats } from './editor/stats-box.js';
 import { readCompressed } from './editor/images.js';
 import { errorText } from './editor/dom.js';
 import { setupBorders } from './editor/borders.js';
@@ -338,6 +339,8 @@ let resources=null;
 let hp=null;
 /** @type {ReturnType<typeof setupCharacter> | null} */
 let character=null;
+/** @type {ReturnType<typeof setupStats> | null} */
+let stats=null;
 /** @type {ReturnType<typeof createInnerCanvas> | null} */
 let innerCanvas=null;
 const rich=createRichText({
@@ -379,7 +382,7 @@ align=setupAlign({canvas,innerCanvas});
 
 const renderer=createRenderer({pages,getItems:()=>items,store,rich,
   startDrag:(event,id)=>canvas.startDrag(event,id),startBadgeDrag,
-  afterDraw:()=>{followHeading();activePage=Math.min(activePage,pages.length);pagesUi?.sync();canvas.afterDraw();innerCanvas?.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync();resources?.sync();hp?.sync();character?.sync()}});
+  afterDraw:()=>{followHeading();activePage=Math.min(activePage,pages.length);pagesUi?.sync();canvas.afterDraw();innerCanvas?.afterDraw();syncTextBoxTools();lock?.sync();align?.sync();themes?.sync();sheet?.sync();borders?.sync();badges?.sync();resources?.sync();hp?.sync();stats?.sync();character?.sync()}});
 /** @param {HTMLElement | null} e */
 function select(e){canvas.setSelection(e?[e.dataset.id||'']:[],e?.dataset.id||null)}
 function current(){return items.find(x=>x.id===selected)}// Where a new object goes: the free spot nearest to a wish — under the selected
@@ -445,6 +448,7 @@ borders=setupBorders({store,getSelectionIds,current,getPage:()=>activePage});
 badges=setupBadges({store,getSelectionIds,current});
 resources=setupResources({store,addObject,current,getSelectionIds});
 hp=setupHp({store,addObject,current,getSelectionIds});
+stats=setupStats({store,addObject,current,getSelectionIds});
 character=setupCharacter({dialog:/** @type {HTMLDialogElement} */ (/** @type {unknown} */ (document.getElementById('characterDialog'))),button:/** @type {HTMLElement} */ (document.getElementById('character')),store,makeId:newId});
 const identity=()=>({id:layoutId,name:layoutName});
 const {exportFile,layoutFile}=setupFiles({store,getSelectionIds,removeObjects,clearSelection,syncImageTools,syncBgTools,flushSave:()=>saver.flush(),identity});

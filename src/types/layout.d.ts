@@ -1,6 +1,6 @@
 // One object of the layout (a JSON array of these). Coordinates are in mm.
 // See README → «Формат макета».
-export type Kind = 'header' | 'note' | 'resources' | 'section' | 'card' | 'shape' | 'image' | 'textbox' | 'sheet' | 'hp' | 'character';
+export type Kind = 'header' | 'note' | 'resources' | 'section' | 'card' | 'shape' | 'image' | 'textbox' | 'sheet' | 'hp' | 'character' | 'stats';
 // The text fields of an object; each has a plain (title) and a formatted (titleHtml) version.
 export type TextField = 'title' | 'subtitle' | 'meta' | 'detail' | 'text';
 // A row of tick boxes in a resources box (see src/editor/resources.js).
@@ -46,6 +46,8 @@ export interface Item {
   hp?: HitPoints; hitDice?: HitDice; deathSaves?: DeathSaves;
   // Character stats: one invisible object per layout, edited in the «Персонаж» window.
   character?: Character;
+  // Stats box on the sheet (kind 'stats'): which part of the character it shows; all skills or only mine.
+  stats?: 'abilities' | 'skills' | 'combat'; allSkills?: boolean;
   // Locked in place (see src/editor/lock.js); absent means unlocked.
   locked?: boolean;
   // A card's text layout: the compact one of the first page or the roomy one of the others (4.2).

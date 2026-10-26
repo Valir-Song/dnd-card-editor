@@ -20,9 +20,9 @@ export const OUTLINES = [
 export const OUTLINE_WIDTHS = [0.2, 0.35, 0.5, 0.8, 1.2];
 export const DEFAULT_WIDTH = 0.5;
 export const DEFAULT_COLOR = '#745193';
-const KINDS = ['card', 'note', 'resources', 'hp', 'section', 'header', 'image', 'shape'];
+const KINDS = ['card', 'note', 'resources', 'hp', 'stats', 'section', 'header', 'image', 'shape'];
 // «Рамку на весь лист» frames the boxes with text, not headings, pictures or shapes.
-const PAGE_KINDS = ['card', 'note', 'resources', 'hp'];
+const PAGE_KINDS = ['card', 'note', 'resources', 'hp', 'stats'];
 const COLOR = /^#[0-9a-f]{6}$/i;
 
 /** @param {Item} item */

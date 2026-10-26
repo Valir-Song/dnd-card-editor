@@ -199,3 +199,67 @@ export function readNumber(text) {
   if (!match) return null;
   return (match[1] === '-' || match[1] === '−' ? -1 : 1) * Number(match[2]);
 }
+
+// ---- boxes on the sheet (kind 'stats', 4.1 beta.2) ----
+// A box shows the stats of the layout's character object; it keeps no numbers of
+// its own, so every box and the window always agree. `stats` says which part.
+
+/** @typedef {'abilities' | 'skills' | 'combat'} StatsPart */
+/** @type {Record<StatsPart, {title: string, w: number, h: number}>} */
+export const STATS_PARTS = {
+  abilities: {title: 'ХАРАКТЕРИСТИКИ', w: 96, h: 24},
+  skills: {title: 'СПАСБРОСКИ И НАВЫКИ', w: 62, h: 52},
+  combat: {title: 'БОЙ', w: 100, h: 19},
+};
+/** Height a skills box needs to show all 18 skills. */
+export const ALL_SKILLS_H = 92;
+
+/** Which part a box shows (an unknown one shows the abilities). @param {Item} item @returns {StatsPart} */
+export const statsPart = item => item.stats === 'skills' || item.stats === 'combat' ? item.stats : 'abilities';
+
+/** A new box for the toolbar. @param {StatsPart} part */
+export function newStats(part) {
+  const {title, w, h} = STATS_PARTS[part];
+  return {kind: /** @type {const} */ ('stats'), stats: part, w, h, title};
+}
+
+/**
+ * The rows a box shows, as plain data (Node tests; stats-box.js draws them).
+ * @param {Item} box @param {Character} c
+ */
+export function statsView(box, c) {
+  const s = characterStats(c);
+  const part = statsPart(box);
+  if (part === 'abilities')
+    return {part, cells: ABILITIES.map(a => ({label: a.short, value: signed(s.mods[a.id]), small: String(c.scores[a.id])}))};
+  if (part === 'combat') {
+    const cells = [
+      {label: 'Мастерство', value: signed(s.prof.value)},
+      {label: 'КД', value: String(s.ac.value)},
+      {label: 'Инициатива', value: signed(s.init.value)},
+      {label: 'Скорость', value: String(s.speed.value)},
+      {label: 'Пасс. вним.', value: String(s.passive.value)},
+    ];
+    if (s.dc.value !== null) cells.push({label: 'СЛ закл.', value: String(s.dc.value)});
+    if (s.attack.value !== null) cells.push({label: 'Атака закл.', value: signed(s.attack.value)});
+    return {part, cells};
+  }
+  const saves = ABILITIES.map(a => ({label: a.short, value: signed(s.saves[a.id].value), rank: s.saves[a.id].rank}));
+  const all = box.allSkills === true;
+  const skills = SKILLS.filter(skill => all || s.skills[skill.id].rank > 0)
+    .map(skill => ({label: skill.name, value: signed(s.skills[skill.id].value), rank: s.skills[skill.id].rank}));
+  // Only my skills: the rest are one line (Jack of All Trades gives them a bonus too).
+  let rest = '';
+  if (!all) {
+    const others = SKILLS.filter(skill => !s.skills[skill.id].rank).length;
+    if (!skills.length) rest = 'Отметь навыки в окне «Персонаж»';
+    else if (others && c.jack) rest = 'Остальные: ½ мастерства (Мастер на все руки)';
+  }
+  return {part, saves, skills, rest};
+}
+
+/** Show all 18 skills or only the proficient ones; a box grows to fit all. In place. @param {Item} box @param {boolean} all */
+export function setAllSkills(box, all) {
+  if (all) { box.allSkills = true; box.h = Math.max(box.h, ALL_SKILLS_H); }
+  else delete box.allSkills;
+}
