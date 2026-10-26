@@ -68,3 +68,38 @@ export function serviceWorker(template, channel, version) {
     .replace('__FILES__', JSON.stringify(files))
     .replace('__OTHERS__', JSON.stringify(CHANNELS[channel].others));
 }
+
+/** The site address, for the public README. */
+export const SITE_URL = 'https://valir-song.github.io/dnd-editor/';
+
+/**
+ * README.md of the public Pages repository, made from this repository's README on each publish:
+ * the user part and the version history, without the developer section and owner-only steps
+ * that point into the private repository. Throws if the README no longer has the expected
+ * pieces, so a rewrite shows up in the Node tests instead of leaking into the public copy.
+ */
+export function publicReadme(readme) {
+  const cut = (text, start, end) => {
+    const from = text.indexOf(start);
+    const to = text.indexOf(end, from + start.length);
+    if (from < 0 || to < 0) throw Error('README: expected «' + start.trim() + '» … «' + end.trim() + '»');
+    return text.slice(0, from) + text.slice(to);
+  };
+  const swap = (text, from, to) => {
+    if (!text.includes(from)) throw Error('README: expected «' + from.trim() + '»');
+    return text.replace(from, to);
+  };
+  let text = readme.replace(/\r\n/g, '\n');
+  text = cut(text, '\n## Разработка\n', '\n## История версий\n');
+  // The old builds live in the private history; the library is filled by the owner there.
+  text = swap(text, text.match(/ Стабильная 3\.2\.0[^]*?`archive\/[^`]*`\./)?.[0] ?? ' Стабильная 3.2.0', '');
+  text = cut(text, '\n- **Пополнить базу**', '\n\n');
+  text = swap(text, ' (ветка `main`)', '');
+  text = swap(text, '1. Открой `DND_Card_Editor_standalone.html` в Chrome или Firefox.',
+    '1. Открой **' + SITE_URL + '** в Chrome, Edge или Firefox — или HTML-файл, скачанный из редактора.');
+  const intro = '\n\n> **Открыть редактор:** ' + SITE_URL + ' · бета: ' + SITE_URL + 'beta/\n>\n'
+    + '> Здесь лежит только готовый редактор для GitHub Pages; исходный код — в закрытом репозитории. Файлы и этот\n'
+    + '> README выкладываются автоматически при каждой новой версии, руками их не править.';
+  const title = text.indexOf('\n');
+  return text.slice(0, title) + intro + text.slice(title);
+}
