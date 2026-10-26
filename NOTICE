@@ -1,0 +1,18 @@
+D&D Card Editor
+Copyright (C) 2026 Valir-Song
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, version 3.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+General Public License in the file LICENSE for more details.
+
+The spell reference library/spells.json is not covered by the GNU AGPL.
+It is a Russian translation of material from the System Reference Document 5.2
+("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd,
+licensed under the Creative Commons Attribution 4.0 International License
+(https://creativecommons.org/licenses/by/4.0/legalcode). The translation is
+shared under the same license, CC-BY 4.0.
