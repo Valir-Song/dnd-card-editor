@@ -1526,7 +1526,7 @@ with sync_playwright() as p:
     bare=page.evaluate("[...document.querySelectorAll('.rb-large,.rb-small,.rb-top')].filter(e=>!e.querySelector('svg.rb-ico')||!e.querySelector('.rb-label').textContent.trim()).map(e=>e.id)")
     assert not bare,('Buttons without an icon or a label',bare)
     names=page.eval_on_selector_all('#panel-cards .rb-name','e=>e.map(x=>x.textContent)')
-    assert names==['Добавить','Правка','Лист','Ресурсы','Хиты','Закрепление','Фон карточки'],names
+    assert names==['Добавить','Персонаж','Правка','Лист','Ресурсы','Хиты','Закрепление','Фон карточки'],names
     # Renaming a button (lock) keeps its icon.
     page.locator('[data-tab="cards"]').click(); page.locator('#lock').click()
     assert page.locator('#lock .rb-label').inner_text()=='Открепить' and page.locator('#lock svg.rb-ico').count()==1
@@ -2289,6 +2289,64 @@ with sync_playwright() as p:
     assert not page.errors,page.errors
     context.close()
     print('PASS '+engine+': character — window, counted modifiers, saves, skills and DC, typed numbers and ↺, undo, reload, nothing on the sheet, read-only in game mode')
+
+    # 37. Character boxes on the sheet (4.1 beta.2): «Характеристики», «Навыки», «Бой» show the
+    #     numbers of the «Персонаж» window and follow every change (and undo); «Все навыки» shows
+    #     all 18; a double click (a tap in game mode) opens the window; the boxes are printed.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    page.locator('#character').click()
+    dialog=page.locator('#characterDialog')
+    dialog.locator('.char-ability').nth(5).locator('input').fill('16')
+    dialog.locator('.char-level').fill('6')
+    rank=lambda key:dialog.locator('.char-row[data-key="'+key+'"] .char-rank')
+    rank('skill:performance').click(); rank('skill:performance').click()
+    page.wait_for_function("document.querySelector('#characterDialog .char-value[data-key=\"skill:performance\"]').value==='+9'")
+    dialog.locator('#characterClose').click()
+    page.locator('[data-tab="cards"]').click()
+    assert page.locator('#allSkills').is_disabled()
+    for button in ('addAbilities','addSkills','addCombat'): page.locator('#'+button).click()
+    page.wait_for_function("document.querySelectorAll('.el.stats').length===3")
+    abilities=page.locator('.el.stats:has(.stats-abilities)')
+    skills=page.locator('.el.stats:has(.stats-skills)')
+    combat=page.locator('.el.stats:has(.stats-combat)')
+    assert abilities.locator('.stats-value').nth(5).text_content()=='+3'
+    assert skills.locator('.stats-skill').count()==1 and '+9' in skills.locator('.stats-skill').text_content()
+    assert 'Мастерство+3' in combat.locator('.stats-cell').first.text_content()
+    saved=[item for item in saved_layout(page) if item['kind']=='stats']
+    assert len(saved)==3 and all('character' not in item and 'cells' not in item for item in saved),saved
+    # «Все навыки» on the selected skills box: 18 rows, the box grows.
+    skills.click(position={'x':4,'y':4})
+    page.wait_for_function("!document.getElementById('allSkills').disabled")
+    height=skills.evaluate("e=>e.getBoundingClientRect().height")
+    page.locator('#allSkills').click()
+    page.wait_for_function("document.querySelectorAll('.el.stats .stats-skill').length===18")
+    assert skills.evaluate("e=>e.getBoundingClientRect().height")>height
+    assert page.locator('#allSkills').get_attribute('aria-pressed')=='true'
+    # A double click opens the window; a change there redraws every box; undo too.
+    abilities.locator('.stats-cell').first.dblclick()
+    dialog.wait_for()
+    dialog.locator('.char-ability').nth(5).locator('input').fill('18')
+    page.wait_for_function("document.querySelectorAll('.el.stats .stats-abilities .stats-value')[5].textContent==='+4'")
+    assert '+10' in page.locator('.el.stats .stats-skill:has-text("Выступление")').text_content()
+    dialog.locator('#characterClose').click()
+    page.keyboard.press('Control+z')
+    page.wait_for_function("document.querySelectorAll('.el.stats .stats-abilities .stats-value')[5].textContent==='+3'")
+    # Game mode: a tap on a box opens the window to look, the box is not selected or moved.
+    page.locator('#play').click()
+    before=abilities.evaluate("e=>[e.style.left,e.style.top]")
+    abilities.locator('.stats-cell').nth(2).click()
+    dialog.wait_for()
+    assert dialog.locator('.char-row[data-key="skill:stealth"] .char-rank').is_disabled()
+    dialog.locator('#characterClose').click()
+    assert page.locator('.el.selected').count()==0 and abilities.evaluate("e=>[e.style.left,e.style.top]")==before
+    page.locator('#playExit').click()
+    page.emulate_media(media='print')
+    assert page.evaluate("[...document.querySelectorAll('.el.stats')].every(e=>getComputedStyle(e).display!=='none'&&e.getBoundingClientRect().height>0)")
+    page.emulate_media(media='screen')
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': character boxes — abilities, skills, combat follow the window and undo, «Все навыки», double click and game-mode tap open the window, printed')
 
     browser.close()
 print('All regression checks passed for '+engine)

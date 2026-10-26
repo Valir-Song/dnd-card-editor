@@ -20,7 +20,7 @@ export const THEMES = [
   {id: 'shadow', name: 'Тень'}
 ];
 // Kinds with a box to colour; shapes, pictures and text boxes keep their own colours.
-export const THEMED_KINDS = ['card', 'note', 'resources', 'section', 'header', 'hp'];
+export const THEMED_KINDS = ['card', 'note', 'resources', 'section', 'header', 'hp', 'stats'];
 
 /** @param {Item} item */
 export const themable = item => THEMED_KINDS.includes(item.kind);

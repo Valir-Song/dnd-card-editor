@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { characterOf, characterStats, modifier, profBonus, setScore, setLevel, toggleSave, cycleSkill, setJack,
-  setSpellAbility, setFixed, newCharacter, signed, readNumber, findCharacter } from '../src/editor/character.js';
+  setSpellAbility, setFixed, newCharacter, signed, readNumber, findCharacter, statsView, newStats, setAllSkills, statsPart, ALL_SKILLS_H } from '../src/editor/character.js';
 import { pageCount, keepPages, addPage, duplicatePage, removePage, movePage, objectsOn } from '../src/editor/pages.js';
 import { normalizeLayout } from '../src/editor/layout.js';
 
@@ -126,4 +126,43 @@ test('pages: the stats object stays on page 1, is not copied, not removed, and d
   items = /** @type {any[]} */ (removePage(items, 1, makeId));
   assert.ok(findCharacter(items), 'removing page 1 keeps the stats');
   assert.equal(objectsOn(items, 1).some(i => i.kind === 'character'), false);
+});
+
+test('boxes on the sheet show the character’s numbers', () => {
+  const c = characterOf(richard());
+  const box = (/** @type {any} */ part, extra = {}) => ({id: 'b', page: 1, x: 0, y: 0, z: 1, ...newStats(part), ...extra});
+  const abilities = /** @type {any} */ (statsView(box('abilities'), c));
+  assert.deepEqual(abilities.cells.map((/** @type {any} */ x) => x.value), ['−1', '+2', '+2', '+0', '+1', '+3']);
+  assert.equal(abilities.cells[5].small, '16');
+  const combat = /** @type {any} */ (statsView(box('combat'), c));
+  assert.deepEqual(combat.cells.map((/** @type {any} */ x) => x.label + ' ' + x.value),
+    ['Мастерство +3', 'КД 12', 'Инициатива +2', 'Скорость 30', 'Пасс. вним. 11', 'СЛ закл. 14', 'Атака закл. +6']);
+  const noMagic = /** @type {any} */ (statsView(box('combat'), characterOf({})));
+  assert.equal(noMagic.cells.length, 5, 'no spell DC without a spellcasting ability');
+  const skills = /** @type {any} */ (statsView(box('skills'), c));
+  assert.deepEqual(skills.saves.map((/** @type {any} */ x) => x.label + x.value + x.rank), ['СИЛ−10', 'ЛОВ+51', 'ТЕЛ+20', 'ИНТ+00', 'МДР+10', 'ХАР+61']);
+  assert.deepEqual(skills.skills.map((/** @type {any} */ x) => x.label), ['Обман', 'Выступление', 'Убеждение'], 'only my skills, in book order');
+  assert.equal(skills.rest, '');
+  const all = /** @type {any} */ (statsView(box('skills', {allSkills: true}), c));
+  assert.equal(all.skills.length, 18);
+  const blank = /** @type {any} */ (statsView(box('skills'), characterOf({})));
+  assert.match(blank.rest, /Персонаж/);
+  const jack = richard(); setJack(jack, true);
+  assert.match(/** @type {any} */ (statsView(box('skills'), characterOf(jack))).rest, /Мастер на все руки/);
+});
+
+test('«Все навыки» grows a skills box to fit, and turns off without shrinking it', () => {
+  const box = /** @type {any} */ ({id: 'b', page: 1, x: 0, y: 0, ...newStats('skills')});
+  setAllSkills(box, true);
+  assert.equal(box.allSkills, true);
+  assert.equal(box.h, ALL_SKILLS_H);
+  setAllSkills(box, false);
+  assert.equal('allSkills' in box, false);
+  assert.equal(box.h, ALL_SKILLS_H);
+  assert.equal(statsPart(/** @type {any} */ ({stats: 'nonsense'})), 'abilities');
+});
+
+test('the layout keeps stats boxes', () => {
+  const result = normalizeLayout([{id: 'b', page: 1, x: 5, y: 5, z: 1, ...newStats('combat')}, richard()]);
+  assert.deepEqual(result.errors, []);
 });

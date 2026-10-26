@@ -8,7 +8,7 @@ import { setLabel, target } from './dom.js';
 
 export const PLAY_KEY = 'dnd-card-editor-play' + STORAGE_SUFFIX;
 /** What stays pressable on the sheet in game mode. */
-export const PLAY_TARGETS = '.pool-cell, .spell-info, .hp-play';
+export const PLAY_TARGETS = '.pool-cell, .spell-info, .hp-play, .stats-body';
 /** Events the sheet sees from a press; touchstart stays free so the page still scrolls. */
 export const PRESS_EVENTS = /** @type {const} */ (['pointerdown', 'mousedown', 'click', 'dblclick']);
 

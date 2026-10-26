@@ -535,3 +535,26 @@ html[data-play="on"] .hp-cell::after,html[data-play="on"] .hp-dot::after{content
 .char-readonly .char-rank,.char-readonly .char-reset{cursor:default}
 .char-readonly .char-reset{display:none}
 @media (max-width:640px){.char-abilities{grid-template-columns:repeat(3,1fr)}.char-lists,.char-magic{grid-template-columns:1fr}}
+/* 4.1 beta.2: character stats on the sheet (stats-box.js); numbers come from the «Персонаж» window */
+.el.stats{padding:2.2mm 3mm;border:1px solid #e2d8ca;background:#fff}
+.stats .title{font:bold 10pt Georgia;color:var(--t-title,#755092);margin-bottom:1mm}
+.stats-body{font:8pt/1.25 Arial,sans-serif;color:var(--t-text,#262137)}
+.stats-abilities,.stats-combat{display:flex;gap:1.2mm}
+.stats-cell{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;border:.25mm solid #e2d8ca;border-radius:1.2mm;padding:.6mm .4mm}
+.stats-label{font-size:6.5pt;font-weight:bold;letter-spacing:.2pt;color:var(--t-meta,#755a81);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.stats-value{font:bold 13pt/1.1 Georgia;color:var(--t-title,#543874)}
+.stats-combat .stats-value{font-size:11pt}
+.stats-small{font-size:7pt;opacity:.8}
+.stats-saves{display:grid;grid-template-columns:repeat(3,1fr);gap:.4mm 1.5mm;padding-bottom:1mm;margin-bottom:1mm;border-bottom:.25mm solid #e2d8ca}
+.stats-save,.stats-skill{display:flex;align-items:center;gap:.8mm;white-space:nowrap}
+.stats-save b{margin-left:auto}
+.stats-skill{line-height:3.6mm}
+.stats-name{flex:1;overflow:hidden;text-overflow:ellipsis}
+.stats-rank{flex:none;width:1.8mm;height:1.8mm;border:.22mm solid var(--t-badge,#755092);border-radius:50%;box-sizing:border-box}
+.rank-1 .stats-rank{background:var(--t-badge,#755092);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rank-2 .stats-rank{background:var(--t-badge,#755092);box-shadow:inset 0 0 0 .35mm #fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.stats-rest{margin-top:.8mm;font-size:7pt;color:var(--t-meta,#8a7396);font-style:italic}
+html[data-play="on"] .stage .stats-body{cursor:pointer}
+.toolbar #allSkills[aria-pressed="true"]{background:#e6dcf3}
+.stats-combat .stats-cell{flex:1 1 auto;padding:.6mm .8mm}
+.stats-combat .stats-label{font-size:6pt;font-weight:normal;overflow:visible}
