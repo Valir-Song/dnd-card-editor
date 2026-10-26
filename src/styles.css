@@ -512,6 +512,7 @@ html[data-play="on"] .hp-cell::after,html[data-play="on"] .hp-dot::after{content
 .char-score{width:48px;text-align:center}
 .char-combat{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:10px}
 .char-magic{grid-template-columns:repeat(3,1fr)}
+.char-fill{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.char-fill button{padding:5px 12px}.char-fill-result{font-size:12px;color:#555}
 .char-cell{display:flex;flex-direction:column;justify-content:space-between;gap:4px;background:#f6f3fa;border-radius:8px;padding:6px 8px;font-size:12px;color:#5d536b}
 .char-score,.char-level,.char-value,.char-spell-ability{padding:3px 4px;border:1px solid #d8cde8;border-radius:5px;font:inherit;font-size:14px;color:#262137;background:#fff}
 .char-level{width:56px}
