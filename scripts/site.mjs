@@ -95,8 +95,6 @@ export function publicReadme(readme) {
   text = swap(text, text.match(/ Стабильная 3\.2\.0[^]*?`archive\/[^`]*`\./)?.[0] ?? ' Стабильная 3.2.0', '');
   text = cut(text, '\n- **Пополнить базу**', '\n\n');
   text = swap(text, ' (ветка `main`)', '');
-  text = swap(text, '1. Открой `DND_Card_Editor_standalone.html` в Chrome или Firefox.',
-    '1. Открой **' + SITE_URL + '** в Chrome, Edge или Firefox — или HTML-файл, скачанный из редактора.');
   const intro = '\n\n> **Открыть редактор:** ' + SITE_URL + ' · бета: ' + SITE_URL + 'beta/\n>\n'
     + '> Здесь лежит только готовый редактор для GitHub Pages; исходный код — в закрытом репозитории. Файлы и этот\n'
     + '> README выкладываются автоматически при каждой новой версии, руками их не править.';

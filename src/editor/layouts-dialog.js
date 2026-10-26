@@ -73,7 +73,7 @@ export function setupLayoutsDialog({dialog, storage, currentId, open, download})
     dialog.replaceChildren(
       el('h2', '', 'Мои макеты'),
       el('p', 'layouts-hint', 'Сохранено ' + where + (saves.length ? ', всего ≈ ' + formatSize(total) : '') +
-        '. Это копии для удобства: надёжно хранит работу только скачанный HTML.'),
+        '. Это автосохранение браузера: оно помогает вернуть работу, но очистка данных браузера его удалит. Файлы на диске (.dnd, HTML) хранятся отдельно и здесь не показываются.'),
       saves.length ? list : el('p', 'layouts-empty', 'Пока ничего не сохранено.'),
       close);
   }
