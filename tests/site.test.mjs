@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CHANNELS, appHtml, assetNames, manifest, serviceWorker } from '../scripts/site.mjs';
+import { CHANNELS, SITE_URL, appHtml, assetNames, manifest, publicReadme, serviceWorker } from '../scripts/site.mjs';
 
 const page = '<!doctype html><html><head><title>x</title></head><body><script>const s="</body>"</script><p>hi</p></body></html>';
 
@@ -55,4 +55,22 @@ test('the worker caches its channel files and leaves the beta folder to the beta
   for (const channel of Object.keys(CHANNELS)) {
     for (const name of assetNames(channel).filter(name => name !== 'manifest.webmanifest')) assert.ok(readFileSync('app/' + name).length > 0, name);
   }
+});
+
+test('the public README keeps the user part and history, without the developer section', () => {
+  const readme = readFileSync('README.md', 'utf8');
+  const text = publicReadme(readme);
+  assert.ok(text.startsWith('# D&D Card Editor\n\n> **Открыть редактор:** ' + SITE_URL));
+  for (const kept of ['## Как пользоваться', '## Возможности', '### Защита данных', '## История версий', '1. Открой **' + SITE_URL])
+    assert.ok(text.includes(kept), kept);
+  // Nothing that points into the private repository or describes its insides.
+  for (const gone of ['## Разработка', '### Структура', 'CLAUDE.md', 'ROADMAP', 'PAGES_TOKEN', 'npm ci', 'src/editor/layout.js', 'tests/',
+    'DND_Card_Editor_standalone.html', 'Пополнить базу', 'library/README.md', 'archive/', '(ветка `main`)'])
+    assert.ok(!text.includes(gone), gone);
+  assert.ok(text.endsWith(readme.slice(readme.lastIndexOf('\n- **3.0.1**'))));
+  assert.equal(publicReadme(readme.replace(/\n/g, '\r\n')), text);
+});
+
+test('the public README refuses a README it no longer recognizes', () => {
+  assert.throws(() => publicReadme('# D&D Card Editor\n\n## Как пользоваться\n'), /README: expected/);
 });

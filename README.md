@@ -213,6 +213,8 @@ service worker (`app/sw.js`), помечая всё добавленное `data
 `beta/` — проверяемая ветка. Выкладывает `.github/workflows/publish.yml`: после зелёного CI на `main` — основную,
 запуском вручную (Actions → Publish app → ветка, beta) — бету. Ему нужен секрет `PAGES_TOKEN` (fine-grained token
 с правом Contents: read and write только на `dnd-editor`); без него задание ничего не делает.
+Вместе с основной версией туда же кладётся `README.md` — пользовательская часть этого файла и история версий
+(`publicReadme` в `scripts/site.mjs`, без раздела «Разработка» и ссылок внутрь закрытого репозитория).
 
 После изменения версии в `package.json` и `index.html` выполни `npm run standalone`:
 `npm test` проверяет, что закоммиченный standalone-файл соответствует текущей версии.

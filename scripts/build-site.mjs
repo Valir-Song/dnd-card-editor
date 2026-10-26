@@ -1,8 +1,9 @@
 // Build the hosted editor from dist/index.html: node scripts/build-site.mjs [stable|beta] [out-folder]
-// Writes index.html, sw.js, the manifest, the icons, the ready sheets and the spell reference (library/) into the folder (default: site/ or site/beta/).
+// Writes index.html, sw.js, the manifest, the icons, the ready sheets and the spell reference (library/) into the folder (default: site/ or site/beta/);
+// stable also gets .nojekyll and README.md for the site repository.
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CHANNELS, appHtml, assetNames, manifest, serviceWorker } from './site.mjs';
+import { CHANNELS, appHtml, assetNames, manifest, publicReadme, serviceWorker } from './site.mjs';
 import { INDEX_NAME, LIBRARY_FOLDER, SPELLS_NAME, libraryIndex } from './library.mjs';
 
 const channel = process.argv[2] || 'stable';
@@ -26,4 +27,6 @@ writeFileSync(join(out, LIBRARY_FOLDER, INDEX_NAME), JSON.stringify({sheets}, nu
 copyFileSync(join(LIBRARY_FOLDER, SPELLS_NAME), join(out, LIBRARY_FOLDER, SPELLS_NAME));
 // GitHub Pages must serve the files as they are, without its Jekyll step.
 if (channel === 'stable') writeFileSync(join(out, '.nojekyll'), '');
+// The site repository's front page on GitHub: the user part of this README, kept current by each publish.
+if (channel === 'stable') writeFileSync(join(out, 'README.md'), publicReadme(readFileSync('README.md', 'utf8')));
 console.log('Hosted editor ' + version + ' (' + channel + ') written to ' + out);

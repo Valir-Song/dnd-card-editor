@@ -54,7 +54,7 @@ jobs:
         run: |
           if [ "$CHANNEL" = beta ]; then target=pages/beta; else target=pages; fi
           mkdir -p "$target"
-          # Replace this channel's files only: the other channel, README and .git stay.
+          # Replace this channel's files only: the other channel and .git stay. README.md comes with stable (publicReadme).
           find "$target" -maxdepth 1 -type f ! -name README.md -delete
           # Ready sheets removed from library/ must leave the site too.
           rm -rf "$target/library"
