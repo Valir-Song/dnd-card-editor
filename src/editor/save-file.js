@@ -1,7 +1,7 @@
 // «Сохранить в файл» (Ctrl+S): the layout goes straight into a file the user picked
 // once, like a desktop program: a layout file (.dnd, the default in the installed app)
 // or the editor itself as HTML with the layout inside (the default for a file from disk). This needs the File System Access API (Chrome, Edge); other
-// browsers get a download, as with «Скачать HTML».
+// browsers get a download, as with «Переносной HTML».
 // The chosen file is remembered per layout in a small IndexedDB of its own, so
 // after the editor is reopened the browser only asks for permission again; the same
 // database keeps the list of recent files for «Открыть».
@@ -229,15 +229,24 @@ export function setupFileSave({store, notices, exportFile, layoutFile, identity}
   const content = fileName => fileFormat(fileName) === 'html' ? exportFile().html : layoutFile().text;
   const state = /** @type {HTMLElement} */ (document.getElementById('fileState'));
   const time = () => new Date().toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
-  /** @param {string} name @param {string} [when] */
-  function showFile(name, when) {
-    state.textContent = name;
-    state.title = 'Ctrl+S сохраняет макет в файл «' + name + '»' + (when ? ' (последний раз в ' + when + ')' : '') + '. Ctrl+Shift+S — выбрать другой файл.';
+  // The name only says where Ctrl+S writes; the time is shown only after a write this
+  // session really finished, so the name alone never reads as «the file is up to date».
+  /** @param {string} name @param {string} [when] @param {boolean} [failed] */
+  function showFile(name, when, failed = false) {
+    const label = document.createElement('span');
+    label.className = 'file-name';
+    label.textContent = name;
+    state.replaceChildren(label, ...(when ? [' · ' + when] : []));
+    state.dataset.state = failed ? 'error' : when ? 'saved' : 'chosen';
+    state.title = (failed ? 'Последняя запись в файл «' + name + '» не удалась: файл остался прежним.'
+      : when ? 'Документ записан в файл «' + name + '» в ' + when + '. Правки после этого попадут в файл только со следующим Ctrl+S.'
+      : 'Ctrl+S сохранит документ в файл «' + name + '». Пока не нажмёте, последние правки есть только в браузере.')
+      + ' Ctrl+Shift+S — выбрать другой файл.';
   }
   async function refresh() {
     const handle = await handles.get(identity().id).catch(() => undefined);
     if (handle && savePicker()) showFile(handle.name);
-    else { state.textContent = ''; state.title = ''; }
+    else { state.textContent = ''; state.title = ''; delete state.dataset.state; }
   }
   /** @param {{choose?: boolean}} [options] */
   async function save({choose = false} = {}) {
@@ -245,7 +254,8 @@ export function setupFileSave({store, notices, exportFile, layoutFile, identity}
     if (!savePicker()) {
       if (HOSTED) { const {name, text} = layoutFile(); downloadFile(name, text, LAYOUT_MIME); }
       else { const {name, html} = exportFile(); downloadFile(name, html, 'text/html;charset=utf-8'); }
-      notices.show('file', 'Этот браузер не умеет сохранять прямо в файл (так умеют Chrome и Edge), поэтому макет скачан в «Загрузки» новым файлом.');
+      // The browser does not say whether the download went through, so the notice does not claim it.
+      notices.show('file', 'Этот браузер не умеет записывать в выбранный файл (так умеют Chrome и Edge), поэтому документ отдан на скачивание новой копией — обычно в «Загрузки». Каждое сохранение — ещё одна копия; открывать её — «Файл → Открыть…».');
       return;
     }
     const {id, name} = identity();
@@ -257,20 +267,26 @@ export function setupFileSave({store, notices, exportFile, layoutFile, identity}
       const handle = await handles.get(id);
       if (handle) await handles.addRecent({id, fileName: handle.name, layoutName: name, usedAt: new Date().toISOString(), handle});
     }
-    else if (result.kind === 'denied') notices.show('file', 'Браузер не дал записать в файл «' + result.name + '». Выберите файл ещё раз (можно тот же) или скачайте HTML. Макет сохранён в браузере.', [other, download]);
+    else if (result.kind === 'denied') {
+      notices.show('file', 'Браузер не дал записать в файл «' + result.name + '»: файл остался прежним. Выберите файл ещё раз (можно тот же) или скачайте переносной HTML.', [other, download]);
+      showFile(result.name, undefined, true);
+    }
     else if (result.kind === 'error') {
       console.warn('Saving to the file failed', result.error);
       const reason = result.error instanceof Error && result.error.message ? ' (' + result.error.message + ')' : '';
-      notices.show('file', 'Не удалось сохранить в файл «' + result.name + '»' + reason + '. Макет сохранён в браузере; чтобы не потерять работу, скачайте HTML или выберите другой файл.', [download, other]);
-      void refresh();
+      notices.show('file', 'Не удалось сохранить в файл «' + result.name + '»' + reason + ': файл остался прежним. Чтобы не потерять работу, скачайте переносной HTML или выберите другой файл.', [download, other]);
+      // A moved or deleted file is forgotten (createFileSave): then the name goes.
+      if (await handles.get(id).catch(() => undefined)) showFile(result.name, undefined, true);
+      else void refresh();
     }
   }
   const button = /** @type {HTMLButtonElement} */ (document.getElementById('saveFile'));
   const as = /** @type {HTMLButtonElement} */ (document.getElementById('saveFileAs'));
+  const kind = HOSTED ? 'файл макета .dnd' : 'HTML-файл с редактором и макетом';
   if (!savePicker()) {
-    button.title = 'В этом браузере сохранить прямо в файл нельзя (так умеют Chrome и Edge): макет скачается в «Загрузки», как «Скачать HTML». Ctrl+S';
+    button.title = 'Сохранить документ (Ctrl+S): этот браузер не умеет записывать в выбранный файл (так умеют Chrome и Edge), поэтому скачивается новая копия — ' + kind + '.';
     as.hidden = true;
-  }
+  } else button.title = 'Сохранить документ (Ctrl+S) — ' + kind + ' на компьютере: первый раз браузер спросит, куда, дальше пишет в тот же файл.';
   button.onclick = () => void save();
   as.onclick = () => void save({choose: true});
   // Capture phase: before the text editor sees the keys; any layout (code KeyS).

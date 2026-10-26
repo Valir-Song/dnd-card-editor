@@ -81,18 +81,20 @@ const pages=[document.getElementById('page1'),document.getElementById('page2')];
 const mm=(/** @type {number} */ v)=>v+'mm';
 // Autosave runs in the background; the indicator next to undo/redo shows its state.
 const saveIndicator=document.getElementById('saveState');
-saveIndicator.title=storage.kind==='indexeddb'?'Макет сохраняется в базе браузера (IndexedDB)':storage.kind==='localstorage'?'Макет сохраняется в localStorage браузера (до ~5 МБ на все файлы)':'Браузер не даёт этой странице сохранять: скачивайте HTML';
+// The autosave lives in the browser, apart from the file on disk; the label says so, so it never reads as «written to the file».
+const browserCopy='Автосохранение: после каждой правки копия макета записывается в этот браузер ('+(storage.kind==='indexeddb'?'IndexedDB':'localStorage, до ~5 МБ на все файлы')+'), чтобы работа не пропала при закрытии вкладки. Это не файл на диске: файл пишет «Сохранить» (Ctrl+S). Очистка данных браузера удаляет эти копии.';
+saveIndicator.title=storage.kind==='none'?'Браузер не даёт этой странице сохранять копию (например, в приватном окне): сохраняйте документ кнопкой «Сохранить» или скачивайте переносной HTML':browserCopy;
 const saver=createSaver({backend:storage,describe:()=>{followHeading();return {id:layoutId,name:layoutName,formatVersion:FORMAT_VERSION,items}},onState:(state,error)=>{
   document.documentElement.dataset.saveState=state;
   saveIndicator.dataset.state=state;
-  saveIndicator.textContent=state==='saved'?'✓ Сохранено':state==='saving'?'Сохраняю…':'⚠ Не сохранено';
+  saveIndicator.textContent=state==='saved'?'✓ В браузере':state==='saving'?'Сохраняю…':'⚠ Не сохранено';
   if(state==='saved')notices.hide('storage');
   // The first edit saves: the newcomer has started on the template, the hint has done its job.
   if(state==='saving')notices.hide('welcome');
   if(state!=='error')return;
   console.warn('Autosave failed: export HTML to keep the work',error);
   const full=/** @type {{name?: string}} */ (error)?.name==='QuotaExceededError';
-  notices.show('storage',(full?'Макет не помещается в хранилище браузера (обычно из-за крупных картинок)':'Браузер не дал сохранить макет')+', поэтому последние изменения не сохранены: после перезагрузки откроется предыдущая версия. Скачайте HTML или JSON, чтобы не потерять работу.',[
+  notices.show('storage',(full?'Макет не помещается в хранилище браузера (обычно из-за крупных картинок)':'Браузер не дал сохранить макет')+', поэтому последние изменения не сохранены в браузере: после перезагрузки откроется предыдущая версия. Сохраните документ (Ctrl+S) или скачайте HTML или JSON, чтобы не потерять работу.',[
     {label:'Скачать HTML',onClick:()=>document.getElementById('export').click()},
     {label:'Скачать JSON',onClick:()=>document.getElementById('json').click()}
   ]);
@@ -474,8 +476,8 @@ reportTooNew();
 reportFreshness();
 reportLayoutChoice();
 reportWelcome();
-saveIndicator.textContent=storage.kind==='none'?'⚠ Без сохранения':'✓ Сохранено';saveIndicator.dataset.state=storage.kind==='none'?'error':'saved';
+saveIndicator.textContent=storage.kind==='none'?'⚠ Без сохранения':'✓ В браузере';saveIndicator.dataset.state=storage.kind==='none'?'error':'saved';
 if(saveAtStart)saver.request();
-if(storage.kind==='none')notices.show('storage','Браузер не даёт этой странице сохранять макет (например, в приватном окне). Изменения пропадут при закрытии вкладки: сохраняйте работу кнопкой «Скачать HTML».',[
+if(storage.kind==='none')notices.show('storage','Браузер не даёт этой странице сохранять макет (например, в приватном окне). Изменения пропадут при закрытии вкладки: сохраняйте документ кнопкой «Сохранить» (Ctrl+S) или скачайте переносной HTML.',[
   {label:'Скачать HTML',onClick:()=>document.getElementById('export').click()}
 ]);
