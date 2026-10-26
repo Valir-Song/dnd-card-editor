@@ -55,7 +55,7 @@ const GROUPS = [
     ['Файл', 'big', ['newSheet','openFile']],
     ['Браузер', 'big', ['save','layouts']],
     ['Название', 'rows', [['layoutName']]],
-    ['Скачать и открыть', 'big', ['export','json','importLabel','print']],
+    ['Перенос и печать', 'big', ['export','json','importLabel','print']],
     ['Обслуживание', 'big', ['compressImages','resetStorage']],
   ]},
 ];

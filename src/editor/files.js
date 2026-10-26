@@ -18,8 +18,8 @@ const pristine=/** @type {HTMLElement} */ (document.documentElement.cloneNode(tr
 const RUNTIME_NODES='.gesture-layer, #notices > *, [data-app-only]';
 /** @param {HTMLElement} doc */
 function cleanExport(doc){doc.querySelectorAll(RUNTIME_NODES).forEach(node=>node.remove());doc.querySelector('.stage')?.removeAttribute('data-grid');doc.querySelector('.stage')?.removeAttribute('style');return doc}
-document.getElementById('save').onclick=async()=>{store.commit();alert(await flushSave()?'Сохранено в браузере. Для надёжного переноса нажми «Скачать HTML».':'Не удалось сохранить в браузере: макет не помещается в хранилище. Нажми «Скачать HTML» или «JSON», чтобы не потерять работу.')};
-// The editor with the current layout: what «Скачать HTML» downloads and Ctrl+S writes into the chosen file.
+document.getElementById('save').onclick=async()=>{store.commit();alert(await flushSave()?'Копия записана в браузер. Это не файл на диске: документ сохраняет «Сохранить» (Ctrl+S), а очистка данных браузера удаляет такие копии.':'Не удалось записать копию в браузер: макет не помещается в хранилище. Сохраните документ (Ctrl+S) или скачайте переносной HTML или JSON, чтобы не потерять работу.')};
+// The editor with the current layout: what «Переносной HTML» downloads and Ctrl+S writes into the chosen file.
 function exportFile(){const doc=cleanExport(/** @type {HTMLElement} */ (pristine.cloneNode(true)));// Rebuild tab listeners when a downloaded copy opens again.
 // The pristine source already contains original toolbar nodes.
 for(const id of ['cardBgTools','imageTools']){const node=doc.querySelector('#'+id);if(node)node.style.display='none'}

@@ -214,7 +214,8 @@ with sync_playwright() as p:
         assert page.locator('.el[data-id="huge"]').count()==0
         assert all(i['id']!='huge' for i in saved_layout(page))
         assert page.evaluate("document.documentElement.dataset.saveState")=='saved'
-        assert 'Сохранено' in page.locator('#saveState').inner_text()
+        # The autosave says where it went: the browser, not a file on disk.
+        assert page.locator('#saveState').inner_text().strip()=='✓ В браузере',page.locator('#saveState').inner_text()
         assert page.locator(OTHER_NOTICES).count()==0
         assert not page.errors,page.errors
         # With unsaved changes the browser asks before the tab closes.
@@ -1350,6 +1351,9 @@ with sync_playwright() as p:
     assert len(picks)==1 and re.fullmatch(r'[\w]+\.html',picks[0]),('The dialog suggests the layout name as a file name',picks)
     assert last()['name']=='picked1.html' and '"title":"Лютня"' in last()['html'] and 'data-layout-id' in last()['html']
     assert 'picked1.html' in page.locator('#fileState').inner_text()
+    # The file name comes with the time of the write, so it never reads as «up to date» by itself.
+    file_state=lambda:(page.locator('#fileState').get_attribute('data-state'),page.locator('#fileState').inner_text())
+    assert file_state()[0]=='saved' and re.search(r'· \d\d:\d\d$',file_state()[1]),file_state()
     # While typing: the text does not get an «s», the same file is written.
     page.locator('.el[data-id="A"] .title').click()
     page.wait_for_function('document.activeElement?.isContentEditable')
@@ -1367,6 +1371,13 @@ with sync_playwright() as p:
     page.keyboard.press('Control+Shift+S'); written(5)
     assert len(page.evaluate('window.picks'))==2 and last()['name']=='picked2.html'
     assert 'picked2.html' in page.locator('#fileState').inner_text()
+    # A cancelled dialog: nothing written, no message, the file stays the same.
+    page.evaluate("()=>{window.realPicker=window.showSaveFilePicker;window.showSaveFilePicker=async()=>{throw new DOMException('cancel','AbortError')}}")
+    page.keyboard.press('Control+Shift+S')
+    page.wait_for_timeout(300)
+    assert page.evaluate('window.files.length')==5 and page.locator('[data-notice="file"]').count()==0
+    assert file_state()[0]=='saved' and 'picked2.html' in file_state()[1],file_state()
+    page.evaluate('()=>{window.showSaveFilePicker=window.realPicker}')
     # The written file is the editor with the layout.
     target_file=Path(tempfile.mkdtemp())/'saved.html'
     target_file.write_text(last()['html'],encoding='utf-8')
@@ -1380,8 +1391,13 @@ with sync_playwright() as p:
     page.wait_for_selector('[data-notice="file"]')
     notice=page.locator('[data-notice="file"]').inner_text()
     assert 'Не удалось сохранить в файл «picked2.html»' in notice and 'диск полон' in notice and 'Скачать HTML' in notice,notice
+    assert 'файл остался прежним' in notice,notice
+    # The name stays (Ctrl+S tries the same file again), marked failed and without a time of a write.
+    page.wait_for_function("document.querySelector('#fileState').dataset.state==='error'")
+    assert 'picked2.html' in file_state()[1] and not re.search(r'\d\d:\d\d',file_state()[1]),file_state()
     page.evaluate('window.failWrite=false'); page.keyboard.press('Control+s'); written(6)
     assert page.locator('[data-notice="file"]').count()==0,'A successful save clears the warning'
+    page.wait_for_function("document.querySelector('#fileState').dataset.state==='saved'")
     # Without the API (Firefox): a download, and a note why.
     page.evaluate('window.showSaveFilePicker=undefined')
     with page.expect_download() as download:
