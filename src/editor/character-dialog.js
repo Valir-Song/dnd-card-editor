@@ -5,6 +5,7 @@
 // reading only. Counting lives in character.js.
 import { ABILITIES, SKILLS, findCharacter, characterOf, characterStats, newCharacter, setScore, setLevel,
   toggleSave, cycleSkill, setJack, setSpellAbility, setFixed, signed, readNumber, MAX_LEVEL, MAX_SCORE } from './character.js';
+import { fillSheet, fillReport } from './fill-sheet.js';
 
 /** @typedef {import('../types/layout').Item} Item */
 /** @typedef {import('../types/layout').Ability} Ability */
@@ -185,6 +186,24 @@ export function setupCharacter({dialog, button, store, makeId}) {
   const lists = el('div', 'char-lists');
   lists.append(saves, skills);
 
+  // «Вписать в лист»: the numbers go into the header and the spell texts (fill-sheet.js).
+  const fill = el('div', 'char-fill');
+  const fillButton = /** @type {HTMLButtonElement} */ (el('button', '', 'Вписать в лист'));
+  fillButton.type = 'button'; fillButton.id = 'charFill';
+  fillButton.title = 'Поставить эти числа в тексты листа: «КД», «Атака», «Инициатива», «Скорость» в шапке и «СЛ магии» / «Мудрость СЛ …» везде. Остальной текст не меняется';
+  const fillResult = el('span', 'char-fill-result');
+  fillResult.id = 'charFillResult';
+  fillButton.addEventListener('click', () => {
+    const item = findCharacter(store.items);
+    if (!item || isPlaying()) return;
+    const stats = characterStats(characterOf(item));
+    let report = '';
+    store.change(items => { report = fillReport(fillSheet(items, stats)); });
+    fillResult.textContent = report;
+  });
+  parts.push(() => { fillButton.disabled = isPlaying() || !findCharacter(store.items); });
+  fill.append(fillButton, fillResult);
+
   const head = el('div', 'help-head');
   const title = el('h2', '', 'Персонаж');
   title.id = 'characterTitle';
@@ -195,7 +214,7 @@ export function setupCharacter({dialog, button, store, makeId}) {
   head.append(title, close);
   const hint = el('p', 'char-hint');
   const body = el('div', 'char-body');
-  body.append(abilities, combat, magic, lists);
+  body.append(abilities, combat, magic, fill, lists);
   dialog.setAttribute('aria-labelledby', title.id);
   dialog.replaceChildren(head, hint, body);
   dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
@@ -218,6 +237,7 @@ export function setupCharacter({dialog, button, store, makeId}) {
 
   button.addEventListener('click', () => {
     if (dialog.open) return;
+    fillResult.textContent = '';
     refresh();
     dialog.showModal();
   });

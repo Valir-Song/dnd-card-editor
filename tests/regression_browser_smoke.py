@@ -2364,5 +2364,49 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': character boxes — abilities, skills, combat follow the window and undo, «Все навыки», double click and game-mode tap open the window, printed')
 
+    # 38. «Вписать в лист» (4.3 beta.1): the numbers of «Персонаж» go into the header of the template
+    #     («КД —» → «КД 12»…), one undo step takes them back; «Моя СЛ» of the spell reference comes
+    #     from the character; the button is off in game mode.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    header=page.locator('.page[data-page="1"] .el.header').first
+    assert 'КД —' in header.text_content(),header.text_content()
+    page.locator('#character').click()
+    dialog=page.locator('#characterDialog')
+    dialog.wait_for()
+    assert dialog.locator('#charFill').is_disabled(),'nothing to write before the first edit'
+    dialog.locator('.char-ability').nth(1).locator('input').fill('14')
+    dialog.locator('.char-ability').nth(5).locator('input').fill('16')
+    dialog.locator('.char-level').fill('6')
+    dialog.locator('.char-spell-ability').select_option('cha')
+    page.wait_for_function("document.querySelector('#characterDialog .char-value[data-key=\"dc\"]').value==='14'")
+    dialog.locator('#charFill').click()
+    page.wait_for_function("document.querySelector('.page[data-page=\"1\"] .el.header').textContent.includes('КД 12')")
+    text=header.text_content()
+    assert 'СЛ заклинаний 14' in text and 'Атака +6' in text and 'Скорость 30' in text,text
+    assert 'КД' in dialog.locator('#charFillResult').text_content()
+    page.wait_for_function("document.documentElement.dataset.saveState==='saved'")
+    saved=[item for item in saved_layout(page) if item['kind']=='header' and item.get('page')==1][0]
+    assert 'КД 12' in saved.get('detail',''),saved
+    dialog.locator('#characterClose').click()
+    page.keyboard.press('Control+z')
+    page.wait_for_function("document.querySelector('.page[data-page=\"1\"] .el.header').textContent.includes('КД —')")
+    # «Моя СЛ» in the spell reference: the character's DC, even over a remembered one.
+    page.evaluate("localStorage.setItem('dnd-card-editor-spell-dc','11')")
+    page.locator('[data-tab="cards"]').click()
+    page.locator('#addSpell').click()
+    page.wait_for_selector('#spellDialog[open]')
+    assert page.locator('#spellDialog .spell-dc').input_value()=='14'
+    page.keyboard.press('Escape')
+    page.wait_for_function("!document.querySelector('#spellDialog').open")
+    page.locator('#play').click()
+    page.locator('#character').click()
+    assert page.locator('#charFill').is_disabled()
+    page.locator('#characterClose').click()
+    page.locator('#playExit').click()
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': «Вписать в лист» — header numbers from the character, undo, «Моя СЛ» from the character, off in game mode')
+
     browser.close()
 print('All regression checks passed for '+engine)
