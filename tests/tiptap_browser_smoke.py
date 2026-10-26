@@ -46,6 +46,9 @@ with sync_playwright() as p:
     focus_editor(title)
     title.press('Home')
     title.press('Control+Shift+ArrowRight')
+    # A loaded runner can apply the selection a frame later than the key press returns.
+    try: page.wait_for_function('getSelection().toString().trim().length>0',timeout=5000)
+    except Exception: pass  # the assert below says what went wrong
     selected=page.evaluate('getSelection().toString()')
     assert selected.strip(), 'Keyboard selection must select existing text'
     size=page.locator('#fontSize')
