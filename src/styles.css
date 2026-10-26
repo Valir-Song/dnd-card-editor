@@ -366,6 +366,10 @@ body.gesture-active,body.gesture-active *{user-select:none!important}
   .toolbar #help.rb-top{padding:0}
   .toolbar #help>.rb-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 }
+/* «Персонаж» (4.1) likewise: only its figure up to 1500 px, so the tabs keep their room. */
+@media(max-width:1499px) and (min-width:1181px){
+  .toolbar #character>.rb-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+}
 
 /* 3.11 beta.18: resources rows (resources.js) — a name, its rest mark, then boxes.
    A long row wraps its boxes under its own first box; the other rows keep their place. */
@@ -498,3 +502,36 @@ html[data-play="on"] .hp-cell::after,html[data-play="on"] .hp-dot::after{content
 .page-add{width:210mm;padding:10px;border-style:dashed;font:14px system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#6a5a8c;background:transparent}
 @media print{.page-bar,.page-add{display:none!important}}
 @media print{.page:has(+ .page-add){break-after:auto;page-break-after:auto}}
+/* «Персонаж» window (character-dialog.js) */
+.character-dialog{width:min(820px,calc(100vw - 32px))}
+.char-hint{margin:0 0 10px;color:#5d536b;font-size:12px}
+.char-abilities{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.char-ability{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid #d8cde8;border-radius:8px;padding:6px 4px}
+.char-ab-name{font-size:11px;font-weight:bold;color:#745193;letter-spacing:.5px}
+.char-mod{font-size:22px;font-weight:bold;line-height:1.1}
+.char-score{width:48px;text-align:center}
+.char-combat{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:10px}
+.char-magic{grid-template-columns:repeat(3,1fr)}
+.char-cell{display:flex;flex-direction:column;justify-content:space-between;gap:4px;background:#f6f3fa;border-radius:8px;padding:6px 8px;font-size:12px;color:#5d536b}
+.char-score,.char-level,.char-value,.char-spell-ability{padding:3px 4px;border:1px solid #d8cde8;border-radius:5px;font:inherit;font-size:14px;color:#262137;background:#fff}
+.char-level{width:56px}
+.char-number{display:inline-flex;align-items:center;gap:3px}
+.char-value{width:48px;text-align:center}
+.char-value.fixed{border-color:#c8812a;background:#fff6e6;font-weight:bold}
+.char-reset{border:0;background:none;color:#c8812a;cursor:pointer;font-size:14px;padding:0 2px}
+.char-reset[hidden]{display:none}
+.char-lists{display:grid;grid-template-columns:1fr 1.6fr;gap:6px 24px;margin-top:12px}
+.char-list h3{margin:0 0 4px;font-size:13px}
+.char-skills{columns:2 200px;column-gap:18px}
+.char-skills h3{column-span:all}
+.char-row{display:flex;align-items:center;gap:6px;padding:2px 0;border-bottom:1px dotted #e1d9ec;break-inside:avoid}
+.char-name{flex:1;font-size:12.5px}
+.char-name small{color:#8a7f99}
+.char-row .char-value{width:42px;font-size:13px;padding:2px}
+.char-rank{width:16px;height:16px;flex:none;padding:0;border:2px solid #745193;border-radius:50%;background:#fff;cursor:pointer}
+.char-rank[data-rank="1"]{background:#745193}
+.char-rank[data-rank="2"]{background:#745193;box-shadow:inset 0 0 0 2px #fff}
+.char-jack{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12.5px}
+.char-readonly .char-rank,.char-readonly .char-reset{cursor:default}
+.char-readonly .char-reset{display:none}
+@media (max-width:640px){.char-abilities{grid-template-columns:repeat(3,1fr)}.char-lists,.char-magic{grid-template-columns:1fr}}

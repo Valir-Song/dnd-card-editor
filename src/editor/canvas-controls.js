@@ -4,6 +4,7 @@
 // a gesture. Text frames inside cards are handled by inner-canvas.js.
 import { collectLines, snapAxis, snapMove } from './snapping.js';
 import { isSheet } from './sheet.js';
+import { isCharacter } from './character.js';
 import { bbox, resizeBox, scaleBoxes, marqueeHits, rectFromPoints, clampMove, gridStep, PAGE_FRAME } from './geometry.js';
 import { target } from './dom.js';
 
@@ -50,7 +51,7 @@ export function createCanvasControls({pages, store, onSelection, mm, snapping}) 
   /** The selected objects that still exist. @param {string[]} list */
   const itemsOf = list => list.map(itemFor).filter(/** @returns {item is Item} */ item => !!item);
   // Objects of the layout, without the page backgrounds.
-  const objects = () => store.items.filter(item => !isSheet(item));
+  const objects = () => store.items.filter(item => !isSheet(item) && !isCharacter(item));
   const locked = (/** @type {string} */ id) => !!itemFor(id)?.locked;
   const clip = (/** @type {number} */ value, /** @type {number} */ min, /** @type {number} */ max) => Math.max(min, Math.min(value, Math.max(min, max)));
   /** @param {HTMLElement} page @param {{clientX: number, clientY: number}} ev @returns {Point} */

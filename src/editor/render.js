@@ -8,6 +8,7 @@ import { outlineLook } from './borders.js';
 /** @typedef {'title' | 'subtitle' | 'meta' | 'detail' | 'text'} Field */
 
 import { isSheet, sheetOf, paintSheet } from './sheet.js';
+import { isCharacter } from './character.js';
 import { buildHp, step, damage, heal, setHp, toggleDie, setDice, toggleSave, toggleDice, toggleSaves } from './hp.js';
 import { pageCount } from './pages.js';
 import { buildPools, toggleCell, changeCount, cycleRest, switchColumn, removePool, setPoolLabel } from './resources.js';
@@ -132,6 +133,7 @@ export function createRenderer({pages,getItems,store,rich,startDrag,startBadgeDr
     const last=new Map(); // page -> previous node, to keep DOM order = data order
     for(const item of getItems()){
       if(isSheet(item))continue; // drawn on the page itself, below
+      if(isCharacter(item))continue; // stats are shown in their window, never on the sheet
       seen.add(item.id);
       const page=pages[(item.page||1)-1],snap=snapOf(item),r=rendered.get(item.id);
       // Gestures move nodes directly, so geometry is re-applied even when unchanged.

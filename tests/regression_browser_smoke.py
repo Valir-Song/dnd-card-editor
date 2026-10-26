@@ -2220,5 +2220,75 @@ with sync_playwright() as p:
     context.close()
     print('PASS '+engine+': hit points — damage through temporary, healing to the maximum, ±, hit dice, death saves, long rest, game mode, print')
 
+    # 36. Character (4.1 beta.1): «Персонаж» opens a window; opening it changes nothing; scores,
+    #     level and proficiency circles count modifiers, saves, skills and the spell DC; a typed
+    #     number wins (↺ gives the count back); one invisible object in the layout, nothing on the
+    #     sheet; Delete in the window removes no object; undo, reload; game mode is read-only.
+    context=browser.new_context(viewport={'width':1280,'height':900})
+    page=open_editor(context)
+    objects=page.locator('.page .el').count()
+    page.locator('.el.card').first.click(position={'x':4,'y':20})
+    page.wait_for_function("document.querySelectorAll('.el.selected').length===1")
+    page.locator('#character').click()
+    dialog=page.locator('#characterDialog')
+    dialog.wait_for()
+    assert page.locator('#undo').is_disabled(),'opening the window made an undo step'
+    ability=lambda n:dialog.locator('.char-ability').nth(n)
+    value=lambda key:dialog.locator('.char-value[data-key="'+key+'"]').input_value()
+    ability(5).locator('input').fill('16')
+    page.wait_for_function("document.querySelectorAll('#characterDialog .char-mod')[5].textContent==='+3'")
+    dialog.locator('.char-level').fill('6')
+    page.wait_for_function("document.querySelector('#characterDialog .char-value[data-key=\"prof\"]').value==='+3'")
+    rank=lambda key:dialog.locator('.char-row[data-key="'+key+'"] .char-rank')
+    rank('skill:performance').click(); rank('skill:performance').click(); rank('save:cha').click()
+    page.wait_for_function("document.querySelector('#characterDialog .char-value[data-key=\"skill:performance\"]').value==='+9'")
+    assert value('save:cha')=='+6' and value('save:str')=='+0'
+    assert rank('skill:performance').get_attribute('data-rank')=='2'
+    # Delete on a button of the window must not remove the selected card under it.
+    rank('save:cha').focus(); page.keyboard.press('Delete')
+    dialog.locator('.char-spell-ability').select_option('cha')
+    page.wait_for_function("document.querySelector('#characterDialog .char-value[data-key=\"dc\"]').value==='14'")
+    assert value('attack')=='+6'
+    ac=dialog.locator('.char-value[data-key="ac"]')
+    assert ac.input_value()=='10' and not dialog.locator('.char-row .char-reset:visible').count()
+    ac.fill('15')
+    page.wait_for_function("document.querySelector('#characterDialog .char-value[data-key=\"ac\"]').classList.contains('fixed')")
+    reset=dialog.locator('.char-number:has([data-key="ac"]) .char-reset')
+    assert reset.is_visible()
+    page.wait_for_function("document.documentElement.dataset.saveState==='saved'")
+    stats=[item for item in saved_layout(page) if item['kind']=='character']
+    assert len(stats)==1,stats
+    c=stats[0]['character']
+    assert c['scores']['cha']==16 and c['level']==6 and c['skills']=={'performance':2} and c['saves']==['cha'] and c['spell']=='cha' and c['fixed']=={'ac':15},c
+    assert page.locator('.page .el').count()==objects,'the stats are not drawn on the sheet, Delete in the window removed nothing'
+    # Undo while the window is open shows the count again; ↺ does the same.
+    page.keyboard.press('Control+z')
+    page.wait_for_function("document.querySelector('#characterDialog .char-value[data-key=\"ac\"]').value==='10'")
+    ac.fill('16'); ac.press('Tab')
+    reset.click()
+    page.wait_for_function("document.querySelector('#characterDialog .char-value[data-key=\"ac\"]').value==='10'")
+    page.keyboard.press('Escape')
+    page.wait_for_function("!document.querySelector('#characterDialog').open")
+    assert page.locator('.page .el').count()==objects
+    # Opened again: the stats are still there. Game mode: only to look at.
+    page.close()
+    page=open_editor(context)
+    page.locator('#play').click()
+    page.locator('#character').click()
+    dialog=page.locator('#characterDialog')
+    dialog.wait_for()
+    assert page.evaluate("document.querySelectorAll('#characterDialog .char-mod')[5].textContent")=='+3'
+    assert 'Режим игры' in dialog.locator('.char-hint').text_content()
+    assert dialog.locator('.char-row[data-key="skill:stealth"] .char-rank').is_disabled()
+    stealth=dialog.locator('.char-value[data-key="skill:stealth"]')
+    stealth.click(); page.keyboard.type('7')
+    assert stealth.input_value()=='+0'
+    assert page.locator('#undo').is_disabled()
+    dialog.locator('#characterClose').click()
+    page.locator('#playExit').click()
+    assert not page.errors,page.errors
+    context.close()
+    print('PASS '+engine+': character — window, counted modifiers, saves, skills and DC, typed numbers and ↺, undo, reload, nothing on the sheet, read-only in game mode')
+
     browser.close()
 print('All regression checks passed for '+engine)
