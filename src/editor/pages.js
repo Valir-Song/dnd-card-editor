@@ -5,8 +5,11 @@
 // and «+ Добавить лист» under the last one.
 // Cards on page 1 have always had a compact text layout (styles.css); a card
 // that changes pages keeps the look it had (`cardLook`), so nothing re-flows.
+// The character stats object (character.js) is on no page really: it stays on
+// page 1, is never copied with a page and never removed with one.
 
 import { isSheet, sheetOf, sheetLook } from './sheet.js';
+import { isCharacter } from './character.js';
 
 /** @typedef {import('../types/layout').Item} Item */
 
@@ -14,11 +17,11 @@ export const MAX_PAGES = 20;
 
 /** How many pages the layout has: its highest page, at least 1. @param {Item[]} items */
 export function pageCount(items) {
-  return Math.min(MAX_PAGES, Math.max(1, ...items.map(item => item.page || 1)));
+  return Math.min(MAX_PAGES, Math.max(1, ...items.filter(item => !isCharacter(item)).map(item => item.page || 1)));
 }
 
 /** Objects on a page, without its background. @param {Item[]} items @param {number} page */
-export const objectsOn = (items, page) => items.filter(item => (item.page || 1) === page && !isSheet(item));
+export const objectsOn = (items, page) => items.filter(item => (item.page || 1) === page && !isSheet(item) && !isCharacter(item));
 
 /**
  * Give every page from 1 to `count` something to stand on: an empty one gets a
@@ -26,7 +29,7 @@ export const objectsOn = (items, page) => items.filter(item => (item.page || 1) 
  */
 export function keepPages(items, count, makeId) {
   for (let page = 1; page <= count; page++) {
-    if (!items.some(item => (item.page || 1) === page)) items.push(blankSheet(page, makeId));
+    if (!items.some(item => (item.page || 1) === page && !isCharacter(item))) items.push(blankSheet(page, makeId));
   }
 }
 
@@ -41,7 +44,7 @@ function blankSheet(page, makeId) {
  */
 export function setPage(item, page) {
   const from = item.page || 1;
-  if (from === page) return;
+  if (from === page || isCharacter(item)) return;
   if (item.kind === 'card' && !item.cardLook) item.cardLook = from === 1 ? 'compact' : 'full';
   item.page = page;
 }
@@ -77,7 +80,7 @@ export function addPage(items, after, makeId) {
 export function duplicatePage(items, page, makeId) {
   const count = pageCount(items);
   if (count >= MAX_PAGES || page < 1 || page > count) return false;
-  const copies = items.filter(item => (item.page || 1) === page).map(item => ({...structuredClone(item), id: makeId()}));
+  const copies = items.filter(item => (item.page || 1) === page && !isCharacter(item)).map(item => ({...structuredClone(item), id: makeId()}));
   shiftAfter(items, page);
   for (const copy of copies) setPage(copy, page + 1);
   items.push(...copies);
@@ -93,7 +96,7 @@ export function duplicatePage(items, page, makeId) {
 export function removePage(items, page, makeId) {
   const count = pageCount(items);
   if (count <= 1 || page < 1 || page > count) return null;
-  const left = items.filter(item => (item.page || 1) !== page);
+  const left = items.filter(item => (item.page || 1) !== page || isCharacter(item));
   for (const item of left) if ((item.page || 1) > page) setPage(item, (item.page || 1) - 1);
   keepPages(left, count - 1, makeId);
   return left;
@@ -121,7 +124,7 @@ export function moveToPage(items, ids, target, makeId) {
   const count = pageCount(items);
   if (target < 1 || target > count) return [];
   const wanted = new Set(ids);
-  const moving = items.filter(item => wanted.has(item.id) && !item.locked && !isSheet(item) && (item.page || 1) !== target)
+  const moving = items.filter(item => wanted.has(item.id) && !item.locked && !isSheet(item) && !isCharacter(item) && (item.page || 1) !== target)
     .sort((a, b) => (a.z || 0) - (b.z || 0));
   let z = Math.max(0, ...items.filter(item => (item.page || 1) === target).map(item => item.z || 0));
   for (const item of moving) { setPage(item, target); item.z = ++z; }

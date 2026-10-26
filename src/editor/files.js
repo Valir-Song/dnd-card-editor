@@ -59,6 +59,6 @@ compressButton.onclick=async()=>{
   store.change(items=>{for(const item of items)for(const f of fields){const next=shrunk.get(item[f]??'');if(next)item[f]=next}});
   alert('Картинки сжаты: было '+mb(before)+', стало '+mb(after)+'. Ctrl+Z вернёт прежние.');
 };
-document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&getSelectionIds().length&&!target(e).isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(target(e).tagName))removeObjects(getSelectionIds())});
+document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&getSelectionIds().length&&!target(e).isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(target(e).tagName)&&!target(e).closest('dialog'))removeObjects(getSelectionIds())});
 return {exportFile,layoutFile};
 }
