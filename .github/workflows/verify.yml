@@ -6,12 +6,19 @@ on:
 # Read-only token: pull requests from forks run this too.
 permissions:
   contents: read
+# A new push to a pull request cancels its older run; runs on main always finish.
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   build-and-test:
     runs-on: ubuntu-24.04  # Playwright 1.56 has no browsers for Ubuntu 26.04 (ubuntu-latest since 10.2026)
+    timeout-minutes: 30  # a normal run takes 4–6 minutes; a hung browser must not hold the runner for hours
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2  # HEAD^1 is the visual reference, see below
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
       - run: npm ci --no-audit --no-fund
@@ -23,12 +30,12 @@ jobs:
       - name: Committed standalone HTML matches this build
         run: cmp dist/index.html DND_Card_Editor_standalone.html || { echo "::error::Run npm run standalone and commit DND_Card_Editor_standalone.html"; exit 1; }
       - name: Save standalone HTML
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DND-Card-Editor-standalone
           path: dist/index.html
           retention-days: 30
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - run: |
@@ -54,13 +61,13 @@ jobs:
         run: EDITOR_BROWSER=chromium python tests/ci_run.py app_browser_smoke.py
       - name: Installable app (Firefox)
         run: EDITOR_BROWSER=firefox python tests/ci_run.py app_browser_smoke.py
-      # The visual reference is the editor on main, rendered on this same runner.
-      - name: Fetch main for the visual reference
-        run: git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
+      # The visual reference is the first parent, rendered on this same runner: for a pull request
+      # the main it was merged with, for a merge into main the main before it. Not the live main,
+      # which moves during a run when pull requests are merged one after another.
       - name: Visual comparison with main (Chromium)
-        run: EDITOR_BROWSER=chromium python tests/ci_run.py visual_browser_smoke.py
+        run: VISUAL_REF=HEAD^1 EDITOR_BROWSER=chromium python tests/ci_run.py visual_browser_smoke.py
       - name: Visual comparison with main (Firefox)
-        run: EDITOR_BROWSER=firefox python tests/ci_run.py visual_browser_smoke.py
+        run: VISUAL_REF=HEAD^1 EDITOR_BROWSER=firefox python tests/ci_run.py visual_browser_smoke.py
       # Same suites on a 4x slower CPU: timing races show up here first.
       - name: All browser suites, 4x CPU throttling (Chromium)
         run: |

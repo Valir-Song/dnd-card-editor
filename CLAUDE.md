@@ -223,7 +223,7 @@
 ## Команды
 ```sh
 npm ci                       # зависимости строго по lock-файлу (после КАЖДОГО переключения ветки!)
-npm test                     # Node-тесты (сейчас 194)
+npm test                     # Node-тесты (сейчас 197)
 npm run typecheck            # TypeScript по всему JS в строгом режиме (tsconfig.json)
 npm run build                # dist/index.html
 npm run standalone           # сборка + проверка + копия в DND_Card_Editor_standalone.html
@@ -279,11 +279,10 @@ PNG в репозитории нет специально: шрифты здес
   там не ставит браузеры (падает шаг `pip install` / `playwright install`). Сменить можно вместе с обновлением Playwright.
 - CI (`.github/workflows/verify.yml`) идёт ~4–6 мин: Node-тесты, typecheck, сборка, сверка standalone,
   4 набора × Chromium/Firefox, затем 4 набора в Chromium с `CPU_THROTTLE=4`.
-- **Красный крестик CI на `main` после пачки вливаний — не поломка.** Когда несколько PR вливаются за
-  секунды (#32/#33, #36/#37), CI ранних коммитов вливания падает на шаге «Fetch main for the visual
-  reference»: `git fetch … origin main:refs/remotes/origin/main` отказывается, потому что `main` за время прогона
-  ушёл вперёд (не fast-forward). Последнее вливание пачки зелёное. Сначала смотреть, какой шаг упал
-  (`gh api repos/…/actions/runs/<id>/jobs`); лечится `+` в refspec (ROADMAP 1.7).
+- **Эталон набора `visual` в CI — первый родитель коммита** (`VISUAL_REF=HEAD^1`, checkout `fetch-depth: 2`), а не
+  живой `main`: при пачке вливаний `main` уходил вперёд посреди прогона, fetch падал (#32/#33, #36/#37), а с `+` раннее
+  вливание сравнивалось бы с более новым видом. Не возвращать шаг «Fetch main» (ROADMAP 1.7, Node-тест `ci`).
+  Упал CI — сначала смотреть, какой шаг (`gh api repos/…/actions/runs/<id>/jobs`). Задание ограничено 30 мин.
 - Атрибуция коммитов и PR — по системному напоминанию сессии. Идентификатор модели в коммиты,
   PR и файлы репозитория не писать.
 
