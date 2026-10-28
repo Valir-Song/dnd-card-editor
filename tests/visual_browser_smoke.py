@@ -11,6 +11,7 @@ Differing pages are saved to tests/visual-out/ (new, reference, diff).
 
     python tests/visual_browser_smoke.py
     VISUAL_REFERENCE=path/to/other.html python tests/visual_browser_smoke.py
+    VISUAL_REF=HEAD^1 python tests/visual_browser_smoke.py   # any git revision (CI)
 """
 import base64
 import json
@@ -31,17 +32,20 @@ version=json.loads((root/'package.json').read_text(encoding='utf-8'))['version']
 accept_file=root/'tests'/'visual-accept.txt'
 accepted=accept_file.exists() and version in [line.strip() for line in accept_file.read_text(encoding='utf-8').splitlines() if not line.startswith('#')]
 
+revision=os.environ.get('VISUAL_REF') or 'origin/main'
+
 def reference_html():
-    """The editor on main (or VISUAL_REFERENCE), as a file next to nothing else."""
+    """The editor on main (or VISUAL_REF, or VISUAL_REFERENCE), as a file next to nothing else."""
     given=os.environ.get('VISUAL_REFERENCE')
     if given: return Path(given)
     def show():
-        return subprocess.run(['git','show','origin/main:DND_Card_Editor_standalone.html'],cwd=root,capture_output=True)
+        return subprocess.run(['git','show',revision+':DND_Card_Editor_standalone.html'],cwd=root,capture_output=True)
     shown=show()
-    if shown.returncode:
-        subprocess.run(['git','fetch','--quiet','--depth=1','origin','main:refs/remotes/origin/main'],cwd=root)
+    if shown.returncode and revision=='origin/main':
+        # "+": main may have moved on since the last fetch, which is not a fast-forward of a shallow clone.
+        subprocess.run(['git','fetch','--quiet','--no-tags','--depth=1','origin','+main:refs/remotes/origin/main'],cwd=root)
         shown=show()
-    assert not shown.returncode, 'No reference: cannot read DND_Card_Editor_standalone.html from origin/main'
+    assert not shown.returncode, 'No reference: cannot read DND_Card_Editor_standalone.html from '+revision
     path=Path(tempfile.mkdtemp(prefix='dnd-visual-'))/'reference.html'
     path.write_bytes(shown.stdout)
     return path
@@ -116,7 +120,7 @@ LIMIT=0.0005
 with sync_playwright() as p:
     browser=launch(p)
     reference=reference_html()
-    print('NOTE '+engine+': visual reference is '+('VISUAL_REFERENCE' if os.environ.get('VISUAL_REFERENCE') else 'the editor on origin/main'))
+    print('NOTE '+engine+': visual reference is '+('VISUAL_REFERENCE' if os.environ.get('VISUAL_REFERENCE') else 'the editor on '+revision))
     canvas=browser.new_page()
     failures=[]
     for name,layout in [('template',None),('all-kinds',FIXTURE)]:

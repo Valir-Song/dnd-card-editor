@@ -28,11 +28,11 @@ jobs:
       - name: Token check
         if: env.HAS_TOKEN != 'true'
         run: echo "::notice::No PAGES_TOKEN secret yet, nothing published. See README, «Приложение»."
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: env.HAS_TOKEN == 'true'
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: env.HAS_TOKEN == 'true'
         with:
           node-version: 22
@@ -43,7 +43,7 @@ jobs:
           npm run build
           npm run check:build
           node scripts/build-site.mjs "$CHANNEL" out
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: env.HAS_TOKEN == 'true'
         with:
           repository: ${{ env.PAGES_REPO }}
