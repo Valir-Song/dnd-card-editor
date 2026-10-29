@@ -2004,7 +2004,12 @@ with sync_playwright() as p:
     title=page.locator('.page[data-page="1"] .el.card').nth(1).locator('.title .tiptap-content')
     title.click()
     page.wait_for_function('document.activeElement && document.activeElement.closest(".title")')
-    page.keyboard.press('End'); page.keyboard.type('Ж')
+    # Ctrl+End, not End: at 50 % a wrapped title ends its first line mid-text. Wait for the editor's
+    # own selection to reach the end too: a letter typed before it does lands at the old place
+    # (CI Firefox once timed out here, as section 18 once got «BQ»).
+    page.keyboard.press('Control+End')
+    page.wait_for_function('t=>{const ed=t.editor;return !!ed&&ed.state.selection.empty&&ed.state.selection.to===ed.state.doc.content.size-1}',arg=title.element_handle())
+    page.keyboard.type('Ж')
     page.wait_for_function('t=>t.textContent.endsWith("Ж")',arg=title.element_handle())
     # Remembered after a reload; Ctrl+0 is 100 %.
     page.locator('#page1').click(position={'x':5,'y':5})
